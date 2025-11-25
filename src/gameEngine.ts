@@ -3,9 +3,15 @@ import type { WordData, Coord } from './types';
 
 export type { WordData, Coord };
 
+// Путь слова на сетке
+export interface PlacedWord {
+  word: WordData;
+  path: Coord[];  // Точные координаты каждой буквы
+}
+
 export interface GameState {
   grid: string[][];
-  placedWords: WordData[];
+  placedWords: PlacedWord[];  // Теперь храним слова с их путями!
   size: number;
 }
 
@@ -21,11 +27,10 @@ const DIRECTIONS = [
 const ALPHABET = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯӨҮҺ";
 
 // Проверка валидности координат
-const isValid = (r: number, c: number, size: number) => 
+const isValid = (r: number, c: number, size: number) =>
   r >= 0 && r < size && c >= 0 && c < size;
 
-// Рекурсивная функция попытки уложить слово змейкой
-// БЕЗ пересечений - каждое слово на своих уникальных клетках
+// Рекурсивная функция размещения слова змейкой
 const placeWordSnake = (
   grid: string[][],
   word: string,
@@ -34,28 +39,22 @@ const placeWordSnake = (
   index: number,
   path: Coord[]
 ): boolean => {
-  // Условие выхода: слово полностью размещено
   if (index === word.length) return true;
 
-  // Перемешиваем направления для случайности формы
   const shuffledDirs = [...DIRECTIONS].sort(() => Math.random() - 0.5);
 
   for (const { dr, dc } of shuffledDirs) {
     const nextR = currentR + dr;
     const nextC = currentC + dc;
 
-    // Проверяем: в границах ли и ПУСТАЯ ли клетка (без пересечений!)
     if (isValid(nextR, nextC, grid.length) && grid[nextR][nextC] === '') {
-      // Ставим букву
       grid[nextR][nextC] = word[index];
       path.push({ r: nextR, c: nextC });
 
-      // Рекурсия дальше
       if (placeWordSnake(grid, word, nextR, nextC, index + 1, path)) {
         return true;
       }
 
-      // Если тупик — откатываем (Backtracking)
       grid[nextR][nextC] = '';
       path.pop();
     }
@@ -63,56 +62,65 @@ const placeWordSnake = (
   return false;
 };
 
-export const generateSnakeLevel = (targetSize: number, allWords: WordData[]): GameState => {
+// Рассчитать оптимальный размер сетки
+const calculateGridSize = (words: WordData[], minSize: number): number => {
+  const totalLetters = words.reduce((sum, w) => sum + w.bur.length, 0);
+  // Нужно место для всех букв + ~30% запаса для шума
+  const neededCells = Math.ceil(totalLetters * 1.3);
+  const calculatedSize = Math.ceil(Math.sqrt(neededCells));
+  return Math.max(minSize, calculatedSize);
+};
+
+// Основная функция генерации уровня
+export const generateSnakeLevel = (minGridSize: number, allWords: WordData[]): GameState => {
+  // Рассчитываем оптимальный размер
+  const size = calculateGridSize(allWords, minGridSize);
+  
   let bestResult: GameState | null = null;
   let maxWordsCount = 0;
 
-  // Делаем 50 попыток генерации, чтобы найти самую плотную упаковку
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const size = targetSize;
-    const grid = Array.from({ length: size }, () => Array(size).fill(''));
-    const placedWords: WordData[] = [];
-    
-    // Сортируем: длинные первыми, их сложнее разместить
+  // 100 попыток для лучшего результата
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const grid: string[][] = Array.from({ length: size }, () => Array(size).fill(''));
+    const placedWords: PlacedWord[] = [];
+
+    // Сортируем: длинные слова первыми
     const wordsToPlace = [...allWords].sort((a, b) => b.bur.length - a.bur.length);
 
-    // Создаем список всех клеток и перемешиваем их (стартовые точки)
+    // Все клетки для случайного выбора стартовой позиции
     const allCells: Coord[] = [];
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         allCells.push({ r, c });
       }
     }
-    allCells.sort(() => Math.random() - 0.5);
 
     for (const wordObj of wordsToPlace) {
       const word = wordObj.bur.toUpperCase();
+      
+      // Перемешиваем клетки для случайности
+      const shuffledCells = [...allCells].sort(() => Math.random() - 0.5);
 
-      // Пробуем начать слово с каждой свободной клетки
-      for (const startCell of allCells) {
+      for (const startCell of shuffledCells) {
         if (grid[startCell.r][startCell.c] === '') {
-          // Ставим первую букву
           grid[startCell.r][startCell.c] = word[0];
-          const path = [{ r: startCell.r, c: startCell.c }];
+          const path: Coord[] = [{ r: startCell.r, c: startCell.c }];
 
-          // Запускаем змейку для остальных букв
           if (placeWordSnake(grid, word, startCell.r, startCell.c, 1, path)) {
-            placedWords.push(wordObj);
-            break; // Слово влезло, переходим к следующему слову
+            placedWords.push({ word: wordObj, path: [...path] });
+            break;
           } else {
-            // Не влезло, очищаем первую букву
             grid[startCell.r][startCell.c] = '';
           }
         }
       }
     }
 
-    // Если текущая попытка лучше предыдущих (больше слов влезло)
-    if (placedWords.length >= maxWordsCount) {
+    // Если разместили больше слов - сохраняем как лучший результат
+    if (placedWords.length > maxWordsCount) {
       maxWordsCount = placedWords.length;
-      
-      // ВАЖНО: Заполняем оставшиеся пустоты случайными буквами
-      // Используем копию сетки, чтобы не портить текущую итерацию
+
+      // Заполняем пустоты случайными буквами
       const filledGrid = grid.map(row => [...row]);
       for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
@@ -124,15 +132,25 @@ export const generateSnakeLevel = (targetSize: number, allWords: WordData[]): Ga
 
       bestResult = { grid: filledGrid, placedWords: [...placedWords], size };
     }
-    
-    // Если разместили все слова - идеально, останавливаем перебор
+
+    // Если разместили все - идеально!
     if (placedWords.length === allWords.length) break;
   }
 
-  // Возврат результата или пустой сетки (safety fallback)
-  return bestResult || { 
-    grid: Array.from({ length: targetSize }, () => Array(targetSize).fill('Ө')), 
-    placedWords: [], 
-    size: targetSize 
+  return bestResult || {
+    grid: Array.from({ length: size }, () => Array(size).fill('Ө')),
+    placedWords: [],
+    size
   };
+};
+
+// Проверка совпадения путей (для проверки найденного слова)
+export const pathsMatch = (path1: Coord[], path2: Coord[]): boolean => {
+  if (path1.length !== path2.length) return false;
+  return path1.every((coord, i) => coord.r === path2[i].r && coord.c === path2[i].c);
+};
+
+// Найти слово по пути
+export const findWordByPath = (placedWords: PlacedWord[], selectedPath: Coord[]): PlacedWord | undefined => {
+  return placedWords.find(pw => pathsMatch(pw.path, selectedPath));
 };

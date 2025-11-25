@@ -14,8 +14,8 @@ import {
 import { cn, StarsDisplay } from '../components/ui';
 import type { GameStore } from '../store/gameStore';
 import { getCategoryById } from '../data/words';
-import { generateSnakeLevel } from '../gameEngine';
-import type { WordData, Coord, CellStatus } from '../types';
+import { generateSnakeLevel, findWordByPath, type PlacedWord } from '../gameEngine';
+import type { Coord, CellStatus } from '../types';
 
 interface GameScreenProps {
   store: GameStore;
@@ -61,8 +61,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const category = getCategoryById(state.selectedCategory || '');
   
   const [gridLetters, setGridLetters] = useState<string[][]>([]);
-  const [targetWords, setTargetWords] = useState<WordData[]>([]);
-  const [foundWords, setFoundWords] = useState<string[]>([]);
+  const [gridSize, setGridSize] = useState(5);
+  const [placedWords, setPlacedWords] = useState<PlacedWord[]>([]);
+  const [foundWordIds, setFoundWordIds] = useState<Set<string>>(new Set()); // ID найденных слов
   const [selectedPath, setSelectedPath] = useState<Coord[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
   const [foundCellsRegistry, setFoundCellsRegistry] = useState<Set<string>>(new Set());
@@ -78,10 +79,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const initGame = useCallback(() => {
     if (!category) return;
     
-    const { grid, placedWords } = generateSnakeLevel(category.gridSize, category.words);
-    setGridLetters(grid);
-    setTargetWords(placedWords);
-    setFoundWords([]);
+    const result = generateSnakeLevel(category.gridSize, category.words);
+    setGridLetters(result.grid);
+    setGridSize(result.size);
+    setPlacedWords(result.placedWords);
+    setFoundWordIds(new Set());
     setFoundCellsRegistry(new Set());
     setShowWinModal(false);
     setSelectedPath([]);
@@ -116,7 +118,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const handlePointerDown = (e: React.PointerEvent, r: number, c: number) => {
     e.preventDefault();
     if (e.button !== 0) return;
-    // Не начинаем с уже найденной клетки
     if (foundCellsRegistry.has(`${r}-${c}`)) return;
 
     setIsSelecting(true);
@@ -127,47 +128,48 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     setIsSelecting(false);
     if (selectedPath.length === 0) return;
 
-    const wordString = selectedPath.map(c => gridLetters[c.r][c.c]).join('');
-    const matchedWord = targetWords.find(w => w.bur === wordString);
+    // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: ищем слово по ТОЧНОМУ ПУТИ, а не по строке букв!
+    const matchedWord = findWordByPath(placedWords, selectedPath);
+    const wordId = matchedWord ? matchedWord.word.bur : null;
 
-    if (matchedWord && !foundWords.includes(matchedWord.bur)) {
-      // Слово найдено!
+    if (matchedWord && wordId && !foundWordIds.has(wordId)) {
+      // Слово найдено по правильному пути!
       const now = Date.now();
       const timeSinceLast = now - lastFoundTimeRef.current;
       lastFoundTimeRef.current = now;
       
-      // Комбо за быстрые находки (< 5 секунд)
       const newCombo = timeSinceLast < 5000 ? combo + 1 : 1;
       setCombo(newCombo);
       
-      // Расчёт очков
-      const basePoints = matchedWord.bur.length * 10;
+      const basePoints = matchedWord.word.bur.length * 10;
       const comboBonus = newCombo > 1 ? basePoints * (newCombo - 1) * 0.5 : 0;
       const wordScore = Math.round(basePoints + comboBonus);
       setScore(s => s + wordScore);
       
-      setFoundWords(prev => [...prev, matchedWord.bur]);
+      // Добавляем слово в найденные
+      const newFoundWordIds = new Set(foundWordIds);
+      newFoundWordIds.add(wordId);
+      setFoundWordIds(newFoundWordIds);
       
-      // СРАЗУ помечаем ВСЕ клетки слова как найденные (полная подсветка)
+      // Помечаем клетки как найденные
       setFoundCellsRegistry(prev => {
         const newSet = new Set(prev);
-        selectedPath.forEach(p => newSet.add(`${p.r}-${p.c}`));
+        matchedWord.path.forEach(p => newSet.add(`${p.r}-${p.c}`));
         return newSet;
       });
       
-      // Вибрация
       if (state.settings.vibrationEnabled && navigator.vibrate) {
         navigator.vibrate(50);
       }
       
       // Проверка победы
-      if (foundWords.length + 1 === targetWords.length) {
-        triggerWin();
+      if (newFoundWordIds.size === placedWords.length) {
+        triggerWin(newFoundWordIds);
       }
     }
 
     setSelectedPath([]);
-  }, [selectedPath, gridLetters, targetWords, foundWords, combo, state.settings.vibrationEnabled]);
+  }, [selectedPath, placedWords, foundWordIds, combo, state.settings.vibrationEnabled]);
 
   // Глобальные события движения
   useEffect(() => {
@@ -194,6 +196,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
           
           const last = prevPath[prevPath.length - 1];
           
+          // Возврат назад
           if (prevPath.length > 1) {
             const preLast = prevPath[prevPath.length - 2];
             if (preLast.r === r && preLast.c === c) {
@@ -231,7 +234,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     };
   }, [isSelecting, foundCellsRegistry, handlePointerUp]);
 
-  const triggerWin = () => {
+  const triggerWin = (finalFoundWords: Set<string>) => {
     if (timerRef.current) clearInterval(timerRef.current);
     
     confetti({ 
@@ -241,18 +244,21 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       colors: ['#0EA5E9', '#FACC15', '#10B981'] 
     });
     
-    // Сохранение результатов
     if (category) {
+      const foundWordsArray = placedWords
+        .filter(pw => finalFoundWords.has(pw.word.bur))
+        .map(pw => pw.word.bur);
+        
       completeLevel(
         category.id,
-        foundWords.concat(targetWords[targetWords.length - 1].bur),
+        foundWordsArray,
         time,
-        targetWords.length
+        placedWords.length
       );
       
       addToLeaderboard({
         playerName: state.settings.playerName,
-        score: score + targetWords[targetWords.length - 1].bur.length * 10,
+        score,
         categoryId: category.id,
         time,
       });
@@ -267,15 +273,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     return 'idle';
   };
 
-  // Поделиться результатом
   const shareResult = async () => {
-    const stars = targetWords.length === foundWords.length ? 3 : 
-                  foundWords.length >= targetWords.length * 0.7 ? 2 : 1;
+    const stars = foundWordIds.size === placedWords.length ? 3 : 
+                  foundWordIds.size >= placedWords.length * 0.7 ? 2 : 1;
     
     const text = `🎮 Бурятский Филлворд
 📚 ${category?.name} ${category?.emoji}
 ⭐ ${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}
-🎯 ${foundWords.length}/${targetWords.length} слов
+🎯 ${foundWordIds.size}/${placedWords.length} слов
 ⏱️ ${formatTime(time)}
 🏆 ${score} очков
 
@@ -293,9 +298,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     }
   };
 
-  // Расчёт звёзд
   const calculateStars = (): number => {
-    const completion = foundWords.length / targetWords.length;
+    const completion = foundWordIds.size / placedWords.length;
     if (completion >= 1) return 3;
     if (completion >= 0.7) return 2;
     if (completion >= 0.5) return 1;
@@ -366,11 +370,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
             <motion.div 
               className="h-full bg-gradient-to-r from-sun to-amber-300"
               initial={{ width: 0 }}
-              animate={{ width: targetWords.length > 0 ? `${(foundWords.length / targetWords.length) * 100}%` : '0%' }}
+              animate={{ width: placedWords.length > 0 ? `${(foundWordIds.size / placedWords.length) * 100}%` : '0%' }}
               transition={{ type: "spring", stiffness: 50 }}
             />
           </div>
-          <span className="text-sm font-medium">{foundWords.length}/{targetWords.length}</span>
+          <span className="text-sm font-medium">{foundWordIds.size}/{placedWords.length}</span>
         </div>
       </header>
 
@@ -380,7 +384,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
           className="grid gap-1.5 p-3 bg-slate-200 rounded-2xl shadow-inner touch-none"
           style={{ 
             touchAction: 'none',
-            gridTemplateColumns: `repeat(${category.gridSize}, minmax(0, 1fr))`
+            gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`
           }}
         >
           {gridLetters.map((row, r) => (
@@ -403,11 +407,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
           Переведи и найди:
         </h3>
         <div className="flex flex-wrap gap-2 content-start max-h-32 overflow-auto">
-          {targetWords.map((word) => {
-            const isFound = foundWords.includes(word.bur);
+          {placedWords.map((pw) => {
+            const isFound = foundWordIds.has(pw.word.bur);
             return (
               <motion.div 
-                key={word.bur}
+                key={pw.word.bur}
                 layout
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-sm border flex items-center gap-2 transition-all duration-500",
@@ -416,7 +420,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                     : "bg-slate-50 border-slate-200 text-slate-700"
                 )}
               >
-                <span className={isFound ? 'line-through opacity-60' : ''}>{word.ru}</span>
+                <span className={isFound ? 'line-through opacity-60' : ''}>{pw.word.ru}</span>
                 {isFound && <Check size={14} />}
               </motion.div>
             );
@@ -460,7 +464,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                 </div>
                 <div className="bg-slate-50 rounded-xl p-3">
                   <div className="text-xs text-slate-400">Слов</div>
-                  <div className="text-lg font-bold">{foundWords.length}/{targetWords.length}</div>
+                  <div className="text-lg font-bold">{foundWordIds.size}/{placedWords.length}</div>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-3">
                   <div className="text-xs text-slate-400">Комбо</div>
