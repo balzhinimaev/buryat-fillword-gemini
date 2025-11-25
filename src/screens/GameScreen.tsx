@@ -66,8 +66,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [selectedPath, setSelectedPath] = useState<Coord[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
   const [foundCellsRegistry, setFoundCellsRegistry] = useState<Set<string>>(new Set());
-  // Карта: ключ клетки -> множество слов использующих эту клетку
-  const [cellToWords, setCellToWords] = useState<Map<string, Set<string>>>(new Map());
   
   const [showWinModal, setShowWinModal] = useState(false);
   const [time, setTime] = useState(0);
@@ -80,7 +78,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const initGame = useCallback(() => {
     if (!category) return;
     
-    const { grid, placedWords, wordPaths: paths } = generateSnakeLevel(category.gridSize, category.words);
+    const { grid, placedWords } = generateSnakeLevel(category.gridSize, category.words);
     setGridLetters(grid);
     setTargetWords(placedWords);
     setFoundWords([]);
@@ -91,19 +89,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     setScore(0);
     setCombo(0);
     lastFoundTimeRef.current = Date.now();
-    
-    // Строим карту: какие слова используют каждую клетку
-    const newCellToWords = new Map<string, Set<string>>();
-    for (const wp of paths) {
-      for (const coord of wp.path) {
-        const key = `${coord.r}-${coord.c}`;
-        if (!newCellToWords.has(key)) {
-          newCellToWords.set(key, new Set());
-        }
-        newCellToWords.get(key)!.add(wp.word.bur);
-      }
-    }
-    setCellToWords(newCellToWords);
   }, [category]);
 
   useEffect(() => { initGame(); }, [initGame]);
@@ -127,19 +112,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Проверяем, можно ли использовать клетку (не все слова через неё найдены)
-  const canUseCell = useCallback((r: number, c: number): boolean => {
-    const key = `${r}-${c}`;
-    // Если клетка уже полностью "найдена" (все слова через неё), нельзя использовать
-    if (foundCellsRegistry.has(key)) return false;
-    return true;
-  }, [foundCellsRegistry]);
-
   // Обработчики указателя
   const handlePointerDown = (e: React.PointerEvent, r: number, c: number) => {
     e.preventDefault();
     if (e.button !== 0) return;
-    if (!canUseCell(r, c)) return;
+    // Не начинаем с уже найденной клетки
+    if (foundCellsRegistry.has(`${r}-${c}`)) return;
 
     setIsSelecting(true);
     setSelectedPath([{ r, c }]);
@@ -168,30 +146,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       const wordScore = Math.round(basePoints + comboBonus);
       setScore(s => s + wordScore);
       
-      const newFoundWords = [...foundWords, matchedWord.bur];
-      setFoundWords(newFoundWords);
+      setFoundWords(prev => [...prev, matchedWord.bur]);
       
-      // ВАЖНО: Помечаем клетку как "found" только если ВСЕ слова
-      // использующие эту клетку уже найдены
+      // СРАЗУ помечаем ВСЕ клетки слова как найденные (полная подсветка)
       setFoundCellsRegistry(prev => {
         const newSet = new Set(prev);
-        selectedPath.forEach(p => {
-          const key = `${p.r}-${p.c}`;
-          const wordsUsingCell = cellToWords.get(key);
-          
-          if (wordsUsingCell) {
-            // Проверяем, все ли слова использующие эту клетку найдены
-            const allWordsFound = Array.from(wordsUsingCell).every(
-              word => newFoundWords.includes(word)
-            );
-            if (allWordsFound) {
-              newSet.add(key);
-            }
-          } else {
-            // Если клетка не в карте (не должно случиться), помечаем как found
-            newSet.add(key);
-          }
-        });
+        selectedPath.forEach(p => newSet.add(`${p.r}-${p.c}`));
         return newSet;
       });
       
@@ -201,13 +161,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       }
       
       // Проверка победы
-      if (newFoundWords.length === targetWords.length) {
+      if (foundWords.length + 1 === targetWords.length) {
         triggerWin();
       }
     }
 
     setSelectedPath([]);
-  }, [selectedPath, gridLetters, targetWords, foundWords, combo, state.settings.vibrationEnabled, cellToWords]);
+  }, [selectedPath, gridLetters, targetWords, foundWords, combo, state.settings.vibrationEnabled]);
 
   // Глобальные события движения
   useEffect(() => {
@@ -245,10 +205,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
           const isNeighbor = Math.abs(last.r - r) + Math.abs(last.c - c) === 1;
           
           const isAlreadySelected = prevPath.some(p => p.r === r && p.c === c);
-          // Проверяем можно ли использовать клетку (не все слова через неё найдены)
-          const cellUsable = !foundCellsRegistry.has(`${r}-${c}`);
+          const isFound = foundCellsRegistry.has(`${r}-${c}`);
           
-          if (isNeighbor && !isAlreadySelected && cellUsable) {
+          if (isNeighbor && !isAlreadySelected && !isFound) {
             return [...prevPath, { r, c }];
           }
 
@@ -303,11 +262,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   };
 
   const getCellStatus = (r: number, c: number): CellStatus => {
-    const key = `${r}-${c}`;
-    // Сейчас выбрана - приоритет
     if (selectedPath.some(p => p.r === r && p.c === c)) return 'selected';
-    // Полностью найдена (все слова через эту клетку найдены)
-    if (foundCellsRegistry.has(key)) return 'found';
+    if (foundCellsRegistry.has(`${r}-${c}`)) return 'found';
     return 'idle';
   };
 
@@ -542,4 +498,3 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 };
 
 export default GameScreen;
-
