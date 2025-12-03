@@ -1,7 +1,7 @@
 // src/App.tsx
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from './store/gameStore';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
 import { getTheme, isDarkTheme } from './theme';
 import { TelegramThemeSync } from './components/TelegramThemeSync';
@@ -34,6 +34,11 @@ export default function App() {
   const store = useGameStore();
   const { currentScreen, settings } = store.state;
   const currentTheme = getTheme(settings.theme);
+
+  // Прокручиваем страницу вверх при переходе на новый экран
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentScreen]);
 
   // Определяем фон в зависимости от экрана и темы
   const screenBackground = useMemo(() => {

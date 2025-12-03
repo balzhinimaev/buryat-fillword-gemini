@@ -451,4 +451,8 @@ export const getAppBackground = (id: ThemeId): string => {
   return themes[id]?.backgrounds.primary || 'bg-stone-900';
 };
 
+// Реэкспорт стилей меню
+export { getMenuStyles, menuThemes } from './menuStyles';
+export type { MenuThemeStyles } from './menuStyles';
+
 export default themes;

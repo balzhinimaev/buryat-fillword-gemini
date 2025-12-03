@@ -15,6 +15,10 @@ import {
   Heart
 } from 'lucide-react';
 import type { GameStore } from '../store/gameStore';
+import { useTheme } from '../theme/ThemeContext';
+import { getMenuStyles } from '../theme/menuStyles';
+import { cn } from '../components/ui';
+import { useTelegram } from '../hooks/useTelegram';
 
 interface MainMenuProps {
   store: GameStore;
@@ -33,11 +37,9 @@ const Ornament: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-// Сетка филлворда для шапки - бурятские слова горизонтально
-// НАРАН (солнце), УҺАН (вода), МОДОН (дерево), ТЭНГЭРИ (небо), ГАЗАР (земля)
+// Сетка филлворда для шапки
 type CellType = { letter: string; highlighted: 1 | 2 | false };
 const STATIC_GRID: CellType[][] = [
-  // 15 столбцов x 8 строк
   [{ letter: 'А', highlighted: false }, { letter: 'Н', highlighted: false }, { letter: 'Ө', highlighted: false }, { letter: 'Х', highlighted: false }, { letter: 'Д', highlighted: false }, { letter: 'Н', highlighted: 1 }, { letter: 'А', highlighted: 1 }, { letter: 'Р', highlighted: 1 }, { letter: 'А', highlighted: 1 }, { letter: 'Н', highlighted: 1 }, { letter: 'Е', highlighted: false }, { letter: 'Ш', highlighted: false }, { letter: 'К', highlighted: false }, { letter: 'Б', highlighted: false }, { letter: 'Р', highlighted: false }],
   [{ letter: 'Р', highlighted: false }, { letter: 'Ү', highlighted: false }, { letter: 'М', highlighted: false }, { letter: 'Т', highlighted: false }, { letter: 'О', highlighted: false }, { letter: 'Л', highlighted: false }, { letter: 'Н', highlighted: false }, { letter: 'А', highlighted: false }, { letter: 'Б', highlighted: false }, { letter: 'Ө', highlighted: false }, { letter: 'Х', highlighted: false }, { letter: 'Д', highlighted: false }, { letter: 'Е', highlighted: false }, { letter: 'И', highlighted: false }, { letter: 'Ц', highlighted: false }],
   [{ letter: 'У', highlighted: 2 }, { letter: 'Һ', highlighted: 2 }, { letter: 'А', highlighted: 2 }, { letter: 'Н', highlighted: 2 }, { letter: 'Х', highlighted: false }, { letter: 'Д', highlighted: false }, { letter: 'А', highlighted: false }, { letter: 'В', highlighted: false }, { letter: 'Е', highlighted: false }, { letter: 'Ж', highlighted: false }, { letter: 'М', highlighted: 1 }, { letter: 'О', highlighted: 1 }, { letter: 'Д', highlighted: 1 }, { letter: 'О', highlighted: 1 }, { letter: 'Н', highlighted: 1 }],
@@ -48,26 +50,22 @@ const STATIC_GRID: CellType[][] = [
   [{ letter: 'О', highlighted: false }, { letter: 'Н', highlighted: false }, { letter: 'Э', highlighted: false }, { letter: 'Ь', highlighted: false }, { letter: 'Ы', highlighted: false }, { letter: 'Ө', highlighted: false }, { letter: 'Й', highlighted: false }, { letter: 'З', highlighted: false }, { letter: 'Ч', highlighted: false }, { letter: 'У', highlighted: false }, { letter: 'Р', highlighted: false }, { letter: 'Ш', highlighted: false }, { letter: 'К', highlighted: false }, { letter: 'Б', highlighted: false }, { letter: 'А', highlighted: false }],
 ];
 
-// Header компонент с сеткой филлворда как фон
-const FillwordHeader: React.FC = () => {
-  const cellSize = 24; // чуть больше ячейки
+// Header с сеткой филлворда
+const FillwordHeader: React.FC<{ styles: ReturnType<typeof getMenuStyles>; isDark: boolean }> = ({ styles, isDark }) => {
+  const cellSize = 24;
   const gap = 3;
   const cols = 15;
   
-  // Цвета для двух типов выделения
   const getHighlightStyle = (highlighted: 1 | 2 | false) => {
-    if (highlighted === 1) return 'bg-emerald-500/50 text-emerald-200/90'; // зелёный
-    if (highlighted === 2) return 'bg-sky-500/50 text-sky-200/90'; // голубой
-    return 'bg-stone-800/50 text-stone-600/60';
+    if (highlighted === 1) return styles.fillwordGrid.highlight1;
+    if (highlighted === 2) return styles.fillwordGrid.highlight2;
+    return styles.fillwordGrid.default;
   };
   
   return (
     <header className="relative w-full overflow-hidden pt-12 pb-16">
-      {/* Сетка филлворда - фоновый слой на всю ширину */}
-      <div className="absolute inset-0 flex justify-center items-start pt-6 opacity-60">
-        <div 
-          className="relative w-full flex justify-center"
-        >
+      <div className={cn("absolute inset-0 flex justify-center items-start pt-6", isDark ? "opacity-60" : "opacity-80")}>
+        <div className="relative w-full flex justify-center">
           <div
             style={{
               display: 'grid',
@@ -88,10 +86,10 @@ const FillwordHeader: React.FC = () => {
                     delay: (row * 0.02) + (col * 0.01),
                     duration: 0.2
                   }}
-                  className={`
-                    flex items-center justify-center rounded font-semibold text-[10px]
-                    ${getHighlightStyle(cell.highlighted)}
-                  `}
+                  className={cn(
+                    "flex items-center justify-center rounded font-semibold text-[10px]",
+                    getHighlightStyle(cell.highlighted)
+                  )}
                   style={{ width: cellSize, height: cellSize }}
                 >
                   {cell.letter}
@@ -101,7 +99,7 @@ const FillwordHeader: React.FC = () => {
           </div>
         </div>
         
-        {/* Виньетка - затемнение по краям */}
+        {/* Виньетка */}
         <div 
           className="absolute inset-0 pointer-events-none"
           style={{
@@ -109,43 +107,43 @@ const FillwordHeader: React.FC = () => {
               radial-gradient(ellipse 90% 80% at 50% 40%, 
                 transparent 0%, 
                 transparent 30%, 
-                rgba(28, 25, 23, 0.3) 50%, 
-                rgba(28, 25, 23, 0.7) 70%,
-                rgba(28, 25, 23, 0.95) 100%
+                ${styles.fillwordGrid.vignette}33 50%, 
+                ${styles.fillwordGrid.vignette}b3 70%,
+                ${styles.fillwordGrid.vignette}f2 100%
               )
             `
           }}
         />
       </div>
       
-      {/* Плавный градиент перехода к основному фону */}
+      {/* Градиент перехода */}
       <div 
         className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none"
         style={{
-          background: 'linear-gradient(to bottom, transparent 0%, rgba(28, 25, 23, 0.5) 40%, rgb(28, 25, 23) 100%)'
+          background: `linear-gradient(to bottom, transparent 0%, ${styles.fillwordGrid.bottomFade}80 40%, ${styles.fillwordGrid.bottomFade} 100%)`
         }}
       />
     </header>
   );
 };
 
-// Заголовок приложения - отдельный компонент под шапкой
-const AppTitle: React.FC = () => (
+// Заголовок
+const AppTitle: React.FC<{ styles: ReturnType<typeof getMenuStyles> }> = ({ styles }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: 0.3 }}
     className="text-center py-4"
   >
-    <h1 className="text-3xl font-bold text-white mb-1 tracking-tight">
+    <h1 className={cn("text-3xl font-bold mb-1 tracking-tight", styles.title.primary)}>
       Бурятский
     </h1>
     <div className="flex items-center justify-center gap-3">
-      <Ornament className="w-12 h-4 text-amber-500/60" />
-      <h2 className="text-xl font-semibold bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">
+      <Ornament className={cn("w-12 h-4", styles.title.ornament)} />
+      <h2 className={cn("text-xl font-semibold", styles.title.secondary)}>
         Филлворд
       </h2>
-      <Ornament className="w-12 h-4 text-amber-500/60 scale-x-[-1]" />
+      <Ornament className={cn("w-12 h-4 scale-x-[-1]", styles.title.ornament)} />
     </div>
   </motion.div>
 );
@@ -153,83 +151,35 @@ const AppTitle: React.FC = () => (
 export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const { state, navigate, xpProgress, xpToNextLevel } = store;
   const { stats } = state;
-
-  const menuItems = [
-    {
-      id: 'play',
-      icon: Play,
-      label: 'Играть',
-      sublabel: `${stats.learnedWords.length} слов выучено`,
-      onClick: () => navigate('levels'),
-      gradient: 'from-amber-500 via-orange-500 to-terra-500',
-      iconColor: 'text-white',
-      primary: true,
-    },
-    {
-      id: 'stats',
-      icon: BarChart3,
-      label: 'Статистика',
-      onClick: () => navigate('stats'),
-      color: 'bg-meadow-500/10',
-      iconColor: 'text-meadow-600',
-    },
-    {
-      id: 'leaderboard',
-      icon: Trophy,
-      label: 'Рекорды',
-      onClick: () => navigate('leaderboard'),
-      color: 'bg-amber-500/10',
-      iconColor: 'text-amber-600',
-    },
-    {
-      id: 'dictionary',
-      icon: BookOpen,
-      label: 'Словарь',
-      sublabel: `${stats.learnedWords.length} из ${getAllWordsCount()} слов`,
-      onClick: () => navigate('dictionary'),
-      color: 'bg-terra-500/10',
-      iconColor: 'text-terra-600',
-    },
-    {
-      id: 'settings',
-      icon: Settings,
-      label: 'Настройки',
-      onClick: () => navigate('settings'),
-      color: 'bg-stone-500/10',
-      iconColor: 'text-stone-500',
-      outline: true,
-    },
-  ];
+  const { themeId, isDark } = useTheme();
+  const styles = getMenuStyles(themeId);
+  const { openLink } = useTelegram();
 
   return (
-    <div className="min-h-[100dvh] bg-stone-900 flex flex-col relative overflow-hidden">
-      {/* Плавающие кнопки справа сверху (отключено) */}
-      {/* <FloatingButtons /> */}
-      
-      {/* Декоративный фон — тонкий паттерн букв */}
+    <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
+      {/* Декоративный фон */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* Лёгкие световые акценты (приглушённые) */}
-        <div className="absolute top-1/2 -left-32 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/3 -right-32 w-80 h-80 bg-sky-500/5 rounded-full blur-3xl" />
+        <div className={cn("absolute top-1/2 -left-32 w-64 h-64 rounded-full blur-3xl", styles.decorativeOrbs.primary)} />
+        <div className={cn("absolute bottom-1/3 -right-32 w-80 h-80 rounded-full blur-3xl", styles.decorativeOrbs.secondary)} />
         
-        {/* Тонкий паттерн сетки — продолжение темы филлворда */}
+        {/* Сетка */}
         <div 
           className="absolute inset-0 opacity-[0.03]" 
           style={{
             backgroundImage: `
-              linear-gradient(to right, #57534e 1px, transparent 1px),
-              linear-gradient(to bottom, #57534e 1px, transparent 1px)
+              linear-gradient(to right, ${styles.gridPattern} 1px, transparent 1px),
+              linear-gradient(to bottom, ${styles.gridPattern} 1px, transparent 1px)
             `,
             backgroundSize: '28px 28px'
           }} 
         />
       </div>
 
-      {/* Header с сеткой филлворда */}
-      <FillwordHeader />
+      {/* Header */}
+      <FillwordHeader styles={styles} isDark={isDark} />
       
-      {/* Заголовок под шапкой */}
-      <AppTitle />
+      {/* Заголовок */}
+      <AppTitle styles={styles} />
 
       {/* Stats card */}
       <motion.div
@@ -238,20 +188,24 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
         transition={{ delay: 0.3 }}
         className="mx-5 mb-5"
       >
-        <div className="relative p-4 rounded-2xl bg-gradient-to-br from-stone-800/80 to-stone-900/80 backdrop-blur-sm border border-stone-700/50 overflow-hidden">
-          {/* Декоративный акцент */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-amber-500/10 to-transparent rounded-bl-full" />
+        <div className={cn(
+          "relative p-4 rounded-2xl border overflow-hidden",
+          styles.statsCard.background,
+          styles.statsCard.border
+        )}>
+          {/* Декор */}
+          <div className={cn("absolute top-0 right-0 w-32 h-32 rounded-bl-full", styles.statsCard.accent)} />
           
           <div className="relative z-10">
             {/* Streak и звёзды */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-terra-500 flex items-center justify-center shadow-lg shadow-orange-500/20">
+                <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", styles.statsCard.streakIcon)}>
                   <Flame className="text-white" size={20} />
                 </div>
                 <div>
-                  <div className="text-xs text-stone-400">Серия</div>
-                  <div className="text-white font-bold">
+                  <div className={cn("text-xs", styles.statsCard.text.secondary)}>Серия</div>
+                  <div className={cn("font-bold", styles.statsCard.text.primary)}>
                     {stats.currentStreak} {getDaysWord(stats.currentStreak)}
                   </div>
                 </div>
@@ -259,9 +213,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
               
               <div className="flex items-center gap-2">
                 <div>
-                  <div className="text-xs text-stone-400 text-right">Всего звёзд</div>
-                  <div className="text-amber-400 font-bold text-right flex items-center gap-1 justify-end">
-                    <Star size={16} className="fill-amber-400" />
+                  <div className={cn("text-xs text-right", styles.statsCard.text.secondary)}>Всего звёзд</div>
+                  <div className={cn("font-bold text-right flex items-center gap-1 justify-end", styles.statsCard.text.accent)}>
+                    <Star size={16} className="fill-current" />
                     {stats.totalStars}
                   </div>
                 </div>
@@ -270,17 +224,20 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             
             {/* XP прогресс */}
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-steppe-500 to-steppe-700 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-steppe-500/20">
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg",
+                styles.statsCard.levelBadge
+              )}>
                 {stats.level}
               </div>
               <div className="flex-1">
                 <div className="flex justify-between text-xs mb-1.5">
-                  <span className="font-medium text-stone-300">Уровень {stats.level}</span>
-                  <span className="text-stone-500">{xpToNextLevel} XP</span>
+                  <span className={cn("font-medium", styles.statsCard.text.primary)}>Уровень {stats.level}</span>
+                  <span className={styles.statsCard.text.secondary}>{xpToNextLevel} XP</span>
                 </div>
-                <div className="h-2.5 bg-stone-700/50 rounded-full overflow-hidden">
+                <div className={cn("h-2.5 rounded-full overflow-hidden", styles.statsCard.progressTrack)}>
                   <motion.div
-                    className="h-full bg-gradient-to-r from-steppe-500 via-amber-500 to-steppe-400 rounded-full"
+                    className={cn("h-full rounded-full", styles.statsCard.progressFill)}
                     initial={{ width: 0 }}
                     animate={{ width: `${xpProgress * 100}%` }}
                     transition={{ type: 'spring', stiffness: 50 }}
@@ -304,21 +261,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            onClick={menuItems[0].onClick}
+            onClick={() => navigate('levels')}
             className="relative w-full p-5 rounded-2xl overflow-hidden group"
           >
-            {/* Градиентный фон */}
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-500 via-orange-500 to-terra-500 transition-all duration-300" />
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-400 via-orange-400 to-terra-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            
-            {/* Блик */}
+            <div className={cn("absolute inset-0 transition-all duration-300", styles.buttons.play.gradient)} />
+            <div className={cn("absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300", styles.buttons.play.gradientHover)} />
             <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" />
-            
-            {/* Декоративные искры */}
             <Sparkles className="absolute top-3 right-3 text-white/30" size={20} />
             
             <div className="relative z-10 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-inner">
+              <div className={cn("w-14 h-14 rounded-xl backdrop-blur-sm flex items-center justify-center shadow-inner", styles.buttons.play.iconBg)}>
                 <Play size={28} className="text-white ml-1" />
               </div>
               <div className="text-left flex-1">
@@ -330,37 +282,63 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 
           {/* Статистика и Рекорды */}
           <div className="grid grid-cols-2 gap-3">
-            {menuItems.slice(1, 3).map((item) => (
-              <motion.button
-                key={item.id}
-                whileHover={{ scale: 1.02, y: -2 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={item.onClick}
-                className="p-4 rounded-2xl bg-stone-800/60 backdrop-blur-sm border border-stone-700/50 hover:border-stone-600/50 transition-all group"
-              >
-                <div className={`w-12 h-12 rounded-xl ${item.color} flex items-center justify-center mb-2 group-hover:scale-110 transition-transform`}>
-                  <item.icon size={22} className={item.iconColor} />
-                </div>
-                <div className="text-left">
-                  <div className="font-semibold text-white">{item.label}</div>
-                </div>
-              </motion.button>
-            ))}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('stats')}
+              className={cn(
+                "p-4 rounded-2xl border transition-all group",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                styles.buttons.card.borderHover
+              )}
+            >
+              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform", styles.buttons.iconColors.stats.bg)}>
+                <BarChart3 size={22} className={styles.buttons.iconColors.stats.icon} />
+              </div>
+              <div className="text-left">
+                <div className={cn("font-semibold", styles.buttons.text.primary)}>Статистика</div>
+              </div>
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('leaderboard')}
+              className={cn(
+                "p-4 rounded-2xl border transition-all group",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                styles.buttons.card.borderHover
+              )}
+            >
+              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform", styles.buttons.iconColors.leaderboard.bg)}>
+                <Trophy size={22} className={styles.buttons.iconColors.leaderboard.icon} />
+              </div>
+              <div className="text-left">
+                <div className={cn("font-semibold", styles.buttons.text.primary)}>Рекорды</div>
+              </div>
+            </motion.button>
           </div>
 
           {/* Словарь */}
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            onClick={menuItems[3].onClick}
-            className="w-full p-4 rounded-2xl bg-stone-800/60 backdrop-blur-sm border border-stone-700/50 hover:border-stone-600/50 transition-all flex items-center gap-4 group"
+            onClick={() => navigate('dictionary')}
+            className={cn(
+              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
+              styles.buttons.card.background,
+              styles.buttons.card.border,
+              styles.buttons.card.borderHover
+            )}
           >
-            <div className={`w-12 h-12 rounded-xl ${menuItems[3].color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-              <BookOpen size={22} className={menuItems[3].iconColor} />
+            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", styles.buttons.iconColors.dictionary.bg)}>
+              <BookOpen size={22} className={styles.buttons.iconColors.dictionary.icon} />
             </div>
             <div className="text-left flex-1">
-              <div className="font-semibold text-white">{menuItems[3].label}</div>
-              <div className="text-sm text-stone-400">{menuItems[3].sublabel}</div>
+              <div className={cn("font-semibold", styles.buttons.text.primary)}>Словарь</div>
+              <div className={cn("text-sm", styles.buttons.text.muted)}>{stats.learnedWords.length} из {getAllWordsCount()} слов</div>
             </div>
           </motion.button>
 
@@ -368,18 +346,22 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            onClick={menuItems[4].onClick}
-            className="w-full p-4 rounded-2xl border-2 border-stone-700/50 hover:border-stone-600 transition-all flex items-center gap-4 group"
+            onClick={() => navigate('settings')}
+            className={cn(
+              "w-full p-4 rounded-2xl transition-all flex items-center gap-4 group",
+              styles.buttons.outline.border,
+              styles.buttons.outline.borderHover
+            )}
           >
-            <div className={`w-12 h-12 rounded-xl ${menuItems[4].color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-              <Settings size={22} className={menuItems[4].iconColor} />
+            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", styles.buttons.iconColors.settings.bg)}>
+              <Settings size={22} className={styles.buttons.iconColors.settings.icon} />
             </div>
             <div className="text-left flex-1">
-              <div className="font-semibold text-stone-300">{menuItems[4].label}</div>
+              <div className={cn("font-semibold", styles.buttons.text.secondary)}>Настройки</div>
             </div>
           </motion.button>
 
-          {/* Үгын Дархан - Словарная мастерская - ЯРКАЯ КНОПКА */}
+          {/* Үгын Дархан */}
           <motion.button
             onClick={() => navigate('contribute')}
             whileHover={{ scale: 1.03, y: -3 }}
@@ -389,24 +371,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
           >
-            {/* Анимированный градиентный фон */}
             <motion.div 
               className="absolute inset-0 bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500"
-              animate={{ 
-                backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
-              }}
-              transition={{ 
-                duration: 4, 
-                repeat: Infinity,
-                ease: 'linear'
-              }}
+              animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
               style={{ backgroundSize: '200% 200%' }}
             />
-            
-            {/* Блик сверху */}
             <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/30 to-transparent" />
-            
-            {/* Пульсирующее свечение */}
             <motion.div 
               className="absolute inset-0 rounded-2xl"
               animate={{ 
@@ -416,24 +387,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
                   '0 0 20px rgba(244, 63, 94, 0.4), 0 0 40px rgba(244, 63, 94, 0.2)',
                 ]
               }}
-              transition={{ 
-                duration: 2, 
-                repeat: Infinity,
-                ease: 'easeInOut'
-              }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
             />
             
-            {/* Иконка с анимацией пульсации */}
             <motion.div 
               className="relative z-10 w-14 h-14 rounded-xl bg-white/25 backdrop-blur-sm flex items-center justify-center"
-              animate={{ 
-                scale: [1, 1.1, 1],
-              }}
-              transition={{ 
-                duration: 1.5, 
-                repeat: Infinity,
-                ease: 'easeInOut'
-              }}
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
             >
               <Heart size={28} className="text-white fill-white/50" />
             </motion.div>
@@ -441,17 +401,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             <div className="relative z-10 text-left flex-1">
               <div className="font-bold text-lg text-white flex items-center gap-2">
                 Үгын Дархан
-                <motion.span
-                  animate={{ rotate: [0, 15, -15, 0] }}
-                  transition={{ duration: 1, repeat: Infinity, repeatDelay: 2 }}
-                >
+                <motion.span animate={{ rotate: [0, 15, -15, 0] }} transition={{ duration: 1, repeat: Infinity, repeatDelay: 2 }}>
                   ✨
                 </motion.span>
               </div>
               <div className="text-sm text-white/90">Помоги сохранить бурятский язык!</div>
             </div>
             
-            {/* Стрелка */}
             <motion.div 
               className="relative z-10 text-white font-bold text-xl"
               animate={{ x: [0, 5, 0] }}
@@ -462,34 +418,37 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           </motion.button>
 
           {/* Вопросы и ответы */}
-          <motion.a
-            href="https://t.me/buryat_words"
-            target="_blank"
-            rel="noopener noreferrer"
+          <motion.button
+            onClick={() => {
+              openLink('https://t.me/buryat_words');
+            }}
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full p-4 rounded-2xl bg-stone-800/60 backdrop-blur-sm border border-stone-700/50 
-                       hover:border-violet-500/50 transition-all flex items-center gap-4 group"
+            className={cn(
+              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
+              styles.buttons.card.background,
+              styles.buttons.card.border,
+              "hover:border-violet-500/50"
+            )}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55 }}
           >
-            <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center 
-                            group-hover:scale-110 transition-transform">
-              <HelpCircle size={22} className="text-violet-400" />
+            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", styles.buttons.iconColors.help.bg)}>
+              <HelpCircle size={22} className={styles.buttons.iconColors.help.icon} />
             </div>
             <div className="text-left flex-1">
-              <div className="font-semibold text-white">Вопросы и ответы</div>
-              <div className="text-sm text-stone-400">Telegram: @buryat_words</div>
+              <div className={cn("font-semibold", styles.buttons.text.primary)}>Вопросы и ответы</div>
+              <div className={cn("text-sm", styles.buttons.text.muted)}>Telegram: @buryat_words</div>
             </div>
-          </motion.a>
+          </motion.button>
 
-          {/* Debug (мелким текстом) */}
+          {/* Debug */}
           <motion.button
             whileHover={{ opacity: 0.8 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate('debug')}
-            className="w-full py-2 text-stone-600 text-sm hover:text-stone-500 transition-colors flex items-center justify-center gap-2"
+            className={cn("w-full py-2 text-sm transition-colors flex items-center justify-center gap-2", styles.footer.text, "hover:opacity-80")}
           >
             <Bug size={14} />
             Debug Grid
@@ -499,13 +458,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 
       {/* Footer */}
       <footer className="relative z-10 py-4 text-center">
-        <p className="text-stone-500 text-sm">Изучай бурятский язык играя! ✨</p>
+        <p className={cn("text-sm", styles.footer.text)}>Изучай бурятский язык играя! ✨</p>
       </footer>
     </div>
   );
 };
 
-// Helper functions
+// Helpers
 function getAllWordsCount(): number {
   return 95;
 }
