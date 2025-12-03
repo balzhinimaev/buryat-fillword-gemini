@@ -47,10 +47,13 @@ export interface LeaderboardEntry {
   date: string;
 }
 
+// Доступные темы оформления
+export type ThemeId = 'steppe' | 'light' | 'dark';
+
 export interface GameSettings {
   soundEnabled: boolean;
   vibrationEnabled: boolean;
-  theme: 'light' | 'dark' | 'baikal';
+  theme: ThemeId;
   showHints: boolean;
   timerEnabled: boolean;
   playerName: string;
@@ -72,9 +75,57 @@ export type Screen =
   | 'settings' 
   | 'stats' 
   | 'leaderboard'
-  | 'dictionary';
+  | 'dictionary'
+  | 'debug'
+  | 'contribute'; // Үгын Дархан - Словарная мастерская
 
 export type Coord = { r: number; c: number };
 
 export type CellStatus = 'idle' | 'selected' | 'found';
+
+// === Система контрибуции слов ("Үгын Дархан" - Словарная Мастерская) ===
+
+export type ContributionStatus = 'pending' | 'verified' | 'rejected';
+
+export interface ContributedWord {
+  id: string;
+  bur: string; // бурятское слово (в верхнем регистре)
+  ru: string; // русский перевод
+  categoryId: string; // id категории из categories или 'other'
+  example?: string; // пример использования (опционально)
+  contributor: {
+    name: string;
+    telegram?: string; // для связи и благодарностей
+  };
+  createdAt: string; // ISO date
+  status: ContributionStatus;
+  verifications: string[]; // id пользователей, подтвердивших слово
+  flags: string[]; // id пользователей, отметивших как неправильное
+  notes?: string; // заметки от модератора
+}
+
+export interface Contributor {
+  id: string;
+  name: string;
+  telegram?: string;
+  wordsAdded: number;
+  wordsVerified: number;
+  wordsApproved: number; // сколько добавленных слов было одобрено
+  joinedAt: string;
+  lastActiveAt: string;
+}
+
+export interface ContributionStats {
+  totalWords: number;
+  pendingWords: number;
+  verifiedWords: number;
+  rejectedWords: number;
+  topContributors: { name: string; count: number }[];
+}
+
+export interface ContributionState {
+  words: ContributedWord[];
+  contributors: Contributor[];
+  currentContributor: Contributor | null;
+}
 

@@ -1,8 +1,9 @@
 // src/screens/LeaderboardScreen.tsx
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Medal, Clock, Crown, Filter } from 'lucide-react';
-import { BackButton, cn } from '../components/ui';
+import { Trophy, Medal, Clock, Crown, Filter, ArrowLeft } from 'lucide-react';
+import { cn } from '../components/ui';
+import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
 import { categories, getCategoryById } from '../data/words';
 
@@ -13,6 +14,7 @@ interface LeaderboardScreenProps {
 export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) => {
   const { state, navigate } = store;
   const { leaderboard } = state;
+  const { theme, isDark } = useTheme();
   
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -27,18 +29,18 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
   const getMedalColor = (index: number) => {
     switch (index) {
       case 0: return 'from-amber-400 to-yellow-500';
-      case 1: return 'from-slate-300 to-slate-400';
+      case 1: return isDark ? 'from-slate-400 to-slate-500' : 'from-slate-300 to-slate-400';
       case 2: return 'from-amber-600 to-amber-700';
-      default: return 'from-slate-100 to-slate-200';
+      default: return isDark ? 'from-stone-600 to-stone-700' : 'from-slate-100 to-slate-200';
     }
   };
 
   const getMedalIcon = (index: number) => {
     switch (index) {
       case 0: return <Crown size={18} className="text-amber-900" />;
-      case 1: return <Medal size={18} className="text-slate-600" />;
+      case 1: return <Medal size={18} className={isDark ? "text-slate-200" : "text-slate-600"} />;
       case 2: return <Medal size={18} className="text-amber-800" />;
-      default: return <span className="text-slate-500 font-bold">{index + 1}</span>;
+      default: return <span className={cn("font-bold", theme.text.muted)}>{index + 1}</span>;
     }
   };
 
@@ -57,12 +59,26 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col">
+    <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
+      {/* Декоративный фон */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-amber-500/10 via-steppe-500/5 to-transparent rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl" />
+      </div>
+
       {/* Header */}
-      <header className="bg-gradient-to-r from-amber-500 to-orange-500 text-white p-4 pb-6 rounded-b-3xl shadow-lg">
+      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-6 rounded-b-3xl shadow-lg")}>
         <div className="flex items-center gap-4 mb-4">
-          <BackButton onClick={() => navigate('menu')} />
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('menu')}
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
+          >
+            <ArrowLeft size={24} className={theme.header.text} />
+          </motion.button>
           <h1 className="text-xl font-bold flex-1">Таблица рекордов</h1>
+          <Trophy size={24} />
         </div>
         
         {/* Category filter */}
@@ -74,7 +90,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
               className={cn(
                 'px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all',
                 !selectedCategory
-                  ? 'bg-white text-amber-600'
+                  ? cn('bg-white/90', theme.text.accent)
                   : 'bg-white/20 text-white'
               )}
             >
@@ -87,7 +103,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
                 className={cn(
                   'px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1',
                   selectedCategory === cat.id
-                    ? 'bg-white text-amber-600'
+                    ? cn('bg-white/90', theme.text.accent)
                     : 'bg-white/20 text-white'
                 )}
               >
@@ -100,20 +116,20 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
       </header>
 
       {/* Content */}
-      <main className="flex-1 p-4 overflow-auto">
+      <main className="flex-1 p-4 overflow-auto relative z-10">
         {sortedLeaderboard.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             className="flex flex-col items-center justify-center h-64 text-center"
           >
-            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-              <Trophy size={40} className="text-slate-300" />
+            <div className={cn("w-20 h-20 rounded-full flex items-center justify-center mb-4", theme.backgrounds.card)}>
+              <Trophy size={40} className={theme.text.muted} />
             </div>
-            <h3 className="text-lg font-semibold text-slate-600 mb-2">
+            <h3 className={cn("text-lg font-semibold mb-2", theme.text.secondary)}>
               Пока нет рекордов
             </h3>
-            <p className="text-slate-400">
+            <p className={theme.text.muted}>
               Сыграй несколько игр, чтобы попасть в таблицу!
             </p>
           </motion.div>
@@ -131,10 +147,12 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ delay: index * 0.05 }}
                     className={cn(
-                      'bg-white rounded-xl p-3 shadow-sm border border-slate-100',
+                      theme.backgrounds.cardSolid,
+                      'rounded-xl p-3 shadow-sm border',
+                      theme.borders.subtle,
                       index < 3 && 'border-2',
-                      index === 0 && 'border-amber-300',
-                      index === 1 && 'border-slate-300',
+                      index === 0 && 'border-amber-400',
+                      index === 1 && (isDark ? 'border-slate-400' : 'border-slate-300'),
                       index === 2 && 'border-amber-600/50'
                     )}
                   >
@@ -150,7 +168,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-800 truncate">
+                          <span className={cn("font-semibold truncate", theme.text.primary)}>
                             {entry.playerName}
                           </span>
                           {category && (
@@ -159,7 +177,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-400">
+                        <div className={cn("flex items-center gap-3 text-xs", theme.text.muted)}>
                           <span className="flex items-center gap-1">
                             <Clock size={12} />
                             {formatTime(entry.time)}
@@ -170,10 +188,10 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
                       
                       {/* Score */}
                       <div className="text-right">
-                        <div className="text-xl font-bold text-baikal-600">
+                        <div className={cn("text-xl font-bold", theme.text.accent)}>
                           {entry.score}
                         </div>
-                        <div className="text-xs text-slate-400">очков</div>
+                        <div className={cn("text-xs", theme.text.muted)}>очков</div>
                       </div>
                     </div>
                   </motion.div>

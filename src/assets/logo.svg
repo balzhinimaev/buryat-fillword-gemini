@@ -1,0 +1,77 @@
+<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Маска для скругления всего логотипа -->
+    <clipPath id="logoClip">
+      <rect x="0" y="0" width="80" height="80" rx="12" />
+    </clipPath>
+    
+    <!-- Градиент для центральной ячейки -->
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    
+    <!-- Градиент для обычных ячеек -->
+    <linearGradient id="cellGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#292524" />
+      <stop offset="100%" stop-color="#1c1917" />
+    </linearGradient>
+    
+    <!-- Радиальный градиент для эффекта фокуса/виньетки -->
+    <radialGradient id="focusVignette" cx="50%" cy="50%" r="60%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="transparent" />
+      <stop offset="30%" stop-color="transparent" />
+      <stop offset="65%" stop-color="rgba(12, 10, 9, 0.75)" />
+      <stop offset="100%" stop-color="rgba(12, 10, 9, 0.98)" />
+    </radialGradient>
+    
+    <!-- Свечение вокруг центра -->
+    <radialGradient id="centerGlow" cx="50%" cy="50%" r="45%">
+      <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.5" />
+      <stop offset="50%" stop-color="#f59e0b" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="transparent" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Всё содержимое обрезается по скруглённой маске -->
+  <g clip-path="url(#logoClip)">
+    <!-- Общий фон -->
+    <rect x="0" y="0" width="80" height="80" fill="#1c1917" />
+    
+    <!-- Фоновые ячейки -->
+    <rect x="2" y="2" width="24" height="24" rx="5" fill="url(#cellGradient)" stroke="#3f3f46" stroke-width="0.5"/>
+    <rect x="28" y="2" width="24" height="24" rx="5" fill="url(#cellGradient)" stroke="#3f3f46" stroke-width="0.5"/>
+    <rect x="54" y="2" width="24" height="24" rx="5" fill="url(#cellGradient)" stroke="#3f3f46" stroke-width="0.5"/>
+    
+    <rect x="2" y="28" width="24" height="24" rx="5" fill="url(#cellGradient)" stroke="#3f3f46" stroke-width="0.5"/>
+    <rect x="28" y="28" width="24" height="24" rx="5" fill="url(#logoGradient)"/>
+    <rect x="54" y="28" width="24" height="24" rx="5" fill="url(#cellGradient)" stroke="#3f3f46" stroke-width="0.5"/>
+    
+    <rect x="2" y="54" width="24" height="24" rx="5" fill="url(#cellGradient)" stroke="#3f3f46" stroke-width="0.5"/>
+    <rect x="28" y="54" width="24" height="24" rx="5" fill="url(#cellGradient)" stroke="#3f3f46" stroke-width="0.5"/>
+    <rect x="54" y="54" width="24" height="24" rx="5" fill="url(#cellGradient)" stroke="#3f3f46" stroke-width="0.5"/>
+    
+    <!-- Буквы в ячейках -->
+    <text x="14" y="19" text-anchor="middle" fill="#57534e" font-size="12" font-weight="600" font-family="system-ui">Ү</text>
+    <text x="40" y="19" text-anchor="middle" fill="#57534e" font-size="12" font-weight="600" font-family="system-ui">Р</text>
+    <text x="66" y="19" text-anchor="middle" fill="#57534e" font-size="12" font-weight="600" font-family="system-ui">А</text>
+    
+    <text x="14" y="45" text-anchor="middle" fill="#57534e" font-size="12" font-weight="600" font-family="system-ui">Б</text>
+    <text x="66" y="45" text-anchor="middle" fill="#57534e" font-size="12" font-weight="600" font-family="system-ui">Д</text>
+    
+    <text x="14" y="71" text-anchor="middle" fill="#57534e" font-size="12" font-weight="600" font-family="system-ui">Н</text>
+    <text x="40" y="71" text-anchor="middle" fill="#57534e" font-size="12" font-weight="600" font-family="system-ui">Х</text>
+    <text x="66" y="71" text-anchor="middle" fill="#57534e" font-size="12" font-weight="600" font-family="system-ui">И</text>
+    
+    <!-- Свечение от центра -->
+    <rect x="0" y="0" width="80" height="80" fill="url(#centerGlow)" />
+    
+    <!-- Центральная буква - яркая и чёткая -->
+    <text x="40" y="46" text-anchor="middle" fill="#1c1917" font-size="18" font-weight="900" font-family="system-ui">Б</text>
+    
+    <!-- Виньетка поверх - затемняет края, оставляет центр -->
+    <rect x="0" y="0" width="80" height="80" fill="url(#focusVignette)" />
+  </g>
+</svg>
+

@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { ChevronLeft, Star, Lock } from 'lucide-react';
+import { useTheme } from '../theme/ThemeContext';
+import type { ThemeConfig } from '../theme';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -22,26 +24,43 @@ export const BackButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
 );
 
 // Звёзды рейтинга
-export const StarsDisplay: React.FC<{ stars: number; max?: number; size?: number }> = ({ 
+interface StarsDisplayProps {
+  stars: number;
+  max?: number;
+  size?: number;
+  theme?: ThemeConfig;
+}
+
+export const StarsDisplay: React.FC<StarsDisplayProps> = ({ 
   stars, 
   max = 3, 
-  size = 16 
-}) => (
-  <div className="flex gap-0.5">
-    {Array.from({ length: max }).map((_, i) => (
-      <Star
-        key={i}
-        size={size}
-        className={cn(
-          'transition-colors',
-          i < stars 
-            ? 'fill-sun text-sun' 
-            : 'fill-transparent text-slate-300'
-        )}
-      />
-    ))}
-  </div>
-);
+  size = 16,
+  theme: propTheme,
+}) => {
+  const { theme: contextTheme } = useTheme();
+  const theme = propTheme || contextTheme;
+  
+  return (
+    <div className="flex gap-1">
+      {Array.from({ length: max }).map((_, i) => (
+        <motion.div
+          key={i}
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ delay: i * 0.1, type: 'spring', stiffness: 200 }}
+        >
+          <Star
+            size={size}
+            className={cn(
+              'transition-colors drop-shadow-sm',
+              i < stars ? theme.stars.filled : theme.stars.empty
+            )}
+          />
+        </motion.div>
+      ))}
+    </div>
+  );
+};
 
 // Карточка категории
 interface CategoryCardProps {
@@ -55,9 +74,9 @@ interface CategoryCardProps {
 }
 
 const difficultyColors = {
-  easy: 'from-emerald-500 to-emerald-600',
+  easy: 'from-meadow-500 to-meadow-600',
   medium: 'from-amber-500 to-orange-500',
-  hard: 'from-rose-500 to-red-600',
+  hard: 'from-terra-500 to-red-600',
 };
 
 const difficultyLabels = {
@@ -74,66 +93,71 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
   isLocked,
   difficulty,
   onClick,
-}) => (
-  <motion.button
-    whileHover={!isLocked ? { scale: 1.02, y: -2 } : {}}
-    whileTap={!isLocked ? { scale: 0.98 } : {}}
-    onClick={!isLocked ? onClick : undefined}
-    disabled={isLocked}
-    className={cn(
-      'relative w-full p-4 rounded-2xl text-left transition-all overflow-hidden',
-      'border-2 shadow-lg',
-      isLocked
-        ? 'bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed'
-        : 'bg-white border-slate-100 hover:border-baikal-300 hover:shadow-xl cursor-pointer'
-    )}
-  >
-    {/* Gradient overlay for unlocked cards */}
-    {!isLocked && (
-      <div className={cn(
-        'absolute top-0 right-0 w-24 h-24 opacity-10 rounded-bl-full',
-        `bg-gradient-to-br ${difficultyColors[difficulty]}`
-      )} />
-    )}
-    
-    <div className="flex items-start gap-3 relative z-10">
-      <div className={cn(
-        'w-14 h-14 rounded-xl flex items-center justify-center text-2xl',
-        isLocked ? 'bg-slate-200' : 'bg-slate-100'
-      )}>
-        {isLocked ? <Lock size={24} className="text-slate-400" /> : emoji}
-      </div>
+}) => {
+  const { theme, isDark } = useTheme();
+
+  return (
+    <motion.button
+      whileHover={!isLocked ? { scale: 1.02, y: -2 } : {}}
+      whileTap={!isLocked ? { scale: 0.98 } : {}}
+      onClick={!isLocked ? onClick : undefined}
+      disabled={isLocked}
+      className={cn(
+        'relative w-full p-4 rounded-2xl text-left transition-all overflow-hidden',
+        'border-2 shadow-lg',
+        isLocked
+          ? cn(theme.categoryCard.bgLocked, theme.categoryCard.borderLocked, 'opacity-60 cursor-not-allowed')
+          : cn(theme.categoryCard.bg, theme.categoryCard.border, theme.categoryCard.borderHover, 'hover:shadow-xl cursor-pointer')
+      )}
+    >
+      {/* Gradient overlay for unlocked cards */}
+      {!isLocked && (
+        <div className={cn(
+          'absolute top-0 right-0 w-24 h-24 rounded-bl-full',
+          isDark ? 'opacity-20' : 'opacity-10',
+          `bg-gradient-to-br ${difficultyColors[difficulty]}`
+        )} />
+      )}
       
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <h3 className={cn(
-            'font-bold truncate',
-            isLocked ? 'text-slate-400' : 'text-slate-800'
-          )}>
-            {name}
-          </h3>
-          <span className={cn(
-            'text-xs px-2 py-0.5 rounded-full font-medium',
-            isLocked 
-              ? 'bg-slate-200 text-slate-400'
-              : `bg-gradient-to-r ${difficultyColors[difficulty]} text-white`
-          )}>
-            {difficultyLabels[difficulty]}
-          </span>
+      <div className="flex items-start gap-3 relative z-10">
+        <div className={cn(
+          'w-14 h-14 rounded-xl flex items-center justify-center text-2xl',
+          isLocked ? theme.categoryCard.iconBgLocked : theme.categoryCard.iconBg
+        )}>
+          {isLocked ? <Lock size={24} className={theme.text.muted} /> : emoji}
         </div>
         
-        <p className={cn(
-          'text-sm mb-2 truncate',
-          isLocked ? 'text-slate-300' : 'text-slate-500'
-        )}>
-          {description}
-        </p>
-        
-        <StarsDisplay stars={stars} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className={cn(
+              'font-bold truncate',
+              isLocked ? theme.states.locked.text : theme.text.primary
+            )}>
+              {name}
+            </h3>
+            <span className={cn(
+              'text-xs px-2 py-0.5 rounded-full font-medium',
+              isLocked 
+                ? cn(theme.states.locked.bg, theme.states.locked.text)
+                : cn(theme.difficultyBadge[difficulty].bg, theme.difficultyBadge[difficulty].text)
+            )}>
+              {difficultyLabels[difficulty]}
+            </span>
+          </div>
+          
+          <p className={cn(
+            'text-sm mb-2 truncate',
+            isLocked ? theme.text.dimmed : theme.text.secondary
+          )}>
+            {description}
+          </p>
+          
+          <StarsDisplay stars={stars} theme={theme} />
+        </div>
       </div>
-    </div>
-  </motion.button>
-);
+    </motion.button>
+  );
+};
 
 // Прогресс-бар XP
 interface XPBarProps {
@@ -144,17 +168,17 @@ interface XPBarProps {
 
 export const XPBar: React.FC<XPBarProps> = ({ level, progress, xpToNext }) => (
   <div className="flex items-center gap-3">
-    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-baikal-500 to-baikal-700 flex items-center justify-center text-white font-bold shadow-lg">
+    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-steppe-500 to-steppe-700 flex items-center justify-center text-white font-bold shadow-lg">
       {level}
     </div>
     <div className="flex-1">
       <div className="flex justify-between text-xs mb-1">
-        <span className="font-medium text-slate-600">Уровень {level}</span>
-        <span className="text-slate-400">{xpToNext} XP до след.</span>
+        <span className="font-medium text-stone-600">Уровень {level}</span>
+        <span className="text-stone-400">{xpToNext} XP до след.</span>
       </div>
-      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+      <div className="h-2 bg-stone-200 rounded-full overflow-hidden">
         <motion.div
-          className="h-full bg-gradient-to-r from-baikal-400 to-baikal-600"
+          className="h-full bg-gradient-to-r from-steppe-400 via-amber-500 to-steppe-500"
           initial={{ width: 0 }}
           animate={{ width: `${progress * 100}%` }}
           transition={{ type: 'spring', stiffness: 50 }}
@@ -178,15 +202,15 @@ export const StatCard: React.FC<StatCardProps> = ({
   label, 
   value, 
   subValue,
-  color = 'bg-slate-100' 
+  color = 'bg-stone-100' 
 }) => (
   <div className={cn('p-4 rounded-2xl', color)}>
-    <div className="flex items-center gap-2 mb-2 text-slate-500">
+    <div className="flex items-center gap-2 mb-2 text-stone-500">
       {icon}
       <span className="text-sm font-medium">{label}</span>
     </div>
-    <div className="text-2xl font-bold text-slate-800">{value}</div>
-    {subValue && <div className="text-xs text-slate-400 mt-1">{subValue}</div>}
+    <div className="text-2xl font-bold text-stone-800">{value}</div>
+    {subValue && <div className="text-xs text-stone-400 mt-1">{subValue}</div>}
   </div>
 );
 
@@ -207,9 +231,9 @@ export const MenuButton: React.FC<MenuButtonProps> = ({
   variant = 'secondary',
 }) => {
   const variants = {
-    primary: 'bg-gradient-to-r from-baikal-500 to-baikal-600 text-white shadow-lg hover:shadow-xl',
-    secondary: 'bg-white text-slate-700 shadow-md hover:shadow-lg border border-slate-100',
-    outline: 'bg-transparent text-slate-600 border-2 border-slate-200 hover:border-slate-300',
+    primary: 'bg-gradient-to-r from-amber-500 to-terra-500 text-white shadow-lg hover:shadow-xl',
+    secondary: 'bg-white text-stone-700 shadow-md hover:shadow-lg border border-stone-100',
+    outline: 'bg-transparent text-stone-600 border-2 border-stone-200 hover:border-stone-300',
   };
 
   return (
@@ -224,7 +248,7 @@ export const MenuButton: React.FC<MenuButtonProps> = ({
     >
       <div className={cn(
         'w-12 h-12 rounded-xl flex items-center justify-center',
-        variant === 'primary' ? 'bg-white/20' : 'bg-slate-100'
+        variant === 'primary' ? 'bg-white/20' : 'bg-stone-100'
       )}>
         {icon}
       </div>
@@ -233,7 +257,7 @@ export const MenuButton: React.FC<MenuButtonProps> = ({
         {sublabel && (
           <div className={cn(
             'text-sm',
-            variant === 'primary' ? 'text-white/70' : 'text-slate-400'
+            variant === 'primary' ? 'text-white/70' : 'text-stone-400'
           )}>
             {sublabel}
           </div>
@@ -259,18 +283,18 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
 }) => (
   <button
     onClick={() => onChange(!enabled)}
-    className="w-full flex items-center justify-between p-4 bg-white rounded-xl border border-slate-100"
+    className="w-full flex items-center justify-between p-4 bg-white rounded-xl border border-stone-100"
   >
     <div className="text-left">
-      <div className="font-medium text-slate-700">{label}</div>
+      <div className="font-medium text-stone-700">{label}</div>
       {description && (
-        <div className="text-sm text-slate-400">{description}</div>
+        <div className="text-sm text-stone-400">{description}</div>
       )}
     </div>
     <div
       className={cn(
         'w-14 h-8 rounded-full p-1 transition-colors',
-        enabled ? 'bg-baikal-500' : 'bg-slate-200'
+        enabled ? 'bg-amber-500' : 'bg-stone-200'
       )}
     >
       <motion.div
@@ -312,4 +336,3 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
     </motion.div>
   );
 };
-

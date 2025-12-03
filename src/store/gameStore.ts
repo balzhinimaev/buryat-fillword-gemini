@@ -14,7 +14,7 @@ const STORAGE_KEY = 'buryat_fillword_game';
 const defaultSettings: GameSettings = {
   soundEnabled: true,
   vibrationEnabled: true,
-  theme: 'baikal',
+  theme: 'steppe',
   showHints: false,
   timerEnabled: true,
   playerName: 'Игрок',
