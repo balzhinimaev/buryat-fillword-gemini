@@ -4,6 +4,7 @@ import { useGameStore } from './store/gameStore';
 import { useMemo } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
 import { getTheme, isDarkTheme } from './theme';
+import { TelegramThemeSync } from './components/TelegramThemeSync';
 
 // Screens
 import MainMenu from './screens/MainMenu';
@@ -84,6 +85,9 @@ export default function App() {
 
   return (
     <ThemeProvider themeId={settings.theme}>
+      {/* Синхронизация темы с оболочкой Telegram */}
+      <TelegramThemeSync themeId={settings.theme} screen={currentScreen} />
+      
       <div 
         className={`min-h-[100dvh] max-w-md mx-auto shadow-2xl overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
       >
