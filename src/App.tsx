@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from './store/gameStore';
 import { useMemo, useEffect } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
-import { getTheme, isDarkTheme } from './theme';
+import { getTheme } from './theme';
 import { TelegramThemeSync } from './components/TelegramThemeSync';
 
 // Screens
@@ -40,28 +40,11 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [currentScreen]);
 
-  // Определяем фон в зависимости от экрана и темы
+  // Определяем фон в зависимости от темы
+  // Каждый экран может устанавливать свой собственный фон поверх этого
   const screenBackground = useMemo(() => {
-    const isDark = isDarkTheme(settings.theme);
-    
-    // Для тёмных тем
-    if (isDark) {
-      switch (currentScreen) {
-        case 'menu':
-        case 'stats':
-          return currentTheme.backgrounds.primary;
-        case 'game':
-        case 'debug':
-          return 'bg-slate-900';
-        default:
-          // Остальные экраны тоже тёмные для консистентности
-          return currentTheme.backgrounds.primary;
-      }
-    }
-    
-    // Для светлой темы
     return currentTheme.backgrounds.primary;
-  }, [currentScreen, settings.theme, currentTheme]);
+  }, [currentTheme]);
 
   const renderScreen = () => {
     switch (currentScreen) {

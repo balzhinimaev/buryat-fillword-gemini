@@ -348,16 +348,17 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate('settings')}
             className={cn(
-              "w-full p-4 rounded-2xl transition-all flex items-center gap-4 group",
-              styles.buttons.outline.border,
-              styles.buttons.outline.borderHover
+              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
+              styles.buttons.card.background,
+              styles.buttons.card.border,
+              styles.buttons.card.borderHover
             )}
           >
             <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", styles.buttons.iconColors.settings.bg)}>
               <Settings size={22} className={styles.buttons.iconColors.settings.icon} />
             </div>
             <div className="text-left flex-1">
-              <div className={cn("font-semibold", styles.buttons.text.secondary)}>Настройки</div>
+              <div className={cn("font-semibold", styles.buttons.text.primary)}>Настройки</div>
             </div>
           </motion.button>
 

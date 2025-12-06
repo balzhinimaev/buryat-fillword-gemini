@@ -12,6 +12,7 @@ import {
   Check
 } from 'lucide-react';
 import { Modal, cn } from '../components/ui';
+import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { themeList } from '../theme';
 import type { GameStore } from '../store/gameStore';
@@ -49,6 +50,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col", theme.backgrounds.primaryGradient)}>
+      {/* Sticky Header при скролле */}
+      <StickyHeader 
+        title="Настройки" 
+        onBack={() => navigate('menu')} 
+      />
+      
       {/* Декоративный фон для тёмных тем */}
       {isDark && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none">

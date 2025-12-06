@@ -8,7 +8,14 @@ import type {
 } from '../types';
 
 const STORAGE_KEY = 'buryat_word_contributions';
+const STORAGE_VERSION = 2;
 const CONTRIBUTOR_KEY = 'buryat_contributor';
+
+type StoredContributionData = {
+  version: number;
+  words?: ContributionState['words'];
+  contributors?: ContributionState['contributors'];
+};
 
 // Генерация уникального ID
 const generateId = () => {
@@ -31,9 +38,15 @@ const loadState = (): ContributionState => {
     const state: ContributionState = { ...defaultState };
     
     if (savedWords) {
-      const parsed = JSON.parse(savedWords);
-      state.words = parsed.words || [];
-      state.contributors = parsed.contributors || [];
+      const parsed = JSON.parse(savedWords) as StoredContributionData;
+      
+      if (parsed.version === STORAGE_VERSION) {
+        state.words = parsed.words || [];
+        state.contributors = parsed.contributors || [];
+      } else {
+        // Очищаем устаревшие локальные данные, чтобы не ловить ложные дубликаты
+        localStorage.removeItem(STORAGE_KEY);
+      }
     }
     
     if (savedContributor) {
@@ -50,10 +63,13 @@ const loadState = (): ContributionState => {
 // Сохранение состояния
 const saveState = (state: ContributionState) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    const dataToStore: StoredContributionData = {
+      version: STORAGE_VERSION,
       words: state.words,
       contributors: state.contributors,
-    }));
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToStore));
     
     if (state.currentContributor) {
       localStorage.setItem(CONTRIBUTOR_KEY, JSON.stringify(state.currentContributor));
@@ -318,12 +334,6 @@ export const useContributionStore = () => {
     );
   }, [state.words, state.currentContributor]);
 
-  // Проверка дубликата
-  const isDuplicate = useCallback((bur: string) => {
-    const normalized = bur.toUpperCase().trim();
-    return state.words.some(w => w.bur === normalized);
-  }, [state.words]);
-
   return {
     state,
     currentContributor: state.currentContributor,
@@ -337,7 +347,6 @@ export const useContributionStore = () => {
     importData,
     stats,
     getWordsForVerification,
-    isDuplicate,
   };
 };
 

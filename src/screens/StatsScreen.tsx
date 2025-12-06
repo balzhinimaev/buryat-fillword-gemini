@@ -13,6 +13,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { cn } from '../components/ui';
+import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
 import { categories, getAllWords } from '../data/words';
@@ -69,6 +70,12 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
+      {/* Sticky Header при скролле */}
+      <StickyHeader 
+        title="Статистика" 
+        onBack={() => navigate('menu')} 
+      />
+      
       {/* Декоративный фон */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-meadow-500/10 via-steppe-500/5 to-transparent rounded-full blur-3xl" />

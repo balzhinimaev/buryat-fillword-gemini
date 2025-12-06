@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Medal, Clock, Crown, Filter, ArrowLeft } from 'lucide-react';
 import { cn } from '../components/ui';
+import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
 import { categories, getCategoryById } from '../data/words';
@@ -60,6 +61,13 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
+      {/* Sticky Header при скролле */}
+      <StickyHeader 
+        title="Рекорды" 
+        onBack={() => navigate('menu')}
+        rightElement={<Trophy size={22} className={isDark ? "text-amber-400" : "text-amber-500"} />}
+      />
+      
       {/* Декоративный фон */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-amber-500/10 via-steppe-500/5 to-transparent rounded-full blur-3xl" />

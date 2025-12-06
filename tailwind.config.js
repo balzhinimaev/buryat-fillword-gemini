@@ -4,6 +4,37 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  // Safelist для динамических классов из тем
+  safelist: [
+    // Фоны
+    { pattern: /^bg-(stone|slate|amber|orange|white|red|emerald|cyan|blue|indigo|violet|rose|pink|teal|sky)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    { pattern: /^bg-gradient-to-(r|l|t|b|br|bl|tr|tl)$/ },
+    { pattern: /^from-(stone|slate|amber|orange|white|cyan|blue|indigo|emerald|teal|sky|red|terra|steppe|meadow)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    { pattern: /^via-(stone|slate|amber|orange|white|cyan|blue|indigo|emerald|teal|sky|red)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    { pattern: /^to-(stone|slate|amber|orange|white|cyan|blue|indigo|emerald|teal|sky|red|terra|steppe)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    // Текст
+    { pattern: /^text-(stone|slate|amber|orange|white|cyan|blue|indigo|emerald|red|terra|steppe|meadow)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    // Границы
+    { pattern: /^border-(stone|slate|amber|orange|cyan|blue|emerald|red|terra)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    // Кольца
+    { pattern: /^ring-(stone|slate|amber|orange|cyan|blue|emerald|red)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    { pattern: /^ring-offset-(stone|slate|white)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    // Заливка
+    { pattern: /^fill-(stone|slate|amber|orange|cyan|blue|emerald|transparent)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    // Тени
+    { pattern: /^shadow-(stone|slate|amber|orange|cyan|blue|emerald)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    // Hover состояния
+    { pattern: /^hover:(bg|text|border|from|to|via)-(stone|slate|amber|orange|white|cyan|blue|emerald)-(50|100|200|300|400|500|600|700|800|900|950)/ },
+    // Специальные классы
+    'bg-white',
+    'text-white',
+    'text-black',
+    'border-transparent',
+    'fill-transparent',
+    'fill-current',
+    'backdrop-blur-sm',
+    'backdrop-blur',
+  ],
   theme: {
     extend: {
       colors: {

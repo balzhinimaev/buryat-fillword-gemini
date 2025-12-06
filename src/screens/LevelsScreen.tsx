@@ -3,6 +3,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Star, ArrowLeft, Layers } from 'lucide-react';
 import { CategoryCard, cn } from '../components/ui';
+import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
 import { categories } from '../data/words';
@@ -23,6 +24,13 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
+      {/* Sticky Header при скролле */}
+      <StickyHeader 
+        title="Выбор категории" 
+        onBack={() => navigate('menu')}
+        rightElement={<Layers size={22} className={theme.text.accent} />}
+      />
+      
       {/* Декоративный фон */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-amber-500/10 via-steppe-500/5 to-transparent rounded-full blur-3xl" />

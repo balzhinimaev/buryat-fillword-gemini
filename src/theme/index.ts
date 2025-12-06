@@ -455,4 +455,8 @@ export const getAppBackground = (id: ThemeId): string => {
 export { getMenuStyles, menuThemes } from './menuStyles';
 export type { MenuThemeStyles } from './menuStyles';
 
+// Реэкспорт стилей игры
+export { getGameStyles, gameThemes } from './gameStyles';
+export type { GameThemeStyles } from './gameStyles';
+
 export default themes;

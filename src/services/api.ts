@@ -1,8 +1,12 @@
 // API сервис для работы с бэкендом
 const API_URL = import.meta.env.VITE_API_URL || 'https://anoname.ru/api';
 
+// Событие для уведомления о необходимости переавторизации
+export const AUTH_REQUIRED_EVENT = 'auth:required';
+
 // Типы ответов API
 export interface AuthResponse {
+  _id: string;
   access_token: string;
   refresh_token: string;
   telegramId: number;
@@ -19,12 +23,173 @@ export interface AuthResponse {
     verificationAccuracy: number;
   };
   isNewUser: boolean;
+  isLanguageKeeper?: boolean;
+  languageKeeperJoinedAt?: string;
+}
+
+// Ответ пользователя (для join/leave keepers)
+export interface UserResponse {
+  _id: string;
+  telegramId: number;
+  name: string;
+  telegramUsername?: string;
+  photoUrl?: string;
+  role: string;
+  trustScore: number;
+  isLanguageKeeper: boolean;
+  languageKeeperJoinedAt?: string;
+  stats: {
+    wordsAdded: number;
+    wordsVerified: number;
+    wordsApproved: number;
+    wordsRejected: number;
+    verificationAccuracy: number;
+  };
 }
 
 export interface ApiError {
   statusCode: number;
   message: string;
   error?: string;
+}
+
+// Категории из API
+export interface ApiCategory {
+  _id: string;
+  slug: string;
+  name: string;
+  nameBur: string;
+  emoji: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  gridSize: number;
+  wordCount: number;
+  order: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Диалекты из API
+export interface ApiDialect {
+  _id: string;
+  code: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Части речи из API
+export interface ApiPartOfSpeech {
+  _id: string;
+  code: string;
+  name: string;
+  emoji: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Запрос на создание слова
+export interface CreateWordRequest {
+  bur: string;
+  ru: string;
+  categoryId: string;
+  dialectId?: string;
+  partOfSpeechId?: string;
+  exampleBur?: string;
+  exampleRu?: string;
+  difficulty?: number;
+}
+
+// Статистика проекта
+export interface ProjectStats {
+  wordsCount: number;
+  participantsCount: number;
+  categoriesCount: number;
+  languageKeepersCount: number;
+}
+
+// Ответ при создании слова
+export interface CreateWordResponse {
+  _id: string;
+  bur: string;
+  ru: string;
+  categoryId: string;
+  dialectId?: string;
+  partOfSpeechId?: string;
+  exampleBur?: string;
+  exampleRu?: string;
+  synonyms: string[];
+  contributor: {
+    id: string;
+    name: string;
+    telegramId: number;
+  };
+  status: 'pending' | 'verified' | 'rejected';
+  verificationScore: number;
+  upvotes: string[];
+  downvotes: string[];
+  isActiveInGame: boolean;
+  difficulty: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Слово на проверке (pending)
+export interface PendingWord {
+  _id: string;
+  bur: string;
+  ru: string;
+  categoryId: string;
+  example?: string;
+  exampleBur?: string;
+  exampleRu?: string;
+  synonyms: string[];
+  dialectId?: string;
+  partOfSpeechId?: string;
+  contributor: {
+    id: string;
+    name: string;
+    telegramId: number;
+  };
+  status: 'pending' | 'verified' | 'rejected';
+  verificationScore: number;
+  upvotes: string[];
+  downvotes: string[];
+  isActiveInGame: boolean;
+  difficulty: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Запрос на голосование
+export interface VoteRequest {
+  wordId: string;
+  type: 'upvote' | 'downvote';
+  reason?: string;
+}
+
+// Ответ голоса
+export interface VoteResponse {
+  vote: {
+    wordId: string;
+    voterId: string;
+    type: 'upvote' | 'downvote';
+    reason?: string;
+    wordBur: string;
+    wordRu: string;
+    voterName: string;
+    voterTelegramId: number;
+    voterTrustScoreAtVote: number;
+    _id: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  word: PendingWord;
 }
 
 // Хранение токенов
@@ -55,7 +220,8 @@ export const clearStoredTokens = (): void => {
 // Базовая функция для API запросов
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  isRetry = false
 ): Promise<T> {
   const tokens = getStoredTokens();
   
@@ -78,6 +244,47 @@ async function apiRequest<T>(
       statusCode: response.status,
       message: response.statusText,
     }));
+    
+    // Если 401 и это не retry - пробуем обновить токен
+    // НЕ пытаемся обновить токен если сам запрос /auth/refresh вернул 401
+    const isAuthRefreshEndpoint = endpoint === '/auth/refresh';
+    
+    if (error.statusCode === 401 && !isRetry && tokens?.refresh_token && !isAuthRefreshEndpoint) {
+      try {
+        console.log('🔄 Пробуем обновить токен...');
+        const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: tokens.refresh_token }),
+        });
+        
+        if (refreshResponse.ok) {
+          const { access_token } = await refreshResponse.json();
+          console.log('✅ Токен обновлён успешно');
+          setStoredTokens({ ...tokens, access_token });
+          // Повторяем оригинальный запрос с новым токеном
+          return apiRequest<T>(endpoint, options, true);
+        } else {
+          console.log('❌ Не удалось обновить токен:', await refreshResponse.text());
+          // Refresh token невалиден - очищаем токены и уведомляем о необходимости переавторизации
+          console.log('🔒 Очищаем невалидные токены и запрашиваем переавторизацию...');
+          clearStoredTokens();
+          window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
+        }
+      } catch (refreshError) {
+        console.log('❌ Ошибка при обновлении токена:', refreshError);
+        // Если refresh не удался - очищаем токены и уведомляем
+        clearStoredTokens();
+        window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
+      }
+    }
+    
+    // Если /auth/refresh сам вернул 401 - просто очищаем токены (событие будет отправлено вызывающим кодом)
+    if (error.statusCode === 401 && isAuthRefreshEndpoint) {
+      console.log('🔒 Refresh token недействителен, очищаем токены...');
+      clearStoredTokens();
+    }
+    
     throw error;
   }
 
@@ -110,7 +317,7 @@ export async function refreshToken(): Promise<{ access_token: string }> {
 
   const response = await apiRequest<{ access_token: string }>('/auth/refresh', {
     method: 'POST',
-    body: JSON.stringify({ refreshToken: tokens.refresh_token }),
+    body: JSON.stringify({ refresh_token: tokens.refresh_token }),
   });
 
   setStoredTokens({
@@ -129,7 +336,7 @@ export async function logout(): Promise<void> {
     try {
       await apiRequest('/auth/logout', {
         method: 'POST',
-        body: JSON.stringify({ refreshToken: tokens.refresh_token }),
+        body: JSON.stringify({ refresh_token: tokens.refresh_token }),
       });
     } catch {
       // Игнорируем ошибки при выходе
@@ -139,6 +346,57 @@ export async function logout(): Promise<void> {
   clearStoredTokens();
 }
 
+// Получение категорий
+export async function getCategories(): Promise<ApiCategory[]> {
+  return apiRequest<ApiCategory[]>('/categories', { method: 'GET' });
+}
+
+// Получение диалектов
+export async function getDialects(): Promise<ApiDialect[]> {
+  return apiRequest<ApiDialect[]>('/dialects', { method: 'GET' });
+}
+
+// Получение частей речи
+export async function getPartsOfSpeech(): Promise<ApiPartOfSpeech[]> {
+  return apiRequest<ApiPartOfSpeech[]>('/parts-of-speech', { method: 'GET' });
+}
+
+// Создание нового слова
+export async function createWord(data: CreateWordRequest): Promise<CreateWordResponse> {
+  return apiRequest<CreateWordResponse>('/words', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// Получение статистики проекта
+export async function getProjectStats(): Promise<ProjectStats> {
+  return apiRequest<ProjectStats>('/stats', { method: 'GET' });
+}
+
+// Присоединиться к хранителям языка
+export async function joinLanguageKeepers(): Promise<UserResponse> {
+  return apiRequest<UserResponse>('/users/me/join-keepers', { method: 'POST' });
+}
+
+// Покинуть хранителей языка
+export async function leaveLanguageKeepers(): Promise<UserResponse> {
+  return apiRequest<UserResponse>('/users/me/leave-keepers', { method: 'POST' });
+}
+
+// Получение слов на проверке
+export async function getPendingWords(): Promise<PendingWord[]> {
+  return apiRequest<PendingWord[]>('/words/pending', { method: 'GET' });
+}
+
+// Голосование за слово
+export async function voteWord(data: VoteRequest): Promise<VoteResponse> {
+  return apiRequest<VoteResponse>('/votes', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 // API экспорт
 export const api = {
   telegramAuth,
@@ -146,6 +404,15 @@ export const api = {
   logout,
   getStoredTokens,
   clearStoredTokens,
+  getCategories,
+  getDialects,
+  getPartsOfSpeech,
+  createWord,
+  getProjectStats,
+  joinLanguageKeepers,
+  leaveLanguageKeepers,
+  getPendingWords,
+  voteWord,
   
   // Универсальные методы для других запросов
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),

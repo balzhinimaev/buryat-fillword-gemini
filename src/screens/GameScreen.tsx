@@ -11,13 +11,16 @@ import {
   Zap,
   ChevronRight,
   Sparkles,
-  Lock
+  Lock,
+  Info
 } from 'lucide-react';
 import { cn, StarsDisplay } from '../components/ui';
 import type { GameStore } from '../store/gameStore';
 import { getCategoryById, categories } from '../data/words';
 import { generateSnakeLevel, findWordByPath, type PlacedWord } from '../gameEngine';
 import type { Coord, CellStatus } from '../types';
+import { useTheme } from '../theme/ThemeContext';
+import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
 
 interface GameScreenProps {
   store: GameStore;
@@ -34,11 +37,11 @@ type FoundCellInfo = {
   };
 };
 
-// Палитра цветов для слов (как в дебаге)
-const WORD_COLORS = [
+// Палитра цветов для слов (адаптивная к теме)
+const getWordColors = (isDark: boolean) => isDark ? [
   { bg: '#ef4444', text: '#fff' }, // red
   { bg: '#f97316', text: '#fff' }, // orange
-  { bg: '#eab308', text: '#000' }, // yellow
+  { bg: '#eab308', text: '#1a1a1a' }, // yellow
   { bg: '#22c55e', text: '#fff' }, // green
   { bg: '#14b8a6', text: '#fff' }, // teal
   { bg: '#0ea5e9', text: '#fff' }, // sky
@@ -47,7 +50,20 @@ const WORD_COLORS = [
   { bg: '#d946ef', text: '#fff' }, // fuchsia
   { bg: '#ec4899', text: '#fff' }, // pink
   { bg: '#06b6d4', text: '#fff' }, // cyan
-  { bg: '#84cc16', text: '#000' }, // lime
+  { bg: '#84cc16', text: '#1a1a1a' }, // lime
+] : [
+  { bg: '#dc2626', text: '#fff' }, // red
+  { bg: '#ea580c', text: '#fff' }, // orange
+  { bg: '#ca8a04', text: '#fff' }, // yellow (darker for light theme)
+  { bg: '#16a34a', text: '#fff' }, // green
+  { bg: '#0d9488', text: '#fff' }, // teal
+  { bg: '#0284c7', text: '#fff' }, // sky
+  { bg: '#2563eb', text: '#fff' }, // blue
+  { bg: '#7c3aed', text: '#fff' }, // violet
+  { bg: '#c026d3', text: '#fff' }, // fuchsia
+  { bg: '#db2777', text: '#fff' }, // pink
+  { bg: '#0891b2', text: '#fff' }, // cyan
+  { bg: '#65a30d', text: '#fff' }, // lime
 ];
 
 // Компонент клетки - оптимизированный с CSS анимациями
@@ -58,6 +74,7 @@ const LetterCell = React.memo(({
   wordColor,
   isHint,
   neighbors,
+  styles,
   onPointerDown 
 }: { 
   char: string; 
@@ -67,6 +84,7 @@ const LetterCell = React.memo(({
   wordColor?: { bg: string; text: string };
   isHint?: boolean;
   neighbors?: { top: boolean; bottom: boolean; left: boolean; right: boolean };
+  styles: GameThemeStyles;
   onPointerDown: (e: React.PointerEvent) => void; 
 }) => {
   const isFound = status === 'found';
@@ -91,7 +109,7 @@ const LetterCell = React.memo(({
   // Вычисляем границы (только по внешнему краю слова)
   const getBorder = () => {
     if (!isFound || !neighbors) return undefined;
-    const borderColor = 'rgba(255,255,255,0.5)';
+    const borderColor = styles.cell.found.borderColor;
     const borderWidth = '2px';
     
     return {
@@ -107,19 +125,17 @@ const LetterCell = React.memo(({
       className={cn(
         "select-none touch-none aspect-square flex items-center justify-center",
         "text-xl sm:text-2xl font-bold cursor-pointer relative",
-        "transition-[transform,background-color,box-shadow] duration-100 ease-out",
+        "transition-all duration-100 ease-out",
         "will-change-transform",
-        isSelected && "ring-4 ring-white scale-105 z-20 shadow-xl rounded-xl",
-        isIdle && "bg-slate-700 text-white shadow-lg hover:bg-slate-600 active:scale-95 rounded-xl",
-        isHint && isIdle && "ring-2 ring-amber-400/70 ring-offset-1 ring-offset-slate-900",
+        isSelected && `${styles.cell.selected.background} ${styles.cell.selected.text} ${styles.cell.selected.shadow} ${styles.cell.selected.ring} rounded-xl scale-105 z-10`,
+        isIdle && `${styles.cell.idle.background} ${styles.cell.idle.text} ${styles.cell.idle.shadow} ${styles.cell.idle.backgroundHover} active:scale-95 rounded-xl`,
+        isHint && isIdle && `ring-2 ${styles.cell.hint.ring} ring-offset-1 ${styles.cell.hint.ringOffset}`,
         isFound && "shadow-md"
       )}
       style={{
         ...(isFound && wordColor 
           ? { backgroundColor: wordColor.bg, color: wordColor.text }
-          : isSelected 
-            ? { backgroundColor: '#0ea5e9', color: '#fff' }
-            : undefined),
+          : undefined),
         ...(isFound && { borderRadius: getBorderRadius() }),
         ...(isFound && getBorder()),
       }}
@@ -131,12 +147,11 @@ const LetterCell = React.memo(({
     >
       {char}
       {isHint && isIdle && (
-        <div className="absolute -top-1 -left-1 w-3 h-3 bg-amber-400 rounded-full shadow-sm animate-[pulse_2s_ease-in-out_infinite]" />
+        <div className={cn("absolute -top-1 -left-1 w-3 h-3 rounded-full shadow-sm animate-[pulse_2s_ease-in-out_infinite]", styles.cell.hint.dot)} />
       )}
     </div>
   );
 }, (prevProps, nextProps) => {
-  // Кастомное сравнение для предотвращения лишних ререндеров
   return prevProps.char === nextProps.char &&
          prevProps.status === nextProps.status &&
          prevProps.r === nextProps.r &&
@@ -146,12 +161,19 @@ const LetterCell = React.memo(({
          prevProps.neighbors?.top === nextProps.neighbors?.top &&
          prevProps.neighbors?.bottom === nextProps.neighbors?.bottom &&
          prevProps.neighbors?.left === nextProps.neighbors?.left &&
-         prevProps.neighbors?.right === nextProps.neighbors?.right;
+         prevProps.neighbors?.right === nextProps.neighbors?.right &&
+         prevProps.styles === nextProps.styles;
 });
+
 
 export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const { state, navigate, completeLevel, addToLeaderboard } = store;
   const category = getCategoryById(state.selectedCategory || '');
+  
+  // Получаем тему
+  const { themeId, isDark } = useTheme();
+  const styles = useMemo(() => getGameStyles(themeId), [themeId]);
+  const wordColors = useMemo(() => getWordColors(isDark), [isDark]);
   
   const [gridLetters, setGridLetters] = useState<string[][]>([]);
   const [gridSize, setGridSize] = useState(5);
@@ -165,7 +187,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [time, setTime] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFoundTimeRef = useRef<number>(0);
+  const lastFailedAttemptRef = useRef<string | null>(null); // Для отслеживания повторных неудачных попыток
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const cellRectsRef = useRef<Map<string, DOMRect>>(new Map());
@@ -186,10 +211,27 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     setScore(0);
     setCombo(0);
     lastFoundTimeRef.current = Date.now();
+    lastFailedAttemptRef.current = null;
   }, [category]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: initialize game when category changes
   useEffect(() => { initGame(); }, [initGame]);
+  
+  // Очистка таймера toast при размонтировании
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
+  
+  // Показать toast-уведомление
+  const showToast = useCallback((message: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastMessage(message);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
+  }, []);
 
   // Таймер
   useEffect(() => {
@@ -226,11 +268,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const triggerWin = useCallback((finalFoundWords: Set<string>) => {
     if (timerRef.current) clearInterval(timerRef.current);
     
+    // Используем цвета темы для конфетти
+    const confettiColors = isDark 
+      ? ['#FACC15', '#F97316', '#10B981', '#0EA5E9']
+      : ['#F59E0B', '#EA580C', '#059669', '#0284C7'];
+    
     confetti({ 
       particleCount: 150, 
       spread: 70, 
       origin: { y: 0.6 }, 
-      colors: ['#0EA5E9', '#FACC15', '#10B981'] 
+      colors: confettiColors
     });
     
     if (category) {
@@ -254,7 +301,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     }
     
     setTimeout(() => setShowWinModal(true), 500);
-  }, [category, placedWords, time, score, completeLevel, addToLeaderboard, state.settings.playerName]);
+  }, [category, placedWords, time, score, completeLevel, addToLeaderboard, state.settings.playerName, isDark]);
 
   const handlePointerUp = useCallback(() => {
     setIsSelecting(false);
@@ -263,7 +310,37 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     const matchedWord = findWordByPath(placedWords, selectedPath);
     const wordId = matchedWord ? matchedWord.word.bur : null;
 
+    // Если путь не совпал точно, проверяем, не составил ли пользователь правильное слово другими буквами
+    if (!matchedWord && selectedPath.length > 0) {
+      // Получаем строку из выбранных букв
+      const selectedLetters = selectedPath.map(p => gridLetters[p.r][p.c]).join('').toUpperCase();
+      
+      // Ищем слово с такими же буквами среди незнайденных слов
+      const matchingWordByLetters = placedWords.find(pw => 
+        !foundWordIds.has(pw.word.bur) && 
+        pw.word.bur.toUpperCase() === selectedLetters
+      );
+      
+      if (matchingWordByLetters) {
+        // Пользователь правильно составил слово, но использовал не те клетки
+        showToast(`Слово "${matchingWordByLetters.word.bur}" верное! Но найдите его в другом месте на поле 🔍`);
+        lastFailedAttemptRef.current = null; // Сбрасываем, т.к. слово в целом правильное
+      } else if (selectedLetters.length >= 2) {
+        // Слово не найдено вообще — проверяем повторную попытку
+        if (lastFailedAttemptRef.current === selectedLetters) {
+          // Пользователь ввёл то же самое дважды — сообщаем, что такого слова нет
+          showToast(`Слова "${selectedLetters.toLowerCase()}" нет в этом уровне ❌`);
+          lastFailedAttemptRef.current = null; // Сбрасываем после уведомления
+        } else {
+          // Запоминаем неудачную попытку
+          lastFailedAttemptRef.current = selectedLetters;
+        }
+      }
+    }
+
     if (matchedWord && wordId && !foundWordIds.has(wordId)) {
+      // Успешно нашли слово — сбрасываем счётчик неудачных попыток
+      lastFailedAttemptRef.current = null;
       const now = Date.now();
       const timeSinceLast = now - lastFoundTimeRef.current;
       lastFoundTimeRef.current = now;
@@ -309,7 +386,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     }
 
     setSelectedPath([]);
-  }, [selectedPath, placedWords, foundWordIds, combo, state.settings.vibrationEnabled, triggerWin]);
+  }, [selectedPath, placedWords, foundWordIds, combo, state.settings.vibrationEnabled, triggerWin, gridLetters, showToast]);
 
   // Кеширование позиций клеток при начале выделения
   const updateCellRects = useCallback(() => {
@@ -472,7 +549,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const getCellWordColor = (r: number, c: number): { bg: string; text: string } | undefined => {
     const cellInfo = foundCellsRegistry.get(`${r}-${c}`);
     if (cellInfo !== undefined) {
-      return WORD_COLORS[cellInfo.wordIndex % WORD_COLORS.length];
+      return wordColors[cellInfo.wordIndex % wordColors.length];
     }
     return undefined;
   };
@@ -531,33 +608,46 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
   if (!category) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center">
-        <p>Категория не найдена</p>
+      <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
+        <p className={styles.categoryTitle.text}>Категория не найдена</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-slate-900 font-sans text-white flex flex-col max-w-md mx-auto relative overflow-hidden select-none">
+    <div className={cn(
+      "min-h-[100dvh] font-sans flex flex-col max-w-md mx-auto relative overflow-hidden select-none",
+      styles.page.gradient
+    )}>
       
       {/* Header */}
-      <header className="bg-slate-800 p-4 z-20">
+      <header className={cn("p-4 z-20", styles.header.background, styles.header.border)}>
         <div className="flex justify-between items-center mb-3">
           <button 
             onClick={() => navigate('levels')}
-            className="p-2 bg-slate-700 rounded-xl hover:bg-slate-600 transition"
+            className={cn(
+              "p-2 rounded-xl transition-all duration-200",
+              styles.headerButton.background,
+              styles.headerButton.backgroundHover,
+              styles.headerButton.text
+            )}
           >
             <ArrowLeft size={20} />
           </button>
           
           <div className="flex items-center gap-2">
             <span className="text-2xl">{category.emoji}</span>
-            <h1 className="text-lg font-bold">{category.name}</h1>
+            <h1 className={cn("text-lg font-bold", styles.categoryTitle.text)}>{category.name}</h1>
           </div>
           
           <button 
             onClick={initGame}
-            className="p-2 bg-slate-700 rounded-xl hover:bg-slate-600 active:rotate-180 transition duration-300"
+            className={cn(
+              "p-2 rounded-xl active:rotate-180 transition-all duration-300",
+              styles.headerButton.background,
+              styles.headerButton.backgroundHover,
+              styles.headerButton.text
+            )}
           >
             <RotateCcw size={20} />
           </button>
@@ -565,75 +655,92 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         
         {/* Stats bar */}
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 bg-slate-700 rounded-xl px-3 py-2">
-            <Clock size={16} className="text-slate-400" />
-            <span className="font-mono font-bold">{formatTime(time)}</span>
+          <div className={cn(
+            "flex items-center gap-2 rounded-xl px-3 py-2",
+            styles.statsBadge.background
+          )}>
+            <Clock size={16} className={styles.statsBadge.iconColor} />
+            <span className={cn("font-mono font-bold", styles.statsBadge.valueColor)}>{formatTime(time)}</span>
           </div>
           
           {combo > 1 && (
-            <div className="flex items-center gap-1 bg-amber-500 text-black rounded-xl px-3 py-2 animate-[pop_0.2s_ease-out]">
-              <Zap size={16} />
+            <div className={cn(
+              "flex items-center gap-1 rounded-xl px-3 py-2 animate-[pop_0.2s_ease-out]",
+              styles.comboBadge.background,
+              styles.comboBadge.text
+            )}>
+              <Zap size={16} className={styles.comboBadge.icon} />
               <span className="font-bold">x{combo}</span>
             </div>
           )}
           
-          <div className="flex items-center gap-2 bg-slate-700 rounded-xl px-3 py-2">
-            <Trophy size={16} className="text-amber-400" />
-            <span className="font-bold">{score}</span>
+          <div className={cn(
+            "flex items-center gap-2 rounded-xl px-3 py-2",
+            styles.trophyBadge.background
+          )}>
+            <Trophy size={16} className={styles.trophyBadge.iconColor} />
+            <span className={cn("font-bold", styles.trophyBadge.text)}>{score}</span>
           </div>
         </div>
         
         {/* Progress */}
         <div className="mt-3 flex items-center gap-3">
-          <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden">
+          <div className={cn("flex-1 h-3 rounded-full overflow-hidden", styles.progress.track)}>
             <div 
-              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-[width] duration-300 ease-out"
+              className={cn("h-full transition-[width] duration-300 ease-out", styles.progress.fill)}
               style={{ width: placedWords.length > 0 ? `${(foundWordIds.size / placedWords.length) * 100}%` : '0%' }}
             />
           </div>
-          <span className="text-sm font-bold text-emerald-400">{foundWordIds.size}/{placedWords.length}</span>
+          <span className={cn("text-sm font-bold", styles.progress.text)}>{foundWordIds.size}/{placedWords.length}</span>
         </div>
       </header>
 
       {/* Grid */}
       <main className="flex-1 p-4 flex flex-col items-center justify-center touch-none">
         <div 
-          ref={gridRef}
-          className="grid gap-1 p-3 bg-slate-800 rounded-2xl touch-none"
+          className="relative"
           style={{ 
-            touchAction: 'none',
-            gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
             maxWidth: `${Math.min(gridSize * 56, 380)}px`,
             width: '100%'
           }}
         >
-          {gridLetters.map((row, r) => (
-            row.map((char, c) => (
-              <LetterCell
-                key={`${r}-${c}`}
-                char={char}
-                r={r} c={c}
-                status={getCellStatus(r, c)}
-                wordColor={getCellWordColor(r, c)}
-                neighbors={getCellNeighbors(r, c)}
-                isHint={hintCells.has(`${r}-${c}`)}
-                onPointerDown={(e) => handlePointerDown(e, r, c)}
-              />
-            ))
-          ))}
+          <div 
+            ref={gridRef}
+            className={cn("grid p-3 rounded-2xl touch-none", styles.grid.background, styles.grid.gap)}
+            style={{ 
+              touchAction: 'none',
+              gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
+            }}
+          >
+            {gridLetters.map((row, r) => (
+              row.map((char, c) => (
+                <LetterCell
+                  key={`${r}-${c}`}
+                  char={char}
+                  r={r} c={c}
+                  status={getCellStatus(r, c)}
+                  wordColor={getCellWordColor(r, c)}
+                  neighbors={getCellNeighbors(r, c)}
+                  isHint={hintCells.has(`${r}-${c}`)}
+                  styles={styles}
+                  onPointerDown={(e) => handlePointerDown(e, r, c)}
+                />
+              ))
+            ))}
+          </div>
         </div>
       </main>
 
       {/* Footer - Words to find */}
-      <footer className="bg-slate-800 p-4 pb-8 z-10">
-        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+      <footer className={cn("p-4 pb-8 z-10", styles.footer.background, styles.footer.border)}>
+        <h3 className={cn("text-xs font-bold uppercase tracking-wider mb-3", styles.footer.title)}>
           Найди слова:
         </h3>
         <div className="flex flex-wrap gap-2 content-start max-h-36 overflow-auto">
           {placedWords.map((pw, idx) => {
             const isFound = foundWordIds.has(pw.word.bur);
-            const colorIdx = idx % WORD_COLORS.length;
-            const color = WORD_COLORS[colorIdx];
+            const colorIdx = idx % wordColors.length;
+            const color = wordColors[colorIdx];
             
             return (
               <div 
@@ -641,7 +748,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                 className={cn(
                   "px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2",
                   "transition-[transform,background-color] duration-200 ease-out",
-                  !isFound && "bg-slate-700 text-slate-300",
+                  !isFound && `${styles.wordChip.idle.background} ${styles.wordChip.idle.text}`,
                   isFound && "scale-95"
                 )}
                 style={isFound ? { 
@@ -663,6 +770,32 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         </div>
       </footer>
 
+      {/* Toast уведомление */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            transition={{ type: "spring", duration: 0.4 }}
+            className={cn(
+              "fixed bottom-24 left-4 right-4 mx-auto max-w-sm z-40",
+              "rounded-2xl px-4 py-3 shadow-xl",
+              "flex items-center gap-3",
+              styles.toast.background,
+              styles.toast.border
+            )}
+          >
+            <div className={cn("flex-shrink-0", styles.toast.icon)}>
+              <Info size={20} />
+            </div>
+            <p className={cn("text-sm font-medium", styles.toast.text)}>
+              {toastMessage}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Win Modal */}
       <AnimatePresence>
         {showWinModal && (
@@ -670,18 +803,22 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            className={cn("absolute inset-0 z-50 flex items-center justify-center p-4", styles.winModal.overlay)}
           >
             <motion.div 
               initial={{ scale: 0.8, y: 20 }} 
               animate={{ scale: 1, y: 0 }}
               transition={{ type: "spring", duration: 0.5 }}
-              className="bg-gradient-to-b from-slate-800 to-slate-900 rounded-3xl p-6 text-center w-full max-w-sm shadow-2xl border border-slate-700/50 relative overflow-hidden"
+              className={cn(
+                "rounded-3xl p-6 text-center w-full max-w-sm shadow-2xl relative overflow-hidden",
+                styles.winModal.cardGradient,
+                styles.winModal.cardBorder
+              )}
             >
               {/* Декоративный фон */}
               <div className="absolute inset-0 opacity-30">
-                <div className="absolute top-0 left-1/4 w-32 h-32 bg-amber-400/20 rounded-full blur-3xl" />
-                <div className="absolute bottom-0 right-1/4 w-24 h-24 bg-emerald-400/20 rounded-full blur-3xl" />
+                <div className={cn("absolute top-0 left-1/4 w-32 h-32 rounded-full blur-3xl", styles.winModal.decorOrb1)} />
+                <div className={cn("absolute bottom-0 right-1/4 w-24 h-24 rounded-full blur-3xl", styles.winModal.decorOrb2)} />
               </div>
               
               <div className="relative z-10">
@@ -690,9 +827,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: "spring", delay: 0.2, duration: 0.6 }}
-                  className="w-24 h-24 bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-5 shadow-lg shadow-amber-500/30"
+                  className={cn(
+                    "w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5 shadow-lg",
+                    styles.winModal.trophyGradient,
+                    styles.winModal.trophyShadow
+                  )}
                 >
-                  <Trophy size={44} className="text-white drop-shadow-md" />
+                  <Trophy size={44} className={cn("drop-shadow-md", styles.winModal.trophyIcon)} />
                 </motion.div>
                 
                 {/* Заголовок */}
@@ -702,13 +843,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                   transition={{ delay: 0.3 }}
                 >
                   <div className="flex items-center justify-center gap-2 mb-1">
-                    <Sparkles size={20} className="text-amber-400" />
-                    <h2 className="text-3xl font-bold bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent">
+                    <Sparkles size={20} className={styles.winModal.titleIcon} />
+                    <h2 className={cn("text-3xl font-bold", styles.winModal.titleGradient)}>
                       Бэрхэ!
                     </h2>
-                    <Sparkles size={20} className="text-amber-400" />
+                    <Sparkles size={20} className={styles.winModal.titleIcon} />
                   </div>
-                  <p className="text-slate-300 mb-4">
+                  <p className={cn("mb-4", styles.winModal.subtitle)}>
                     Поздравляем! Вы отлично справились 🎉
                   </p>
                 </motion.div>
@@ -730,21 +871,37 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
                 >
-                  <div className="bg-slate-700/50 backdrop-blur-sm rounded-xl p-3 border border-slate-600/30">
-                    <div className="text-xs text-slate-400 mb-0.5">⏱️ Время</div>
-                    <div className="text-lg font-bold text-white">{formatTime(time)}</div>
+                  <div className={cn(
+                    "rounded-xl p-3 border",
+                    styles.winModal.statCard.background,
+                    styles.winModal.statCard.border
+                  )}>
+                    <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>⏱️ Время</div>
+                    <div className={cn("text-lg font-bold", styles.winModal.statCard.valueDefault)}>{formatTime(time)}</div>
                   </div>
-                  <div className="bg-slate-700/50 backdrop-blur-sm rounded-xl p-3 border border-slate-600/30">
-                    <div className="text-xs text-slate-400 mb-0.5">🏆 Очки</div>
-                    <div className="text-lg font-bold text-amber-400">{score}</div>
+                  <div className={cn(
+                    "rounded-xl p-3 border",
+                    styles.winModal.statCard.background,
+                    styles.winModal.statCard.border
+                  )}>
+                    <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>🏆 Очки</div>
+                    <div className={cn("text-lg font-bold", styles.winModal.statCard.valueScore)}>{score}</div>
                   </div>
-                  <div className="bg-slate-700/50 backdrop-blur-sm rounded-xl p-3 border border-slate-600/30">
-                    <div className="text-xs text-slate-400 mb-0.5">📖 Слов найдено</div>
-                    <div className="text-lg font-bold text-emerald-400">{foundWordIds.size}/{placedWords.length}</div>
+                  <div className={cn(
+                    "rounded-xl p-3 border",
+                    styles.winModal.statCard.background,
+                    styles.winModal.statCard.border
+                  )}>
+                    <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>📖 Слов найдено</div>
+                    <div className={cn("text-lg font-bold", styles.winModal.statCard.valueWords)}>{foundWordIds.size}/{placedWords.length}</div>
                   </div>
-                  <div className="bg-slate-700/50 backdrop-blur-sm rounded-xl p-3 border border-slate-600/30">
-                    <div className="text-xs text-slate-400 mb-0.5">🔥 Макс. комбо</div>
-                    <div className="text-lg font-bold text-cyan-400">×{combo}</div>
+                  <div className={cn(
+                    "rounded-xl p-3 border",
+                    styles.winModal.statCard.background,
+                    styles.winModal.statCard.border
+                  )}>
+                    <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>🔥 Макс. комбо</div>
+                    <div className={cn("text-lg font-bold", styles.winModal.statCard.valueCombo)}>×{combo}</div>
                   </div>
                 </motion.div>
                 
@@ -771,8 +928,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                           className={cn(
                             "w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
                             isNextUnlocked 
-                              ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98]"
-                              : "bg-slate-700/50 text-slate-400 cursor-not-allowed"
+                              ? `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
+                              : styles.winModal.nextLevelButton.disabled
                           )}
                         >
                           {isNextUnlocked ? (
@@ -796,14 +953,24 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                   <div className="flex gap-2">
                     <button 
                       onClick={initGame}
-                      className="flex-1 py-3 bg-slate-700/70 text-white rounded-xl font-semibold hover:bg-slate-600 transition-all duration-200 flex items-center justify-center gap-2"
+                      className={cn(
+                        "flex-1 py-3 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2",
+                        styles.winModal.secondaryButton.background,
+                        styles.winModal.secondaryButton.backgroundHover,
+                        styles.winModal.secondaryButton.text
+                      )}
                     >
                       <RotateCcw size={16} />
                       Ещё раз
                     </button>
                     <button 
                       onClick={shareResult}
-                      className="flex-1 py-3 bg-slate-700/70 text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-slate-600 transition-all duration-200"
+                      className={cn(
+                        "flex-1 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                        styles.winModal.secondaryButton.background,
+                        styles.winModal.secondaryButton.backgroundHover,
+                        styles.winModal.secondaryButton.text
+                      )}
                     >
                       <Share2 size={16} />
                       Поделиться
@@ -812,7 +979,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                   
                   <button 
                     onClick={() => navigate('levels')}
-                    className="w-full py-3 text-slate-400 hover:text-white font-medium transition-colors"
+                    className={cn(
+                      "w-full py-3 font-medium transition-colors",
+                      styles.winModal.backLink.text,
+                      styles.winModal.backLink.textHover
+                    )}
                   >
                     ← К списку уровней
                   </button>
