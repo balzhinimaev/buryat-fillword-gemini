@@ -1,6 +1,17 @@
 // Хранилище состояния авторизации
 import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
-import { telegramAuth, getStoredTokens, clearStoredTokens, refreshToken, AUTH_REQUIRED_EVENT, type AuthResponse } from '../services/api';
+import { 
+  telegramAuth, 
+  getStoredTokens, 
+  clearStoredTokens, 
+  refreshToken, 
+  AUTH_REQUIRED_EVENT, 
+  type AuthResponse,
+  type AgeRange,
+  type BuriatLevel,
+  type ReminderPlan,
+  type ReminderTime
+} from '../services/api';
 import { useTelegram } from '../hooks/useTelegram';
 
 export interface User {
@@ -18,6 +29,13 @@ export interface User {
     wordsRejected: number;
     verificationAccuracy: number;
   };
+  // Поля онбординга
+  onboardingCompleted: boolean;
+  onboardingStep?: string;
+  ageRange?: AgeRange;
+  buriatLevel?: BuriatLevel;
+  reminderPlan?: ReminderPlan;
+  reminderTime?: ReminderTime;
 }
 
 export interface AuthState {
@@ -26,12 +44,15 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
   isNewUser: boolean;
+  onboardingCompleted: boolean;
 }
 
 export interface AuthStore {
   state: AuthState;
   login: () => Promise<void>;
   logout: () => void;
+  setOnboardingCompleted: (user: User) => void;
+  setUserName: (name: string) => void;
 }
 
 const AUTH_USER_KEY = 'auth_user';
@@ -66,6 +87,7 @@ export function useAuthStore(): AuthStore {
       isLoading: false,
       error: null,
       isNewUser: false,
+      onboardingCompleted: user?.onboardingCompleted ?? false,
     };
   });
 
@@ -90,6 +112,12 @@ export function useAuthStore(): AuthStore {
         role: response.role,
         trustScore: response.trustScore,
         stats: response.stats,
+        onboardingCompleted: response.onboardingCompleted,
+        onboardingStep: response.onboardingStep,
+        ageRange: response.ageRange,
+        buriatLevel: response.buriatLevel,
+        reminderPlan: response.reminderPlan,
+        reminderTime: response.reminderTime,
       };
 
       saveUser(user);
@@ -100,9 +128,10 @@ export function useAuthStore(): AuthStore {
         isLoading: false,
         error: null,
         isNewUser: response.isNewUser,
+        onboardingCompleted: response.onboardingCompleted,
       });
 
-      console.log('Auth successful:', response.isNewUser ? 'new user' : 'existing user', 'userId:', response._id);
+      console.log('Auth successful:', response.isNewUser ? 'new user' : 'existing user', 'userId:', response._id, 'onboarding:', response.onboardingCompleted);
     } catch (error) {
       console.error('Auth failed:', error);
       
@@ -128,6 +157,31 @@ export function useAuthStore(): AuthStore {
       isLoading: false,
       error: null,
       isNewUser: false,
+      onboardingCompleted: false,
+    });
+  }, []);
+
+  // Обновление данных пользователя после онбординга
+  const setOnboardingCompleted = useCallback((updatedUser: User) => {
+    saveUser(updatedUser);
+    setState(prev => ({
+      ...prev,
+      user: updatedUser,
+      onboardingCompleted: updatedUser.onboardingCompleted,
+      isNewUser: false, // После онбординга уже не новый
+    }));
+  }, []);
+
+  // Обновление имени пользователя (локально после успешного запроса)
+  const setUserName = useCallback((name: string) => {
+    setState(prev => {
+      if (!prev.user) return prev;
+      const updatedUser: User = { ...prev.user, name };
+      saveUser(updatedUser);
+      return {
+        ...prev,
+        user: updatedUser,
+      };
     });
   }, []);
 
@@ -173,6 +227,7 @@ export function useAuthStore(): AuthStore {
             isLoading: false,
             error: null,
             isNewUser: false,
+            onboardingCompleted: false,
           });
         }
       }
@@ -200,6 +255,12 @@ export function useAuthStore(): AuthStore {
             role: response.role,
             trustScore: response.trustScore,
             stats: response.stats,
+            onboardingCompleted: response.onboardingCompleted,
+            onboardingStep: response.onboardingStep,
+            ageRange: response.ageRange,
+            buriatLevel: response.buriatLevel,
+            reminderPlan: response.reminderPlan,
+            reminderTime: response.reminderTime,
           };
 
           saveUser(user);
@@ -210,9 +271,10 @@ export function useAuthStore(): AuthStore {
             isLoading: false,
             error: null,
             isNewUser: response.isNewUser,
+            onboardingCompleted: response.onboardingCompleted,
           });
 
-          console.log('✅ Авторизация успешна:', response.isNewUser ? 'новый пользователь' : 'существующий пользователь', 'userId:', response._id);
+          console.log('✅ Авторизация успешна:', response.isNewUser ? 'новый пользователь' : 'существующий пользователь', 'userId:', response._id, 'onboarding:', response.onboardingCompleted);
         } catch (error) {
           console.error('❌ Ошибка авторизации:', error);
           
@@ -252,6 +314,7 @@ export function useAuthStore(): AuthStore {
         isLoading: true,
         error: null,
         isNewUser: false,
+        onboardingCompleted: false,
       });
 
       // Если мы в Telegram и есть initData - логинимся заново
@@ -270,6 +333,12 @@ export function useAuthStore(): AuthStore {
             role: response.role,
             trustScore: response.trustScore,
             stats: response.stats,
+            onboardingCompleted: response.onboardingCompleted,
+            onboardingStep: response.onboardingStep,
+            ageRange: response.ageRange,
+            buriatLevel: response.buriatLevel,
+            reminderPlan: response.reminderPlan,
+            reminderTime: response.reminderTime,
           };
 
           saveUser(user);
@@ -280,6 +349,7 @@ export function useAuthStore(): AuthStore {
             isLoading: false,
             error: null,
             isNewUser: response.isNewUser,
+            onboardingCompleted: response.onboardingCompleted,
           });
 
           console.log('✅ Переавторизация успешна');
@@ -316,6 +386,8 @@ export function useAuthStore(): AuthStore {
     state,
     login,
     logout,
+    setOnboardingCompleted,
+    setUserName,
   };
 }
 

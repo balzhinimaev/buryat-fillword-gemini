@@ -6,6 +6,8 @@ import {
   Palette, 
   Timer, 
   User,
+  Shield,
+  Bell,
   RotateCcw,
   AlertTriangle,
   ArrowLeft,
@@ -18,6 +20,8 @@ import { useBackButton } from '../hooks/useTelegram';
 import { themeList } from '../theme';
 import type { GameStore } from '../store/gameStore';
 import type { ThemeId } from '../types';
+import { useAuth } from '../store/authStore';
+import { updateName } from '../services/api';
 
 interface SettingsScreenProps {
   store: GameStore;
@@ -27,18 +31,38 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
   const { state, navigate, updateSettings, resetProgress } = store;
   const { settings } = state;
   const { theme, isDark } = useTheme();
+  const { setUserName } = useAuth();
   
   useBackButton(() => navigate('menu'));
   
   const [showResetModal, setShowResetModal] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState(settings.playerName);
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
 
-  const handleNameSave = () => {
-    if (tempName.trim()) {
-      updateSettings({ playerName: tempName.trim() });
+  const handleNameSave = async () => {
+    const newName = tempName.trim();
+    if (!newName) {
+      setNameError('Имя не может быть пустым');
+      return;
     }
-    setEditingName(false);
+    if (newName.length > 50) {
+      setNameError('Максимум 50 символов');
+      return;
+    }
+    setNameError(null);
+    setIsSavingName(true);
+    try {
+      await updateName(newName);
+      updateSettings({ playerName: newName });
+      setUserName(newName);
+      setEditingName(false);
+    } catch {
+      setNameError('Не удалось сохранить имя. Попробуйте ещё раз.');
+    } finally {
+      setIsSavingName(false);
+    }
   };
 
   const handleReset = () => {
@@ -107,26 +131,37 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
           </div>
           
           {editingName ? (
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={tempName}
-                onChange={(e) => setTempName(e.target.value)}
-                className={cn(
-                  "flex-1 px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500",
-                  isDark 
-                    ? "bg-stone-700/50 border border-stone-600 text-white placeholder:text-stone-400"
-                    : "border border-stone-200 text-stone-800"
-                )}
-                maxLength={20}
-                autoFocus
-              />
-              <button
-                onClick={handleNameSave}
-                className="px-4 py-2 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors"
-              >
-                OK
-              </button>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  className={cn(
+                    "flex-1 px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500",
+                    isDark 
+                      ? "bg-stone-700/50 border border-stone-600 text-white placeholder:text-stone-400"
+                      : "border border-stone-200 text-stone-800"
+                  )}
+                  maxLength={50}
+                  autoFocus
+                />
+                <button
+                  onClick={handleNameSave}
+                  disabled={isSavingName}
+                  className={cn(
+                    "px-4 py-2 bg-amber-500 text-white rounded-xl font-medium transition-colors",
+                    isSavingName ? "opacity-70 cursor-not-allowed" : "hover:bg-amber-600"
+                  )}
+                >
+                  {isSavingName ? "..." : "OK"}
+                </button>
+              </div>
+              {nameError && (
+                <p className={cn("text-sm", isDark ? "text-red-400" : "text-red-600")}>
+                  {nameError}
+                </p>
+              )}
             </div>
           ) : (
             <button
@@ -217,6 +252,68 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
               onChange={(enabled) => updateSettings({ showHints: enabled })}
               label="Подсказки"
               description="Подсвечивать первую букву"
+              isDark={isDark}
+              theme={theme}
+            />
+          </div>
+        </motion.div>
+
+        {/* Notifications */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22 }}
+          className="space-y-3"
+        >
+          <div className="flex items-center gap-3 px-1">
+            <Bell size={18} className={theme.text.muted} />
+            <span className={cn("text-sm font-medium uppercase tracking-wider", theme.text.muted)}>
+              Уведомления
+            </span>
+          </div>
+          
+          <div className={cn(
+            "rounded-2xl overflow-hidden",
+            isDark 
+              ? cn(theme.backgrounds.card, "border", theme.borders.subtle)
+              : "bg-white shadow-sm border border-stone-100"
+          )}>
+            <ToggleSwitchThemed
+              enabled={settings.notificationsEnabled}
+              onChange={(enabled) => updateSettings({ notificationsEnabled: enabled })}
+              label="Напоминания"
+              description="Получать уведомления о занятиях"
+              isDark={isDark}
+              theme={theme}
+            />
+          </div>
+        </motion.div>
+
+        {/* Privacy */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="space-y-3"
+        >
+          <div className="flex items-center gap-3 px-1">
+            <Shield size={18} className={theme.text.muted} />
+            <span className={cn("text-sm font-medium uppercase tracking-wider", theme.text.muted)}>
+              Конфиденциальность
+            </span>
+          </div>
+          
+          <div className={cn(
+            "rounded-2xl overflow-hidden",
+            isDark 
+              ? cn(theme.backgrounds.card, "border", theme.borders.subtle)
+              : "bg-white shadow-sm border border-stone-100"
+          )}>
+            <ToggleSwitchThemed
+              enabled={settings.publicProfile}
+              onChange={(enabled) => updateSettings({ publicProfile: enabled })}
+              label="Публичный профиль"
+              description="Показывать имя в таблице лидеров"
               isDark={isDark}
               theme={theme}
             />

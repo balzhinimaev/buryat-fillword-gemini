@@ -57,6 +57,8 @@ export interface GameSettings {
   showHints: boolean;
   timerEnabled: boolean;
   playerName: string;
+  publicProfile: boolean;
+  notificationsEnabled: boolean;
 }
 
 export interface GameState {
@@ -77,7 +79,8 @@ export type Screen =
   | 'leaderboard'
   | 'dictionary'
   | 'debug'
-  | 'contribute'; // Үгын Дархан - Словарная мастерская
+  | 'contribute' // Үгын Дархан - Словарная мастерская
+  | 'onboarding'; // Онбординг для новых пользователей
 
 export type Coord = { r: number; c: number };
 

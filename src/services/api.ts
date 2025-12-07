@@ -4,6 +4,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://anoname.ru/api';
 // Событие для уведомления о необходимости переавторизации
 export const AUTH_REQUIRED_EVENT = 'auth:required';
 
+// Типы для онбординга
+export type AgeRange = '18-24' | '25-34' | '35-44' | '45+' | 'prefer_not_to_say';
+export type BuriatLevel = 'beginner' | 'intermediate' | 'advanced' | 'native' | 'skip';
+export type ReminderPlan = 'daily-10' | '3x-week-15' | 'weekend-20' | 'off';
+export type ReminderTime = 'morning' | 'day' | 'evening';
+
 // Типы ответов API
 export interface AuthResponse {
   _id: string;
@@ -25,6 +31,13 @@ export interface AuthResponse {
   isNewUser: boolean;
   isLanguageKeeper?: boolean;
   languageKeeperJoinedAt?: string;
+  // Поля онбординга
+  onboardingCompleted: boolean;
+  onboardingStep?: string;
+  ageRange?: AgeRange;
+  buriatLevel?: BuriatLevel;
+  reminderPlan?: ReminderPlan;
+  reminderTime?: ReminderTime;
 }
 
 // Ответ пользователя (для join/leave keepers)
@@ -45,6 +58,32 @@ export interface UserResponse {
     wordsRejected: number;
     verificationAccuracy: number;
   };
+  // Поля онбординга
+  onboardingCompleted: boolean;
+  onboardingStep?: string;
+  ageRange?: AgeRange;
+  buriatLevel?: BuriatLevel;
+  reminderPlan?: ReminderPlan;
+  reminderTime?: ReminderTime;
+}
+
+// Запрос на обновление онбординга
+export interface UpdateOnboardingRequest {
+  onboardingCompleted: boolean;
+  onboardingStep?: string;
+  name?: string;
+  ageRange?: AgeRange;
+  buriatLevel?: BuriatLevel;
+  reminderPlan?: ReminderPlan;
+  reminderTime?: ReminderTime;
+}
+
+// Обновление имени
+export async function updateName(name: string): Promise<UserResponse> {
+  return apiRequest<UserResponse>('/users/me/name', {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  });
 }
 
 export interface ApiError {
@@ -111,6 +150,37 @@ export interface ProjectStats {
   participantsCount: number;
   categoriesCount: number;
   languageKeepersCount: number;
+}
+
+// Личная статистика пользователя
+export interface UserStats {
+  wordsAdded: number;
+  wordsVerified: number;
+  wordsApproved: number;
+  wordsRejected: number;
+  verificationAccuracy: number;
+}
+
+// Топ хранителей
+export interface LanguageKeeperLeaderboardItem {
+  _id: string;
+  name: string;
+  telegramUsername?: string;
+  photoUrl?: string;
+  stats: UserStats;
+  role: string;
+  trustScore: number;
+  isLanguageKeeper: boolean;
+  languageKeeperJoinedAt?: string;
+}
+
+// Общая статистика слов
+export interface WordsStats {
+  total: number;
+  pending: number;
+  verified: number;
+  rejected: number;
+  activeInGame: number;
 }
 
 // Ответ при создании слова
@@ -374,6 +444,21 @@ export async function getProjectStats(): Promise<ProjectStats> {
   return apiRequest<ProjectStats>('/stats', { method: 'GET' });
 }
 
+// Получение общей статистики слов
+export async function getWordsStats(): Promise<WordsStats> {
+  return apiRequest<WordsStats>('/words/stats', { method: 'GET' });
+}
+
+// Топ хранителей языка
+export async function getLanguageKeepersLeaderboard(): Promise<LanguageKeeperLeaderboardItem[]> {
+  return apiRequest<LanguageKeeperLeaderboardItem[]>('/words/keepers/leaderboard', { method: 'GET' });
+}
+
+// Получение личной статистики пользователя
+export async function getUserStats(): Promise<UserStats> {
+  return apiRequest<UserStats>('/users/me/stats', { method: 'GET' });
+}
+
 // Присоединиться к хранителям языка
 export async function joinLanguageKeepers(): Promise<UserResponse> {
   return apiRequest<UserResponse>('/users/me/join-keepers', { method: 'POST' });
@@ -397,6 +482,14 @@ export async function voteWord(data: VoteRequest): Promise<VoteResponse> {
   });
 }
 
+// Обновление онбординга
+export async function updateOnboarding(data: UpdateOnboardingRequest): Promise<UserResponse> {
+  return apiRequest<UserResponse>('/users/me/onboarding', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
 // API экспорт
 export const api = {
   telegramAuth,
@@ -409,10 +502,15 @@ export const api = {
   getPartsOfSpeech,
   createWord,
   getProjectStats,
+  getWordsStats,
+  getLanguageKeepersLeaderboard,
+  getUserStats,
   joinLanguageKeepers,
   leaveLanguageKeepers,
   getPendingWords,
   voteWord,
+  updateOnboarding,
+  updateName,
   
   // Универсальные методы для других запросов
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),
@@ -420,6 +518,8 @@ export const api = {
     apiRequest<T>(endpoint, { method: 'POST', body: JSON.stringify(data) }),
   put: <T>(endpoint: string, data?: unknown) => 
     apiRequest<T>(endpoint, { method: 'PUT', body: JSON.stringify(data) }),
+  patch: <T>(endpoint: string, data?: unknown) => 
+    apiRequest<T>(endpoint, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'DELETE' }),
 };
 

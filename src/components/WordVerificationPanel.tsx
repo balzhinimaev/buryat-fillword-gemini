@@ -58,6 +58,7 @@ const VoteWordCard: React.FC<{
   const [showReasonInput, setShowReasonInput] = useState(false);
   const [reason, setReason] = useState('');
   const [voteResult, setVoteResult] = useState<'upvote' | 'downvote' | null>(null);
+  const [isShaking, setIsShaking] = useState(false);
 
   // Проверяем, является ли пользователь автором слова (по telegramId)
   const isOwnWord = currentUserTelegramId !== undefined && 
@@ -68,6 +69,14 @@ const VoteWordCard: React.FC<{
   const hasDownvoted = currentUserId ? word.downvotes.includes(currentUserId) : false;
 
   const handleVote = async (type: 'upvote' | 'downvote') => {
+    // Проверяем, уже голосовал ли пользователь
+    if ((type === 'upvote' && hasUpvoted) || (type === 'downvote' && hasDownvoted)) {
+      // Запускаем эффект вибрации
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 500);
+      return;
+    }
+
     if (type === 'downvote' && !showReasonInput) {
       setShowReasonInput(true);
       return;
@@ -78,8 +87,13 @@ const VoteWordCard: React.FC<{
       setVoteResult(type);
       setShowReasonInput(false);
       setReason('');
+      // Возвращаем карточку в исходное положение через 600мс
+      setTimeout(() => setVoteResult(null), 600);
     } catch {
       // Ошибка обрабатывается в родительском компоненте
+      // При ошибке также запускаем shake
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 500);
     }
   };
 
@@ -107,7 +121,14 @@ const VoteWordCard: React.FC<{
         opacity: 1, 
         scale: 1, 
         y: 0,
-        rotate: voteResult === 'upvote' ? 3 : voteResult === 'downvote' ? -3 : 0,
+        x: isShaking ? [0, -8, 8, -8, 8, -4, 4, 0] : 0,
+        rotate: voteResult === 'upvote' ? 1.5 : voteResult === 'downvote' ? -1.5 : 0,
+      }}
+      transition={{
+        x: {
+          duration: 0.5,
+          ease: "easeInOut"
+        }
       }}
       exit={{ 
         opacity: 0, 

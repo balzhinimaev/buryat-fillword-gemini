@@ -18,6 +18,8 @@ const defaultSettings: GameSettings = {
   showHints: false,
   timerEnabled: true,
   playerName: 'Игрок',
+  publicProfile: true,
+  notificationsEnabled: true,
 };
 
 const defaultStats: PlayerStats = {

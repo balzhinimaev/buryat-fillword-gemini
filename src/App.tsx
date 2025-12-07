@@ -5,6 +5,7 @@ import { useMemo, useEffect } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
 import { getTheme } from './theme';
 import { TelegramThemeSync } from './components/TelegramThemeSync';
+import { useAuth } from './store/authStore';
 
 // Screens
 import MainMenu from './screens/MainMenu';
@@ -16,6 +17,7 @@ import LeaderboardScreen from './screens/LeaderboardScreen';
 import DictionaryScreen from './screens/DictionaryScreen';
 import DebugGridScreen from './screens/DebugGridScreen';
 import WordContributionScreen from './screens/WordContributionScreen';
+import OnboardingScreen from './screens/OnboardingScreen';
 
 // Плавный fade переход
 const pageVariants = {
@@ -34,11 +36,31 @@ export default function App() {
   const store = useGameStore();
   const { currentScreen, settings } = store.state;
   const currentTheme = getTheme(settings.theme);
+  const { state: authState } = useAuth();
+
+  // Определяем нужно ли показывать онбординг
+  const shouldShowOnboarding = useMemo(() => {
+    // Показываем онбординг если:
+    // 1. Пользователь авторизован
+    // 2. Это новый пользователь ИЛИ онбординг не завершён
+    if (!authState.isAuthenticated || authState.isLoading) {
+      return false;
+    }
+    return authState.isNewUser || !authState.onboardingCompleted;
+  }, [authState.isAuthenticated, authState.isLoading, authState.isNewUser, authState.onboardingCompleted]);
+
+  // Определяем какой экран показывать
+  const effectiveScreen = useMemo(() => {
+    if (shouldShowOnboarding) {
+      return 'onboarding';
+    }
+    return currentScreen;
+  }, [shouldShowOnboarding, currentScreen]);
 
   // Прокручиваем страницу вверх при переходе на новый экран
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [currentScreen]);
+  }, [effectiveScreen]);
 
   // Определяем фон в зависимости от темы
   // Каждый экран может устанавливать свой собственный фон поверх этого
@@ -47,7 +69,9 @@ export default function App() {
   }, [currentTheme]);
 
   const renderScreen = () => {
-    switch (currentScreen) {
+    switch (effectiveScreen) {
+      case 'onboarding':
+        return <OnboardingScreen store={store} />;
       case 'menu':
         return <MainMenu store={store} />;
       case 'levels':
@@ -81,7 +105,7 @@ export default function App() {
       >
         <AnimatePresence mode="wait">
           <motion.div
-            key={currentScreen}
+            key={effectiveScreen}
             variants={pageVariants}
             initial="initial"
             animate="animate"
