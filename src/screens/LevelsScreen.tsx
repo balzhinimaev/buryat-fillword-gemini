@@ -5,6 +5,7 @@ import { Star, ArrowLeft, Layers } from 'lucide-react';
 import { CategoryCard, cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
+import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { categories } from '../data/words';
 
@@ -15,6 +16,8 @@ interface LevelsScreenProps {
 export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   const { state, navigate, selectCategory, getLevelProgress, isLevelUnlocked } = store;
   const { theme } = useTheme();
+  
+  useBackButton(() => navigate('menu'));
 
   const difficultyGroups = {
     easy: categories.filter(c => c.difficulty === 'easy'),

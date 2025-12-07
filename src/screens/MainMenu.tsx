@@ -19,6 +19,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { getMenuStyles } from '../theme/menuStyles';
 import { cn } from '../components/ui';
 import { useTelegram } from '../hooks/useTelegram';
+import { useAuth } from '../store/authStore';
 
 interface MainMenuProps {
   store: GameStore;
@@ -154,6 +155,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
   const { openLink } = useTelegram();
+  const { state: authState } = useAuth();
+  const isAdmin = authState.user?.role === 'admin';
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
@@ -444,16 +447,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             </div>
           </motion.button>
 
-          {/* Debug */}
-          <motion.button
-            whileHover={{ opacity: 0.8 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('debug')}
-            className={cn("w-full py-2 text-sm transition-colors flex items-center justify-center gap-2", styles.footer.text, "hover:opacity-80")}
-          >
-            <Bug size={14} />
-            Debug Grid
-          </motion.button>
+          {/* Debug (admin only) */}
+          {isAdmin && (
+            <motion.button
+              whileHover={{ opacity: 0.8 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('debug')}
+              className={cn("w-full py-2 text-sm transition-colors flex items-center justify-center gap-2", styles.footer.text, "hover:opacity-80")}
+            >
+              <Bug size={14} />
+              Debug Grid
+            </motion.button>
+          )}
         </motion.div>
       </main>
 

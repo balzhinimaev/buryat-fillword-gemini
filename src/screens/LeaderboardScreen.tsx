@@ -5,6 +5,7 @@ import { Trophy, Medal, Clock, Crown, Filter, ArrowLeft } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
+import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { categories, getCategoryById } from '../data/words';
 
@@ -16,6 +17,8 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
   const { state, navigate } = store;
   const { leaderboard } = state;
   const { theme, isDark } = useTheme();
+  
+  useBackButton(() => navigate('menu'));
   
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 

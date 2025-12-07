@@ -14,6 +14,7 @@ import {
 import { Modal, cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
+import { useBackButton } from '../hooks/useTelegram';
 import { themeList } from '../theme';
 import type { GameStore } from '../store/gameStore';
 import type { ThemeId } from '../types';
@@ -26,6 +27,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
   const { state, navigate, updateSettings, resetProgress } = store;
   const { settings } = state;
   const { theme, isDark } = useTheme();
+  
+  useBackButton(() => navigate('menu'));
   
   const [showResetModal, setShowResetModal] = useState(false);
   const [editingName, setEditingName] = useState(false);

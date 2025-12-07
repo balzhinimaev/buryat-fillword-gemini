@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import type { GameStore } from '../store/gameStore';
 import { useContributionStore } from '../store/contributionStore';
-import { useTelegram } from '../hooks/useTelegram';
+import { useTelegram, useBackButton } from '../hooks/useTelegram';
 import { useTheme } from '../theme/ThemeContext';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -1164,6 +1164,8 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
   const contribution = useContributionStore();
   const { user: telegramUser } = useTelegram();
   const { theme, isDark } = useTheme();
+  
+  useBackButton(() => navigate('menu'));
   const [activeTab, setActiveTab] = useState<Tab>('add');
   
   // Категории из API

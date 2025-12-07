@@ -5,6 +5,7 @@ import { BookOpen, Search, Check, Volume2, ArrowLeft } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
+import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { categories, getAllWords } from '../data/words';
 
@@ -16,6 +17,8 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
   const { state, navigate } = store;
   const { stats } = state;
   const { theme, isDark } = useTheme();
+  
+  useBackButton(() => navigate('menu'));
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);

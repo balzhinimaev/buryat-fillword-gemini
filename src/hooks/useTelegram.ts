@@ -1,5 +1,5 @@
 // Хук для работы с Telegram Web App API
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import type { TelegramWebApp, TelegramWebAppUser, TelegramThemeParams } from '../types/telegram';
 
 interface MainButtonParams {
@@ -271,4 +271,30 @@ export function useTelegram(): UseTelegramResult {
     showBackButton,
     hideBackButton,
   };
+}
+
+/**
+ * Хук для управления Telegram BackButton на конкретном экране.
+ * Показывает кнопку при монтировании, скрывает при размонтировании.
+ */
+export function useBackButton(onBack: () => void) {
+  const callbackRef = useRef(onBack);
+  
+  useEffect(() => {
+    callbackRef.current = onBack;
+  });
+
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return;
+
+    const handler = () => callbackRef.current();
+    tg.BackButton.onClick(handler);
+    tg.BackButton.show();
+
+    return () => {
+      tg.BackButton.offClick(handler);
+      tg.BackButton.hide();
+    };
+  }, []);
 }

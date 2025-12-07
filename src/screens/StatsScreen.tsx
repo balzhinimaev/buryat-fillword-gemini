@@ -15,6 +15,7 @@ import {
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
+import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { categories, getAllWords } from '../data/words';
 
@@ -26,6 +27,8 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const { state, navigate, xpProgress, xpToNextLevel } = store;
   const { stats, levelProgress } = state;
   const { theme } = useTheme();
+  
+  useBackButton(() => navigate('menu'));
 
   // Форматирование времени
   const formatPlayTime = (seconds: number) => {
