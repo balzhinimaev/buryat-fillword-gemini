@@ -12,7 +12,8 @@ import {
   ChevronRight,
   Sparkles,
   Lock,
-  Info
+  Info,
+  Eye
 } from 'lucide-react';
 import { cn, StarsDisplay } from '../components/ui';
 import type { GameStore } from '../store/gameStore';
@@ -65,6 +66,132 @@ const getWordColors = (isDark: boolean) => isDark ? [
   { bg: '#0891b2', text: '#fff' }, // cyan
   { bg: '#65a30d', text: '#fff' }, // lime
 ];
+
+// Компонент слова с flip-эффектом
+const FlippableWordChip = React.memo(({ 
+  word, 
+  isFound, 
+  color, 
+  styles,
+  isDark,
+  index
+}: { 
+  word: { bur: string; ru: string };
+  isFound: boolean;
+  color: { bg: string; text: string };
+  styles: GameThemeStyles;
+  isDark: boolean;
+  index: number;
+}) => {
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [hasBeenClicked, setHasBeenClicked] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const handleClick = () => {
+    if (isFound || isFlipped) return;
+    
+    setIsFlipped(true);
+    setHasBeenClicked(true);
+    
+    // Автоматически возвращаем через 1.5 секунды
+    timeoutRef.current = setTimeout(() => {
+      setIsFlipped(false);
+    }, 1500);
+  };
+  
+  // Очистка таймера при размонтировании или когда слово найдено
+  useEffect(() => {
+    if (isFound && timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [isFound]);
+
+  // Показываем анимацию-подсказку только для первого незнайденного слова
+  const showHintAnimation = !isFound && !hasBeenClicked && index === 0;
+  
+  return (
+    <div 
+      className={cn(
+        "relative cursor-pointer group",
+        !isFound && "hover:-translate-y-0.5 transition-transform duration-200"
+      )}
+      style={{ perspective: '600px' }}
+      onClick={handleClick}
+    >
+      <div
+        className={cn(
+          "relative transition-transform duration-500 ease-out",
+          !isFound && "active:scale-95"
+        )}
+        style={{
+          transformStyle: 'preserve-3d',
+          // Сбрасываем флип если слово уже найдено
+          transform: (isFlipped && !isFound) ? 'rotateY(180deg)' : 'rotateY(0deg)',
+        }}
+      >
+        {/* Лицевая сторона - русское слово */}
+        <div
+          className={cn(
+            "px-3 py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2",
+            "transition-all duration-200",
+            !isFound && `${styles.wordChip.idle.background} ${styles.wordChip.idle.text}`,
+            !isFound && "group-hover:shadow-md group-hover:ring-2 group-hover:ring-amber-400/30",
+            isFound && "scale-95",
+            showHintAnimation && "animate-[gentle-bounce_2s_ease-in-out_infinite]"
+          )}
+          style={{
+            ...(isFound ? { backgroundColor: color.bg, color: color.text } : undefined),
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+          }}
+        >
+          <span className={isFound ? 'line-through opacity-70' : ''}>
+            {word.ru}
+          </span>
+          {/* Иконка глаза для незнайденных слов */}
+          {!isFound && (
+            <Eye 
+              size={14} 
+              className={cn(
+                "opacity-40 group-hover:opacity-70 transition-opacity",
+                showHintAnimation && "animate-pulse"
+              )} 
+            />
+          )}
+          {isFound && (
+            <span className="text-xs opacity-70 animate-[pop_0.2s_ease-out]">
+              ({word.bur})
+            </span>
+          )}
+        </div>
+        
+        {/* Обратная сторона - бурятское слово */}
+        {!isFound && (
+          <div
+            className={cn(
+              "absolute inset-0 px-3 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5",
+              "bg-gradient-to-br",
+              isDark 
+                ? "from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/30" 
+                : "from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-400/40"
+            )}
+            style={{
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+              transform: 'rotateY(180deg)',
+            }}
+          >
+            <span className="drop-shadow-sm text-base">{word.bur}</span>
+            <span className="text-[10px] opacity-80">🇲🇳</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 // Компонент клетки - оптимизированный с CSS анимациями
 const LetterCell = React.memo(({ 
@@ -733,38 +860,39 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
       {/* Footer - Words to find */}
       <footer className={cn("p-4 pb-8 z-10", styles.footer.background, styles.footer.border)}>
-        <h3 className={cn("text-xs font-bold uppercase tracking-wider mb-3", styles.footer.title)}>
-          Найди слова:
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className={cn("text-xs font-bold uppercase tracking-wider", styles.footer.title)}>
+            Найди слова:
+          </h3>
+          <div className={cn(
+            "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full",
+            isDark ? "bg-white/10 text-white/60" : "bg-black/5 text-black/50"
+          )}>
+            <Eye size={10} />
+            <span>нажми чтобы подсмотреть</span>
+          </div>
+        </div>
         <div className="flex flex-wrap gap-2 content-start max-h-36 overflow-auto">
           {placedWords.map((pw, idx) => {
             const isFound = foundWordIds.has(pw.word.bur);
             const colorIdx = idx % wordColors.length;
             const color = wordColors[colorIdx];
+            // Находим индекс среди незнайденных слов
+            const unfoundIndex = placedWords
+              .slice(0, idx)
+              .filter(p => !foundWordIds.has(p.word.bur))
+              .length;
             
             return (
-              <div 
+              <FlippableWordChip
                 key={pw.word.bur}
-                className={cn(
-                  "px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2",
-                  "transition-[transform,background-color] duration-200 ease-out",
-                  !isFound && `${styles.wordChip.idle.background} ${styles.wordChip.idle.text}`,
-                  isFound && "scale-95"
-                )}
-                style={isFound ? { 
-                  backgroundColor: color.bg, 
-                  color: color.text,
-                } : undefined}
-              >
-                <span className={isFound ? 'line-through opacity-70' : ''}>
-                  {pw.word.ru}
-                </span>
-                {isFound && (
-                  <span className="text-xs opacity-70 animate-[pop_0.2s_ease-out]">
-                    ({pw.word.bur})
-                  </span>
-                )}
-              </div>
+                word={pw.word}
+                isFound={isFound}
+                color={color}
+                styles={styles}
+                isDark={isDark}
+                index={isFound ? -1 : unfoundIndex}
+              />
             );
           })}
         </div>
