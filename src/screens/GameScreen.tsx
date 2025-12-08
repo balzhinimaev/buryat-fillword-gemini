@@ -67,7 +67,7 @@ const getWordColors = (isDark: boolean) => isDark ? [
   { bg: '#65a30d', text: '#fff' }, // lime
 ];
 
-// Компонент слова с flip-эффектом
+// Компонент слова с эффектом раскрытия
 const FlippableWordChip = React.memo(({ 
   word, 
   isFound, 
@@ -83,20 +83,27 @@ const FlippableWordChip = React.memo(({
   isDark: boolean;
   index: number;
 }) => {
-  const [isFlipped, setIsFlipped] = useState(false);
+  const [isRevealed, setIsRevealed] = useState(false);
   const [hasBeenClicked, setHasBeenClicked] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const handleClick = () => {
-    if (isFound || isFlipped) return;
+    if (isFound) return;
     
-    setIsFlipped(true);
+    if (isRevealed) {
+      // Если уже раскрыто - скрываем
+      setIsRevealed(false);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      return;
+    }
+    
+    setIsRevealed(true);
     setHasBeenClicked(true);
     
-    // Автоматически возвращаем через 1.5 секунды
+    // Автоматически скрываем через 2 секунды
     timeoutRef.current = setTimeout(() => {
-      setIsFlipped(false);
-    }, 1500);
+      setIsRevealed(false);
+    }, 2000);
   };
   
   // Очистка таймера при размонтировании или когда слово найдено
@@ -111,85 +118,56 @@ const FlippableWordChip = React.memo(({
 
   // Показываем анимацию-подсказку только для первого незнайденного слова
   const showHintAnimation = !isFound && !hasBeenClicked && index === 0;
+
+  // Найденное слово - компактный вид
+  if (isFound) {
+    return (
+      <div
+        className="px-3 py-1.5 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-all duration-300"
+        style={{ backgroundColor: color.bg, color: color.text }}
+      >
+        <span className="line-through opacity-60">{word.ru}</span>
+        <span className="text-xs opacity-80">({word.bur})</span>
+      </div>
+    );
+  }
   
   return (
-    <div 
-      className={cn(
-        "relative cursor-pointer group",
-        !isFound && "hover:-translate-y-0.5 transition-transform duration-200"
-      )}
-      style={{ perspective: '600px' }}
+    <motion.button
       onClick={handleClick}
+      animate={isRevealed ? { scale: [1, 1.05, 1] } : {}}
+      transition={{ duration: 0.2 }}
+      className={cn(
+        "px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-all duration-300",
+        !isRevealed && styles.wordChip.idle.background,
+        !isRevealed && styles.wordChip.idle.text,
+        !isRevealed && "hover:shadow-md hover:ring-2 hover:ring-amber-400/30 hover:-translate-y-0.5",
+        isRevealed && "bg-gradient-to-r shadow-lg",
+        isRevealed && (isDark 
+          ? "from-amber-500 to-orange-500 text-white shadow-amber-500/30" 
+          : "from-amber-400 to-orange-400 text-white shadow-orange-400/30"),
+        "active:scale-95",
+        showHintAnimation && "animate-[gentle-bounce_2s_ease-in-out_infinite]"
+      )}
     >
-      <div
-        className={cn(
-          "relative transition-transform duration-500 ease-out",
-          !isFound && "active:scale-95"
-        )}
-        style={{
-          transformStyle: 'preserve-3d',
-          // Сбрасываем флип если слово уже найдено
-          transform: (isFlipped && !isFound) ? 'rotateY(180deg)' : 'rotateY(0deg)',
-        }}
-      >
-        {/* Лицевая сторона - русское слово */}
-        <div
-          className={cn(
-            "px-3 py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2",
-            "transition-all duration-200",
-            !isFound && `${styles.wordChip.idle.background} ${styles.wordChip.idle.text}`,
-            !isFound && "group-hover:shadow-md group-hover:ring-2 group-hover:ring-amber-400/30",
-            isFound && "scale-95",
-            showHintAnimation && "animate-[gentle-bounce_2s_ease-in-out_infinite]"
-          )}
-          style={{
-            ...(isFound ? { backgroundColor: color.bg, color: color.text } : undefined),
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-          }}
-        >
-          <span className={isFound ? 'line-through opacity-70' : ''}>
-            {word.ru}
-          </span>
-          {/* Иконка глаза для незнайденных слов */}
-          {!isFound && (
-            <Eye 
-              size={14} 
-              className={cn(
-                "opacity-40 group-hover:opacity-70 transition-opacity",
-                showHintAnimation && "animate-pulse"
-              )} 
-            />
-          )}
-          {isFound && (
-            <span className="text-xs opacity-70 animate-[pop_0.2s_ease-out]">
-              ({word.bur})
-            </span>
-          )}
-        </div>
-        
-        {/* Обратная сторона - бурятское слово */}
-        {!isFound && (
-          <div
+      {isRevealed ? (
+        <>
+          <span className="whitespace-nowrap font-bold">{word.bur}</span>
+          <span className="text-xs opacity-80">🇲🇳</span>
+        </>
+      ) : (
+        <>
+          <span className="whitespace-nowrap">{word.ru}</span>
+          <Eye 
+            size={14} 
             className={cn(
-              "absolute inset-0 px-3 py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5",
-              "bg-gradient-to-br",
-              isDark 
-                ? "from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/30" 
-                : "from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-400/40"
-            )}
-            style={{
-              backfaceVisibility: 'hidden',
-              WebkitBackfaceVisibility: 'hidden',
-              transform: 'rotateY(180deg)',
-            }}
-          >
-            <span className="drop-shadow-sm text-base">{word.bur}</span>
-            <span className="text-[10px] opacity-80">🇲🇳</span>
-          </div>
-        )}
-      </div>
-    </div>
+              "opacity-40 group-hover:opacity-70 transition-opacity flex-shrink-0",
+              showHintAnimation && "animate-pulse"
+            )} 
+          />
+        </>
+      )}
+    </motion.button>
   );
 });
 
@@ -872,7 +850,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
             <span>нажми чтобы подсмотреть</span>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 content-start max-h-36 overflow-auto">
+        <div className="flex flex-wrap gap-2 content-start max-h-36 overflow-y-auto overflow-x-hidden py-1">
           {placedWords.map((pw, idx) => {
             const isFound = foundWordIds.has(pw.word.bur);
             const colorIdx = idx % wordColors.length;
