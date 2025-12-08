@@ -65,6 +65,11 @@ export function useTelegram(): UseTelegramResult {
       // Включаем подтверждение закрытия
       tg.enableClosingConfirmation();
       
+      // Отключаем сворачивание при свайпе вниз
+      if (tg.disableVerticalSwipes) {
+        tg.disableVerticalSwipes();
+      }
+      
       setIsReady(true);
     } else {
       // Не в Telegram - режим разработки

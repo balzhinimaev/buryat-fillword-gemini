@@ -132,6 +132,8 @@ export interface TelegramWebApp {
   ready: () => void;
   expand: () => void;
   close: () => void;
+  disableVerticalSwipes: () => void;
+  enableVerticalSwipes: () => void;
 }
 
 declare global {
