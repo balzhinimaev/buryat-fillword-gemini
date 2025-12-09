@@ -30,8 +30,6 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
   
   useBackButton(() => navigate('menu'));
 
-  // Общий прогресс в бесконечном режиме
-  const totalEndlessStars = state.endlessProgress.totalStars;
   const totalCompletedLevels = state.endlessProgress.completedLevels.length;
 
   return (

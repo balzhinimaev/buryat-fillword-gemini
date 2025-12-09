@@ -1,7 +1,7 @@
 // src/screens/LevelPackScreen.tsx
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Star, Lock, Check, Play } from 'lucide-react';
+import { ArrowLeft, Star, Lock, Check } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
