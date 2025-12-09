@@ -272,3 +272,54 @@ export const getAllWords = (): WordData[] => {
   return categories.flatMap(c => c.words);
 };
 
+// Генерация слов для уровневого режима
+// Количество слов и сложность растёт с уровнем
+export const getWordsForEndlessLevel = (level: number): { words: WordData[]; gridSize: number } => {
+  const allWords = getAllWords();
+  
+  // Сложность растёт с уровнем
+  // Уровни 1-50: 4-6 слов, сетка 5x5
+  // Уровни 51-100: 5-7 слов, сетка 6x6
+  // Уровни 101-150: 6-8 слов, сетка 7x7
+  // Уровни 151-200: 7-9 слов, сетка 7x7
+  
+  let wordCount: number;
+  let gridSize: number;
+  
+  if (level <= 50) {
+    wordCount = 4 + Math.floor(level / 17); // 4-6 слов
+    gridSize = 5;
+  } else if (level <= 100) {
+    wordCount = 5 + Math.floor((level - 50) / 17); // 5-7 слов
+    gridSize = 6;
+  } else if (level <= 150) {
+    wordCount = 6 + Math.floor((level - 100) / 25); // 6-8 слов
+    gridSize = 7;
+  } else {
+    wordCount = 7 + Math.floor((level - 150) / 25); // 7-9 слов
+    gridSize = 7;
+  }
+  
+  // Используем уровень как seed для псевдо-рандома
+  // Это гарантирует, что один и тот же уровень всегда даёт одни и те же слова
+  const seededRandom = (seed: number) => {
+    const x = Math.sin(seed * 9999) * 10000;
+    return x - Math.floor(x);
+  };
+  
+  // Перемешиваем слова с сидом на основе уровня
+  const shuffled = [...allWords].sort((a, b) => {
+    const seedA = level * 1000 + allWords.indexOf(a);
+    const seedB = level * 1000 + allWords.indexOf(b);
+    return seededRandom(seedA) - seededRandom(seedB);
+  });
+  
+  // Берём нужное количество слов, фильтруя слишком длинные для сетки
+  const maxWordLength = gridSize + 1;
+  const selectedWords = shuffled
+    .filter(w => w.bur.length <= maxWordLength && w.bur.length >= 2)
+    .slice(0, wordCount);
+  
+  return { words: selectedWords, gridSize };
+};
+

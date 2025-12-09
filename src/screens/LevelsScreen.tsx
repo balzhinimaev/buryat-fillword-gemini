@@ -17,7 +17,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   const { state, navigate, selectCategory, getLevelProgress, isLevelUnlocked } = store;
   const { theme } = useTheme();
   
-  useBackButton(() => navigate('menu'));
+  useBackButton(() => navigate('gameMode'));
 
   const difficultyGroups = {
     easy: categories.filter(c => c.difficulty === 'easy'),
@@ -30,7 +30,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
       {/* Sticky Header при скролле */}
       <StickyHeader 
         title="Выбор категории" 
-        onBack={() => navigate('menu')}
+        onBack={() => navigate('gameMode')}
         rightElement={<Layers size={22} className={theme.text.accent} />}
       />
       
@@ -50,7 +50,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('menu')}
+              onClick={() => navigate('gameMode')}
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
             >
               <ArrowLeft size={24} className={theme.header.text} />

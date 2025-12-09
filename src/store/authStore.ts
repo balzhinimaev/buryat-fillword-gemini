@@ -22,6 +22,7 @@ export interface User {
   photoUrl?: string;
   role: string;
   trustScore: number;
+  currentStreak?: number;
   stats: {
     wordsAdded: number;
     wordsVerified: number;
@@ -60,7 +61,9 @@ const AUTH_USER_KEY = 'auth_user';
 const loadUser = (): User | null => {
   try {
     const stored = localStorage.getItem(AUTH_USER_KEY);
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+    const parsed: User = JSON.parse(stored);
+    return { ...parsed, currentStreak: parsed.currentStreak ?? 0 };
   } catch {
     return null;
   }
@@ -73,6 +76,24 @@ const saveUser = (user: User | null): void => {
     localStorage.removeItem(AUTH_USER_KEY);
   }
 };
+
+const mapAuthResponseToUser = (response: AuthResponse): User => ({
+  _id: response._id,
+  telegramId: response.telegramId,
+  name: response.name,
+  telegramUsername: response.telegramUsername,
+  photoUrl: response.photoUrl,
+  role: response.role,
+  trustScore: response.trustScore,
+  currentStreak: response.currentStreak ?? 0,
+  stats: response.stats,
+  onboardingCompleted: response.onboardingCompleted,
+  onboardingStep: response.onboardingStep,
+  ageRange: response.ageRange,
+  buriatLevel: response.buriatLevel,
+  reminderPlan: response.reminderPlan,
+  reminderTime: response.reminderTime,
+});
 
 export function useAuthStore(): AuthStore {
   const { initData, isReady, isTelegram } = useTelegram();
@@ -103,22 +124,7 @@ export function useAuthStore(): AuthStore {
     try {
       const response: AuthResponse = await telegramAuth(initData);
       
-      const user: User = {
-        _id: response._id,
-        telegramId: response.telegramId,
-        name: response.name,
-        telegramUsername: response.telegramUsername,
-        photoUrl: response.photoUrl,
-        role: response.role,
-        trustScore: response.trustScore,
-        stats: response.stats,
-        onboardingCompleted: response.onboardingCompleted,
-        onboardingStep: response.onboardingStep,
-        ageRange: response.ageRange,
-        buriatLevel: response.buriatLevel,
-        reminderPlan: response.reminderPlan,
-        reminderTime: response.reminderTime,
-      };
+      const user: User = mapAuthResponseToUser(response);
 
       saveUser(user);
 
@@ -206,7 +212,17 @@ export function useAuthStore(): AuthStore {
         console.log('🔄 Обновление токена при старте приложения...');
         
         try {
-          await refreshToken();
+          const refreshData = await refreshToken();
+
+          if (typeof refreshData.currentStreak === 'number') {
+            setState(prev => {
+              if (!prev.user) return prev;
+              const updatedUser = { ...prev.user, currentStreak: refreshData.currentStreak };
+              saveUser(updatedUser);
+              return { ...prev, user: updatedUser };
+            });
+          }
+
           console.log('✅ Токен успешно обновлён при старте');
           return; // Успех - выходим
         } catch (error) {
@@ -246,22 +262,7 @@ export function useAuthStore(): AuthStore {
         try {
           const response: AuthResponse = await telegramAuth(initData);
           
-          const user: User = {
-            _id: response._id,
-            telegramId: response.telegramId,
-            name: response.name,
-            telegramUsername: response.telegramUsername,
-            photoUrl: response.photoUrl,
-            role: response.role,
-            trustScore: response.trustScore,
-            stats: response.stats,
-            onboardingCompleted: response.onboardingCompleted,
-            onboardingStep: response.onboardingStep,
-            ageRange: response.ageRange,
-            buriatLevel: response.buriatLevel,
-            reminderPlan: response.reminderPlan,
-            reminderTime: response.reminderTime,
-          };
+          const user: User = mapAuthResponseToUser(response);
 
           saveUser(user);
 
@@ -324,22 +325,7 @@ export function useAuthStore(): AuthStore {
         try {
           const response: AuthResponse = await telegramAuth(initData);
           
-          const user: User = {
-            _id: response._id,
-            telegramId: response.telegramId,
-            name: response.name,
-            telegramUsername: response.telegramUsername,
-            photoUrl: response.photoUrl,
-            role: response.role,
-            trustScore: response.trustScore,
-            stats: response.stats,
-            onboardingCompleted: response.onboardingCompleted,
-            onboardingStep: response.onboardingStep,
-            ageRange: response.ageRange,
-            buriatLevel: response.buriatLevel,
-            reminderPlan: response.reminderPlan,
-            reminderTime: response.reminderTime,
-          };
+          const user: User = mapAuthResponseToUser(response);
 
           saveUser(user);
 

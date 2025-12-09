@@ -9,7 +9,9 @@ import { useAuth } from './store/authStore';
 
 // Screens
 import MainMenu from './screens/MainMenu';
+import GameModeSelectScreen from './screens/GameModeSelectScreen';
 import LevelsScreen from './screens/LevelsScreen';
+import LevelPackScreen from './screens/LevelPackScreen';
 import GameScreen from './screens/GameScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import StatsScreen from './screens/StatsScreen';
@@ -74,8 +76,12 @@ export default function App() {
         return <OnboardingScreen store={store} />;
       case 'menu':
         return <MainMenu store={store} />;
+      case 'gameMode':
+        return <GameModeSelectScreen store={store} />;
       case 'levels':
         return <LevelsScreen store={store} />;
+      case 'levelPack':
+        return <LevelPackScreen store={store} />;
       case 'game':
         return <GameScreen store={store} />;
       case 'settings':

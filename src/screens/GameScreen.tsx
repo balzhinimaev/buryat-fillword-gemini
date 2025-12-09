@@ -17,9 +17,10 @@ import {
 } from 'lucide-react';
 import { cn, StarsDisplay } from '../components/ui';
 import type { GameStore } from '../store/gameStore';
-import { getCategoryById, categories } from '../data/words';
+import { LEVEL_PACKS } from '../store/gameStore';
+import { getCategoryById, categories, getWordsForEndlessLevel } from '../data/words';
 import { generateSnakeLevel, findWordByPath, type PlacedWord } from '../gameEngine';
-import type { Coord, CellStatus } from '../types';
+import type { Coord, CellStatus, WordData } from '../types';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
 
@@ -272,8 +273,22 @@ const LetterCell = React.memo(({
 
 
 export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
-  const { state, navigate, completeLevel, addToLeaderboard } = store;
-  const category = getCategoryById(state.selectedCategory || '');
+  const { state, navigate, completeLevel, completeEndlessLevel, addToLeaderboard, selectEndlessLevel } = store;
+  
+  // Определяем режим игры
+  const isEndlessMode = state.gameMode === 'endless';
+  const endlessLevel = state.selectedEndlessLevel || 1;
+  const category = !isEndlessMode ? getCategoryById(state.selectedCategory || '') : null;
+  
+  // Для бесконечного режима генерируем данные на основе уровня
+  const endlessLevelData = useMemo(() => (
+    isEndlessMode ? getWordsForEndlessLevel(endlessLevel) : null
+  ), [isEndlessMode, endlessLevel]);
+  
+  // Получаем текущий пакет для бесконечного режима
+  const currentPack = isEndlessMode 
+    ? LEVEL_PACKS.find(p => endlessLevel >= p.levelStart && endlessLevel <= p.levelEnd) || LEVEL_PACKS[0]
+    : null;
   
   // Получаем тему
   const { themeId, isDark } = useTheme();
@@ -302,9 +317,22 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
   // Инициализация игры
   const initGame = useCallback(() => {
-    if (!category) return;
+    let words: WordData[];
+    let size: number;
     
-    const result = generateSnakeLevel(category.gridSize, category.words);
+    if (isEndlessMode && endlessLevelData) {
+      // Бесконечный режим - используем сгенерированные слова
+      words = endlessLevelData.words;
+      size = endlessLevelData.gridSize;
+    } else if (category) {
+      // Режим кампании - используем слова из категории
+      words = category.words;
+      size = category.gridSize;
+    } else {
+      return;
+    }
+    
+    const result = generateSnakeLevel(size, words);
     setGridLetters(result.grid);
     setGridSize(result.size);
     setPlacedWords(result.placedWords);
@@ -317,7 +345,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     setCombo(0);
     lastFoundTimeRef.current = Date.now();
     lastFailedAttemptRef.current = null;
-  }, [category]);
+  }, [isEndlessMode, endlessLevelData, category]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: initialize game when category changes
   useEffect(() => { initGame(); }, [initGame]);
@@ -385,11 +413,20 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       colors: confettiColors
     });
     
-    if (category) {
-      const foundWordsArray = placedWords
-        .filter(pw => finalFoundWords.has(pw.word.bur))
-        .map(pw => pw.word.bur);
-        
+    const foundWordsArray = placedWords
+      .filter(pw => finalFoundWords.has(pw.word.bur))
+      .map(pw => pw.word.bur);
+    
+    if (isEndlessMode) {
+      // Бесконечный режим
+      completeEndlessLevel(
+        endlessLevel,
+        foundWordsArray,
+        time,
+        placedWords.length
+      );
+    } else if (category) {
+      // Режим кампании
       completeLevel(
         category.id,
         foundWordsArray,
@@ -406,7 +443,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     }
     
     setTimeout(() => setShowWinModal(true), 500);
-  }, [category, placedWords, time, score, completeLevel, addToLeaderboard, state.settings.playerName, isDark]);
+  }, [isEndlessMode, endlessLevel, category, placedWords, time, score, completeLevel, completeEndlessLevel, addToLeaderboard, state.settings.playerName, isDark]);
 
   const handlePointerUp = useCallback(() => {
     setIsSelecting(false);
@@ -682,8 +719,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     const stars = foundWordIds.size === placedWords.length ? 3 : 
                   foundWordIds.size >= placedWords.length * 0.7 ? 2 : 1;
     
+    const levelInfo = isEndlessMode 
+      ? `🎮 Уровень ${endlessLevel} ${currentPack?.emoji || ''}` 
+      : `📚 ${category?.name} ${category?.emoji}`;
+    
     const text = `🎮 Бурятский Филлворд
-📚 ${category?.name} ${category?.emoji}
+${levelInfo}
 ⭐ ${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}
 🎯 ${foundWordIds.size}/${placedWords.length} слов
 ⏱️ ${formatTime(time)}
@@ -711,13 +752,40 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     return 0;
   };
 
-  if (!category) {
+  // Проверка на валидность данных для игры
+  if (!isEndlessMode && !category) {
     return (
       <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
         <p className={styles.categoryTitle.text}>Категория не найдена</p>
       </div>
     );
   }
+  
+  if (isEndlessMode && !endlessLevelData) {
+    return (
+      <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
+        <p className={styles.categoryTitle.text}>Ошибка загрузки уровня</p>
+      </div>
+    );
+  }
+  
+  // Функция навигации "назад" в зависимости от режима
+  const handleBack = () => {
+    if (isEndlessMode) {
+      navigate('levelPack');
+    } else {
+      navigate('levels');
+    }
+  };
+  
+  // Заголовок для текущего уровня
+  const levelTitle = isEndlessMode 
+    ? `Уровень ${endlessLevel}` 
+    : category?.name || '';
+  
+  const levelEmoji = isEndlessMode 
+    ? currentPack?.emoji || '🎮' 
+    : category?.emoji || '';
 
   return (
     <div className={cn(
@@ -729,7 +797,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       <header className={cn("p-4 z-20", styles.header.background, styles.header.border)}>
         <div className="flex justify-between items-center mb-3">
           <button 
-            onClick={() => navigate('levels')}
+            onClick={handleBack}
             className={cn(
               "p-2 rounded-xl transition-all duration-200",
               styles.headerButton.background,
@@ -741,8 +809,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
           </button>
           
           <div className="flex items-center gap-2">
-            <span className="text-2xl">{category.emoji}</span>
-            <h1 className={cn("text-lg font-bold", styles.categoryTitle.text)}>{category.name}</h1>
+            <span className="text-2xl">{levelEmoji}</span>
+            <h1 className={cn("text-lg font-bold", styles.categoryTitle.text)}>{levelTitle}</h1>
           </div>
           
           <button 
@@ -1019,42 +1087,85 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                   transition={{ delay: 0.6 }}
                 >
                   {/* Кнопка следующего уровня */}
-                  {(() => {
-                    const currentIndex = categories.findIndex(c => c.id === category?.id);
-                    const nextCategory = currentIndex >= 0 && currentIndex < categories.length - 1 
-                      ? categories[currentIndex + 1] 
-                      : null;
-                    const isNextUnlocked = nextCategory && state.stats.totalStars >= nextCategory.unlockRequirement;
-                    
-                    if (nextCategory) {
+                  {isEndlessMode ? (
+                    // Бесконечный режим - переход к следующему уровню
+                    (() => {
+                      const nextLevel = endlessLevel + 1;
+                      const isInCurrentPack = currentPack && nextLevel <= currentPack.levelEnd;
+                      const isNextPackAvailable = !isInCurrentPack && 
+                        state.endlessProgress.completedLevels.length >= (
+                          LEVEL_PACKS.find(p => nextLevel >= p.levelStart && nextLevel <= p.levelEnd)?.unlockRequirement || 0
+                        );
+                      const canGoNext = nextLevel <= 200 && (isInCurrentPack || isNextPackAvailable);
+                      
                       return (
                         <button 
-                          onClick={() => isNextUnlocked && store.selectCategory(nextCategory.id)}
-                          disabled={!isNextUnlocked}
+                          onClick={() => canGoNext && selectEndlessLevel(nextLevel)}
+                          disabled={!canGoNext}
                           className={cn(
                             "w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
-                            isNextUnlocked 
+                            canGoNext 
                               ? `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
                               : styles.winModal.nextLevelButton.disabled
                           )}
                         >
-                          {isNextUnlocked ? (
+                          {canGoNext ? (
                             <>
-                              <span>Следующий уровень</span>
-                              <span className="text-lg">{nextCategory.emoji}</span>
+                              <span>Уровень {nextLevel}</span>
                               <ChevronRight size={18} />
+                            </>
+                          ) : nextLevel > 200 ? (
+                            <>
+                              <span>🎉 Все уровни пройдены!</span>
                             </>
                           ) : (
                             <>
                               <Lock size={16} />
-                              <span>Нужно ⭐ {nextCategory.unlockRequirement}</span>
+                              <span>Пройди больше уровней</span>
                             </>
                           )}
                         </button>
                       );
-                    }
-                    return null;
-                  })()}
+                    })()
+                  ) : (
+                    // Режим кампании - переход к следующей категории
+                    (() => {
+                      const currentIndex = categories.findIndex(c => c.id === category?.id);
+                      const nextCategory = currentIndex >= 0 && currentIndex < categories.length - 1 
+                        ? categories[currentIndex + 1] 
+                        : null;
+                      const isNextUnlocked = nextCategory && state.stats.totalStars >= nextCategory.unlockRequirement;
+                      
+                      if (nextCategory) {
+                        return (
+                          <button 
+                            onClick={() => isNextUnlocked && store.selectCategory(nextCategory.id)}
+                            disabled={!isNextUnlocked}
+                            className={cn(
+                              "w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                              isNextUnlocked 
+                                ? `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
+                                : styles.winModal.nextLevelButton.disabled
+                            )}
+                          >
+                            {isNextUnlocked ? (
+                              <>
+                                <span>Следующий уровень</span>
+                                <span className="text-lg">{nextCategory.emoji}</span>
+                                <ChevronRight size={18} />
+                              </>
+                            ) : (
+                              <>
+                                <Lock size={16} />
+                                <span>Нужно ⭐ {nextCategory.unlockRequirement}</span>
+                              </>
+                            )}
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()
+                  )}
                   
                   <div className="flex gap-2">
                     <button 
@@ -1084,14 +1195,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
                   </div>
                   
                   <button 
-                    onClick={() => navigate('levels')}
+                    onClick={handleBack}
                     className={cn(
                       "w-full py-3 font-medium transition-colors",
                       styles.winModal.backLink.text,
                       styles.winModal.backLink.textHover
                     )}
                   >
-                    ← К списку уровней
+                    ← {isEndlessMode ? 'К списку уровней' : 'К категориям'}
                   </button>
                 </motion.div>
               </div>

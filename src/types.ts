@@ -64,15 +64,21 @@ export interface GameSettings {
 export interface GameState {
   currentScreen: Screen;
   selectedCategory: string | null;
+  selectedLevelPack: string | null; // выбранный пакет уровней
+  selectedEndlessLevel: number | null; // выбранный уровень в бесконечном режиме
+  gameMode: GameMode; // текущий режим игры
   settings: GameSettings;
   stats: PlayerStats;
   levelProgress: Record<string, LevelProgress>;
+  endlessProgress: EndlessProgress; // прогресс в бесконечном режиме
   leaderboard: LeaderboardEntry[];
 }
 
 export type Screen = 
   | 'menu' 
-  | 'levels' 
+  | 'gameMode' // Выбор режима игры
+  | 'levels' // Категории (кампания)
+  | 'levelPack' // Выбор уровня в пакете
   | 'game' 
   | 'settings' 
   | 'stats' 
@@ -81,6 +87,29 @@ export type Screen =
   | 'debug'
   | 'contribute' // Үгын Дархан - Словарная мастерская
   | 'onboarding'; // Онбординг для новых пользователей
+
+// === Режимы игры ===
+export type GameMode = 'campaign' | 'endless';
+
+// Пакеты уровней для бесконечного режима
+export interface LevelPack {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  levelStart: number; // начальный уровень (1, 51, 101, 151)
+  levelEnd: number;   // конечный уровень (50, 100, 150, 200)
+  unlockRequirement: number; // сколько уровней из предыдущего пакета нужно пройти
+  gradient: string; // цвет градиента для карточки
+}
+
+// Прогресс в уровневом режиме
+export interface EndlessProgress {
+  currentLevel: number; // текущий уровень игрока
+  completedLevels: number[]; // пройденные уровни
+  levelStars: Record<number, 0 | 1 | 2 | 3>; // звёзды за каждый уровень
+  totalStars: number; // всего звёзд в бесконечном режиме
+}
 
 export type Coord = { r: number; c: number };
 

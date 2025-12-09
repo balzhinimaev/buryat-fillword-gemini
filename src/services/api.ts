@@ -21,6 +21,7 @@ export interface AuthResponse {
   photoUrl?: string;
   role: string;
   trustScore: number;
+  currentStreak?: number;
   stats: {
     wordsAdded: number;
     wordsVerified: number;
@@ -38,6 +39,11 @@ export interface AuthResponse {
   buriatLevel?: BuriatLevel;
   reminderPlan?: ReminderPlan;
   reminderTime?: ReminderTime;
+}
+
+export interface RefreshResponse {
+  access_token: string;
+  currentStreak?: number;
 }
 
 // Ответ пользователя (для join/leave keepers)
@@ -329,7 +335,7 @@ async function apiRequest<T>(
         });
         
         if (refreshResponse.ok) {
-          const { access_token } = await refreshResponse.json();
+          const { access_token }: RefreshResponse = await refreshResponse.json();
           console.log('✅ Токен обновлён успешно');
           setStoredTokens({ ...tokens, access_token });
           // Повторяем оригинальный запрос с новым токеном
@@ -378,14 +384,14 @@ export async function telegramAuth(initData: string): Promise<AuthResponse> {
 }
 
 // Обновление токена
-export async function refreshToken(): Promise<{ access_token: string }> {
+export async function refreshToken(): Promise<RefreshResponse> {
   const tokens = getStoredTokens();
   
   if (!tokens?.refresh_token) {
     throw new Error('No refresh token available');
   }
 
-  const response = await apiRequest<{ access_token: string }>('/auth/refresh', {
+  const response = await apiRequest<RefreshResponse>('/auth/refresh', {
     method: 'POST',
     body: JSON.stringify({ refresh_token: tokens.refresh_token }),
   });

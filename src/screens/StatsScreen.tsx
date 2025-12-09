@@ -17,6 +17,7 @@ import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
+import { useAuth } from '../store/authStore';
 import { categories, getAllWords } from '../data/words';
 
 interface StatsScreenProps {
@@ -27,6 +28,8 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const { state, navigate, xpProgress, xpToNextLevel } = store;
   const { stats, levelProgress } = state;
   const { theme } = useTheme();
+  const { state: authState } = useAuth();
+  const currentStreak = authState.user?.currentStreak ?? stats.currentStreak;
   
   useBackButton(() => navigate('menu'));
 
@@ -67,7 +70,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const statCards = [
     { icon: Target, label: 'Слов найдено', value: stats.totalWordsFound, color: 'amber' },
     { icon: Clock, label: 'Время в игре', value: formatPlayTime(stats.totalTimePlayed), color: 'terra' },
-    { icon: Flame, label: 'Серия дней', value: stats.currentStreak, subValue: `Рекорд: ${stats.longestStreak}`, color: 'orange' },
+    { icon: Flame, label: 'Серия дней', value: currentStreak, subValue: `Рекорд: ${stats.longestStreak}`, color: 'orange' },
     { icon: BarChart3, label: 'Игр сыграно', value: stats.totalGamesPlayed, color: 'meadow' },
   ];
 

@@ -157,6 +157,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const { openLink } = useTelegram();
   const { state: authState } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
+  const currentStreak = authState.user?.currentStreak ?? stats.currentStreak;
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
@@ -209,7 +210,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
                 <div>
                   <div className={cn("text-xs", styles.statsCard.text.secondary)}>Серия</div>
                   <div className={cn("font-bold", styles.statsCard.text.primary)}>
-                    {stats.currentStreak} {getDaysWord(stats.currentStreak)}
+                    {currentStreak} {getDaysWord(currentStreak)}
                   </div>
                 </div>
               </div>
@@ -264,7 +265,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('levels')}
+            onClick={() => navigate('gameMode')}
             className="relative w-full p-5 rounded-2xl overflow-hidden group"
           >
             <div className={cn("absolute inset-0 transition-all duration-300", styles.buttons.play.gradient)} />
