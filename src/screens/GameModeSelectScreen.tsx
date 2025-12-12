@@ -1,10 +1,10 @@
 // src/screens/GameModeSelectScreen.tsx
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
   BookOpen, 
-  Infinity, 
+  Infinity as InfinityIcon, 
   Star, 
   Lock,
   ChevronRight,
@@ -18,6 +18,7 @@ import { getMenuStyles } from '../theme/menuStyles';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
+import { api, type CampaignOverviewResponse } from '../services/api';
 
 interface GameModeSelectScreenProps {
   store: GameStore;
@@ -31,6 +32,34 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
   useBackButton(() => navigate('menu'));
 
   const totalCompletedLevels = state.endlessProgress.completedLevels.length;
+
+  const [campaignOverview, setCampaignOverview] = useState<CampaignOverviewResponse | null>(null);
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const data = await api.getCampaignOverview();
+        if (isMounted) setCampaignOverview(data);
+      } catch {
+        if (isMounted) setCampaignOverview(null);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
+
+  const campaignStarsText = useMemo(() => {
+    const earned = campaignOverview?.earnedStars ?? state.stats.totalStars;
+    const total = campaignOverview?.totalStars ?? 36;
+    return `${earned}/${total}`;
+  }, [campaignOverview, state.stats.totalStars]);
+
+  const campaignProgressPercent = useMemo(() => {
+    if (typeof campaignOverview?.progressPercent === 'number') return campaignOverview.progressPercent;
+    if (typeof campaignOverview?.totalStars === 'number' && campaignOverview.totalStars > 0) {
+      return ((campaignOverview.earnedStars ?? 0) / campaignOverview.totalStars) * 100;
+    }
+    return Math.min(100, (state.stats.totalStars / 36) * 100);
+  }, [campaignOverview, state.stats.totalStars]);
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
@@ -124,9 +153,14 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 <p className="text-sm text-white/80 mb-2">
                   Изучай слова по категориям: животные, еда, числа и другие темы
                 </p>
-                <div className="flex items-center gap-2 text-xs text-white/70">
-                  <Star size={14} className="fill-current" />
-                  <span>{state.stats.totalStars} звёзд собрано</span>
+                <div className="flex items-center justify-between gap-3 text-xs text-white/70">
+                  <div className="flex items-center gap-2">
+                    <Star size={14} className="fill-current" />
+                    <span>{campaignStarsText} ⭐</span>
+                  </div>
+                  <span className="text-white/60">
+                    {campaignProgressPercent.toFixed(2)}%
+                  </span>
                 </div>
               </div>
               <ChevronRight size={24} className="text-white/60" />
@@ -153,7 +187,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 "w-10 h-10 rounded-xl flex items-center justify-center",
                 isDark ? "bg-violet-500/20" : "bg-violet-100"
               )}>
-                <Infinity size={20} className={isDark ? "text-violet-400" : "text-violet-600"} />
+                <InfinityIcon size={20} className={isDark ? "text-violet-400" : "text-violet-600"} />
               </div>
               <div>
                 <h2 className={cn("font-bold text-lg", styles.buttons.text.primary)}>

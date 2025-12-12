@@ -18,11 +18,12 @@ import {
 import { cn, StarsDisplay } from '../components/ui';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
-import { getCategoryById, categories, getWordsForEndlessLevel } from '../data/words';
+import { getWordsForEndlessLevel } from '../data/words';
 import { generateSnakeLevel, findWordByPath, type PlacedWord } from '../gameEngine';
 import type { Coord, CellStatus, WordData } from '../types';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
+import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse } from '../services/api';
 
 interface GameScreenProps {
   store: GameStore;
@@ -273,17 +274,71 @@ const LetterCell = React.memo(({
 
 
 export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
-  const { state, navigate, completeLevel, completeEndlessLevel, addToLeaderboard, selectEndlessLevel } = store;
+  const { state, navigate, completeEndlessLevel, addToLeaderboard, selectEndlessLevel } = store;
   
   // Определяем режим игры
   const isEndlessMode = state.gameMode === 'endless';
   const endlessLevel = state.selectedEndlessLevel || 1;
-  const category = !isEndlessMode ? getCategoryById(state.selectedCategory || '') : null;
+  const campaignSlug = !isEndlessMode ? (state.selectedCategory || null) : null;
+  const isCampaignMode = !isEndlessMode;
   
   // Для бесконечного режима генерируем данные на основе уровня
   const endlessLevelData = useMemo(() => (
     isEndlessMode ? getWordsForEndlessLevel(endlessLevel) : null
   ), [isEndlessMode, endlessLevel]);
+
+  // Campaign level data (server)
+  const [campaignLevel, setCampaignLevel] = useState<CampaignLevelResponse | null>(null);
+  const [campaignLevelLoading, setCampaignLevelLoading] = useState(false);
+  const [campaignLevelError, setCampaignLevelError] = useState<string | null>(null);
+
+  const [campaignSessionId, setCampaignSessionId] = useState<string | null>(null);
+  const [campaignResult, setCampaignResult] = useState<CampaignLevelResultResponse | null>(null);
+  const [isCampaignStarting, setIsCampaignStarting] = useState(false);
+  const [isCampaignSubmitting, setIsCampaignSubmitting] = useState(false);
+
+  const submitInFlightRef = useRef(false);
+
+  const errorToMessage = (e: unknown): string => {
+    if (!e) return 'Ошибка запроса';
+    const apiError = e as Partial<ApiError>;
+    if (typeof apiError.message === 'string' && apiError.message.length > 0) return apiError.message;
+    if (e instanceof Error && e.message) return e.message;
+    return 'Ошибка запроса';
+  };
+
+  // load campaign level when slug changes
+  useEffect(() => {
+    let isMounted = true;
+    if (!isCampaignMode) return;
+    if (!campaignSlug) {
+      setCampaignLevel(null);
+      setCampaignLevelError('Уровень не выбран');
+      return;
+    }
+
+    setCampaignLevelLoading(true);
+    setCampaignLevelError(null);
+    setCampaignLevel(null);
+    setCampaignSessionId(null);
+    setCampaignResult(null);
+    submitInFlightRef.current = false;
+
+    (async () => {
+      try {
+        const data = await api.getCampaignLevel(campaignSlug);
+        if (!isMounted) return;
+        setCampaignLevel(data);
+      } catch (e) {
+        if (!isMounted) return;
+        setCampaignLevelError(errorToMessage(e));
+      } finally {
+        if (isMounted) setCampaignLevelLoading(false);
+      }
+    })();
+
+    return () => { isMounted = false; };
+  }, [isCampaignMode, campaignSlug]);
   
   // Получаем текущий пакет для бесконечного режима
   const currentPack = isEndlessMode 
@@ -307,6 +362,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [time, setTime] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
+  const [mistakes, setMistakes] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFoundTimeRef = useRef<number>(0);
@@ -316,23 +372,21 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const cellRectsRef = useRef<Map<string, DOMRect>>(new Map());
 
   // Инициализация игры
-  const initGame = useCallback(() => {
-    let words: WordData[];
-    let size: number;
-    
-    if (isEndlessMode && endlessLevelData) {
-      // Бесконечный режим - используем сгенерированные слова
-      words = endlessLevelData.words;
-      size = endlessLevelData.gridSize;
-    } else if (category) {
-      // Режим кампании - используем слова из категории
-      words = category.words;
-      size = category.gridSize;
-    } else {
-      return;
-    }
-    
-    const result = generateSnakeLevel(size, words);
+  const inferCampaignGridSize = (words: WordData[]) => {
+    const safeWords = words.filter(w => (w?.bur?.trim()?.length ?? 0) >= 2);
+    const totalLetters = safeWords.reduce((s, w) => s + w.bur.trim().length, 0);
+
+    // В кампании слова можно укладывать "змейкой", поэтому размер стороны не обязан быть >= длине слова.
+    // Стараемся выбирать минимальную сетку, которая вмещает все буквы (например, 25 букв => 5x5).
+    const areaHint = Math.ceil(Math.sqrt(Math.max(25, totalLetters)));
+    return Math.min(10, Math.max(5, areaHint));
+  };
+
+  const initEndlessGame = useCallback(() => {
+    if (!endlessLevelData) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    const result = generateSnakeLevel(endlessLevelData.gridSize, endlessLevelData.words);
     setGridLetters(result.grid);
     setGridSize(result.size);
     setPlacedWords(result.placedWords);
@@ -343,12 +397,66 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     setTime(0);
     setScore(0);
     setCombo(0);
+    setMistakes(0);
+    setCampaignSessionId(null);
+    setCampaignResult(null);
+    submitInFlightRef.current = false;
     lastFoundTimeRef.current = Date.now();
     lastFailedAttemptRef.current = null;
-  }, [isEndlessMode, endlessLevelData, category]);
+  }, [endlessLevelData]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: initialize game when category changes
-  useEffect(() => { initGame(); }, [initGame]);
+  const initCampaignGame = useCallback(async () => {
+    if (!campaignSlug || !campaignLevel) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    setIsCampaignStarting(true);
+    setCampaignSessionId(null);
+    setCampaignResult(null);
+    submitInFlightRef.current = false;
+
+    setFoundWordIds(new Set());
+    setFoundCellsRegistry(new Map());
+    setShowWinModal(false);
+    setSelectedPath([]);
+    setTime(0);
+    setScore(0);
+    setCombo(0);
+    setMistakes(0);
+    lastFoundTimeRef.current = Date.now();
+    lastFailedAttemptRef.current = null;
+
+    try {
+      const start = await api.startCampaignLevel(campaignSlug);
+      setCampaignSessionId(start.sessionId);
+
+      // Нормализуем слова на клиенте (на всякий случай)
+      const words: WordData[] = (campaignLevel.words ?? [])
+        .map(w => ({
+          bur: String(w.bur ?? '').trim().toUpperCase(),
+          ru: String(w.ru ?? '').trim(),
+        }))
+        .filter(w => w.bur.length >= 2);
+
+      const size = inferCampaignGridSize(words);
+      const result = generateSnakeLevel(size, words);
+      setGridLetters(result.grid);
+      setGridSize(result.size);
+      setPlacedWords(result.placedWords);
+    } catch (e) {
+      setToastMessage(errorToMessage(e));
+      setCampaignSessionId(null);
+    } finally {
+      setIsCampaignStarting(false);
+    }
+  }, [campaignSlug, campaignLevel]);
+
+  useEffect(() => {
+    if (isEndlessMode) initEndlessGame();
+  }, [isEndlessMode, initEndlessGame]);
+
+  useEffect(() => {
+    if (isCampaignMode && campaignLevel && campaignSlug) void initCampaignGame();
+  }, [isCampaignMode, campaignLevel, campaignSlug, initCampaignGame]);
   
   // Очистка таймера toast при размонтировании
   useEffect(() => {
@@ -368,7 +476,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
   // Таймер
   useEffect(() => {
-    if (state.settings.timerEnabled && !showWinModal) {
+    const canRunTimer = !showWinModal && (
+      (isEndlessMode && state.settings.timerEnabled) ||
+      (isCampaignMode && !!campaignSessionId && !isCampaignStarting && !isCampaignSubmitting)
+    );
+
+    if (canRunTimer) {
       timerRef.current = setInterval(() => {
         setTime(t => t + 1);
       }, 1000);
@@ -376,7 +489,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [state.settings.timerEnabled, showWinModal]);
+  }, [state.settings.timerEnabled, showWinModal, isEndlessMode, isCampaignMode, campaignSessionId, isCampaignStarting, isCampaignSubmitting]);
 
   // Форматирование времени
   const formatTime = (seconds: number) => {
@@ -398,52 +511,101 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     setSelectedPath([{ r, c }]);
   };
 
-  const triggerWin = useCallback((finalFoundWords: Set<string>) => {
+  const finishGame = useCallback(async (finalFoundWords: Set<string>, reason: 'completed' | 'timeout') => {
     if (timerRef.current) clearInterval(timerRef.current);
-    
-    // Используем цвета темы для конфетти
-    const confettiColors = isDark 
-      ? ['#FACC15', '#F97316', '#10B981', '#0EA5E9']
-      : ['#F59E0B', '#EA580C', '#059669', '#0284C7'];
-    
-    confetti({ 
-      particleCount: 150, 
-      spread: 70, 
-      origin: { y: 0.6 }, 
-      colors: confettiColors
-    });
-    
+
+    // Конфетти — только при полной победе
+    if (reason === 'completed') {
+      const confettiColors = isDark 
+        ? ['#FACC15', '#F97316', '#10B981', '#0EA5E9']
+        : ['#F59E0B', '#EA580C', '#059669', '#0284C7'];
+
+      confetti({ 
+        particleCount: 150, 
+        spread: 70, 
+        origin: { y: 0.6 }, 
+        colors: confettiColors
+      });
+    }
+
     const foundWordsArray = placedWords
       .filter(pw => finalFoundWords.has(pw.word.bur))
-      .map(pw => pw.word.bur);
-    
+      .map(pw => pw.word.bur.toUpperCase());
+
     if (isEndlessMode) {
-      // Бесконечный режим
       completeEndlessLevel(
         endlessLevel,
         foundWordsArray,
         time,
         placedWords.length
       );
-    } else if (category) {
-      // Режим кампании
-      completeLevel(
-        category.id,
-        foundWordsArray,
-        time,
-        placedWords.length
-      );
-      
+
+      setTimeout(() => setShowWinModal(true), 500);
+      return;
+    }
+
+    // Campaign: submit result to server
+    if (!campaignSlug) {
+      showToast('Уровень не выбран');
+      return;
+    }
+
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    setIsCampaignSubmitting(true);
+
+    try {
+      const result = await api.submitCampaignLevel(campaignSlug, {
+        sessionId: campaignSessionId ?? undefined,
+        timeSeconds: Math.max(1, time),
+        foundWords: foundWordsArray,
+        mistakes: mistakes > 0 ? mistakes : undefined,
+      });
+      setCampaignResult(result);
+
+      // Локальный лидерборд оставим как "игровой счёт", но идентификатором будет slug
       addToLeaderboard({
         playerName: state.settings.playerName,
         score,
-        categoryId: category.id,
+        categoryId: campaignSlug,
         time,
       });
+
+      setTimeout(() => setShowWinModal(true), 500);
+    } catch (e) {
+      showToast(errorToMessage(e));
+      submitInFlightRef.current = false;
+    } finally {
+      setIsCampaignSubmitting(false);
     }
-    
-    setTimeout(() => setShowWinModal(true), 500);
-  }, [isEndlessMode, endlessLevel, category, placedWords, time, score, completeLevel, completeEndlessLevel, addToLeaderboard, state.settings.playerName, isDark]);
+  }, [
+    isEndlessMode,
+    endlessLevel,
+    placedWords,
+    time,
+    isDark,
+    completeEndlessLevel,
+    campaignSlug,
+    campaignSessionId,
+    mistakes,
+    score,
+    addToLeaderboard,
+    state.settings.playerName,
+    showToast,
+  ]);
+
+  // Таймаут уровня в кампании (если задан лимит) — отправляем неполный результат
+  useEffect(() => {
+    if (!isCampaignMode) return;
+    const limit = campaignLevel?.timeLimitSeconds;
+    if (!limit || limit <= 0) return;
+    if (showWinModal) return;
+    if (!campaignSessionId) return;
+    if (submitInFlightRef.current) return;
+    if (time < limit) return;
+
+    void finishGame(foundWordIds, 'timeout');
+  }, [isCampaignMode, campaignLevel?.timeLimitSeconds, time, showWinModal, campaignSessionId, finishGame, foundWordIds]);
 
   const handlePointerUp = useCallback(() => {
     setIsSelecting(false);
@@ -472,6 +634,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         if (lastFailedAttemptRef.current === selectedLetters) {
           // Пользователь ввёл то же самое дважды — сообщаем, что такого слова нет
           showToast(`Слова "${selectedLetters.toLowerCase()}" нет в этом уровне ❌`);
+          setMistakes(m => m + 1);
           lastFailedAttemptRef.current = null; // Сбрасываем после уведомления
         } else {
           // Запоминаем неудачную попытку
@@ -523,12 +686,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       }
       
       if (newFoundWordIds.size === placedWords.length) {
-        triggerWin(newFoundWordIds);
+        void finishGame(newFoundWordIds, 'completed');
       }
     }
 
     setSelectedPath([]);
-  }, [selectedPath, placedWords, foundWordIds, combo, state.settings.vibrationEnabled, triggerWin, gridLetters, showToast]);
+  }, [selectedPath, placedWords, foundWordIds, combo, state.settings.vibrationEnabled, finishGame, gridLetters, showToast]);
 
   // Кеширование позиций клеток при начале выделения
   const updateCellRects = useCallback(() => {
@@ -716,18 +879,20 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   }, [state.settings.showHints, placedWords, foundWordIds]);
 
   const shareResult = async () => {
-    const stars = foundWordIds.size === placedWords.length ? 3 : 
-                  foundWordIds.size >= placedWords.length * 0.7 ? 2 : 1;
+    const stars = typeof campaignResult?.earnedStars === 'number'
+      ? campaignResult.earnedStars
+      : (foundWordIds.size === placedWords.length ? 3 : 
+          foundWordIds.size >= placedWords.length * 0.7 ? 2 : 1);
     
     const levelInfo = isEndlessMode 
       ? `🎮 Уровень ${endlessLevel} ${currentPack?.emoji || ''}` 
-      : `📚 ${category?.name} ${category?.emoji}`;
+      : `📚 ${campaignLevel?.name ?? campaignSlug ?? ''}`;
     
     const text = `🎮 Бурятский Филлворд
 ${levelInfo}
 ⭐ ${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}
 🎯 ${foundWordIds.size}/${placedWords.length} слов
-⏱️ ${formatTime(time)}
+⏱️ ${formatTime(campaignResult?.timeSeconds ?? time)}
 🏆 ${score} очков
 
 Учи бурятский язык играя! 🇲🇳`;
@@ -745,6 +910,7 @@ ${levelInfo}
   };
 
   const calculateStars = (): number => {
+    if (typeof campaignResult?.earnedStars === 'number') return campaignResult.earnedStars;
     const completion = foundWordIds.size / placedWords.length;
     if (completion >= 1) return 3;
     if (completion >= 0.7) return 2;
@@ -753,12 +919,52 @@ ${levelInfo}
   };
 
   // Проверка на валидность данных для игры
-  if (!isEndlessMode && !category) {
-    return (
-      <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
-        <p className={styles.categoryTitle.text}>Категория не найдена</p>
-      </div>
-    );
+  if (isCampaignMode) {
+    if (!campaignSlug) {
+      return (
+        <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
+          <p className={styles.categoryTitle.text}>Уровень не выбран</p>
+        </div>
+      );
+    }
+
+    if (campaignLevelLoading) {
+      return (
+        <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
+          <p className={styles.categoryTitle.text}>Загрузка уровня…</p>
+        </div>
+      );
+    }
+
+    if (campaignLevelError) {
+      return (
+        <div className={cn("min-h-[100dvh] flex items-center justify-center p-6 text-center", styles.page.background)}>
+          <div>
+            <p className={cn("mb-2", styles.categoryTitle.text)}>Ошибка загрузки</p>
+            <p className={cn("text-sm opacity-70 mb-4", styles.categoryTitle.text)}>{campaignLevelError}</p>
+            <button
+              onClick={() => void initCampaignGame()}
+              className={cn(
+                "px-4 py-2 rounded-xl transition-colors",
+                styles.headerButton.background,
+                styles.headerButton.backgroundHover,
+                styles.headerButton.text
+              )}
+            >
+              Повторить
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (!campaignLevel) {
+      return (
+        <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
+          <p className={styles.categoryTitle.text}>Уровень не найден</p>
+        </div>
+      );
+    }
   }
   
   if (isEndlessMode && !endlessLevelData) {
@@ -781,11 +987,11 @@ ${levelInfo}
   // Заголовок для текущего уровня
   const levelTitle = isEndlessMode 
     ? `Уровень ${endlessLevel}` 
-    : category?.name || '';
+    : (campaignLevel?.name ?? campaignSlug ?? '');
   
   const levelEmoji = isEndlessMode 
     ? currentPack?.emoji || '🎮' 
-    : category?.emoji || '';
+    : '📚';
 
   return (
     <div className={cn(
@@ -814,7 +1020,14 @@ ${levelInfo}
           </div>
           
           <button 
-            onClick={initGame}
+            onClick={() => {
+              if (isEndlessMode) {
+                initEndlessGame();
+              } else {
+                void initCampaignGame();
+              }
+            }}
+            disabled={!isEndlessMode && (isCampaignStarting || isCampaignSubmitting)}
             className={cn(
               "p-2 rounded-xl active:rotate-180 transition-all duration-300",
               styles.headerButton.background,
@@ -833,7 +1046,13 @@ ${levelInfo}
             styles.statsBadge.background
           )}>
             <Clock size={16} className={styles.statsBadge.iconColor} />
-            <span className={cn("font-mono font-bold", styles.statsBadge.valueColor)}>{formatTime(time)}</span>
+            <span className={cn("font-mono font-bold", styles.statsBadge.valueColor)}>
+              {formatTime(
+                isCampaignMode && typeof campaignLevel?.timeLimitSeconds === 'number' && campaignLevel.timeLimitSeconds > 0
+                  ? Math.max(0, campaignLevel.timeLimitSeconds - time)
+                  : time
+              )}
+            </span>
           </div>
           
           {combo > 1 && (
@@ -870,41 +1089,85 @@ ${levelInfo}
 
       {/* Grid */}
       <main className="flex-1 p-4 flex flex-col items-center justify-center touch-none">
-        <div 
-          className="relative"
-          style={{ 
-            maxWidth: `${Math.min(gridSize * 56, 380)}px`,
-            width: '100%'
-          }}
-        >
+        {isCampaignMode && !campaignSessionId ? (
+          <div className={cn(
+            "w-full max-w-sm rounded-3xl p-5 border text-center",
+            styles.winModal.statCard.background,
+            styles.winModal.statCard.border
+          )}>
+            <div className={cn("text-lg font-bold mb-1", styles.categoryTitle.text)}>
+              {isCampaignStarting ? 'Запускаем уровень…' : 'Нужно начать уровень'}
+            </div>
+            <div className={cn("text-sm opacity-70 mb-4", styles.categoryTitle.text)}>
+              {isCampaignStarting
+                ? 'Вызываем /start и готовим поле'
+                : 'Мы вызываем /start до показа уровня, чтобы сервер выдал sessionId античита.'}
+            </div>
+            <button
+              onClick={() => void initCampaignGame()}
+              disabled={isCampaignStarting}
+              className={cn(
+                "w-full py-3 rounded-xl font-semibold transition-all duration-200",
+                styles.winModal.nextLevelButton.enabled,
+                styles.winModal.nextLevelButton.enabledShadow,
+                "disabled:opacity-60 disabled:cursor-not-allowed"
+              )}
+            >
+              {isCampaignStarting ? 'Подождите…' : 'Начать'}
+            </button>
+          </div>
+        ) : (
           <div 
-            ref={gridRef}
-            className={cn("grid p-3 rounded-2xl touch-none", styles.grid.background, styles.grid.gap)}
+            className="relative"
             style={{ 
-              touchAction: 'none',
-              gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
+              maxWidth: `${Math.min(gridSize * 56, 380)}px`,
+              width: '100%'
             }}
           >
-            {gridLetters.map((row, r) => (
-              row.map((char, c) => (
-                <LetterCell
-                  key={`${r}-${c}`}
-                  char={char}
-                  r={r} c={c}
-                  status={getCellStatus(r, c)}
-                  wordColor={getCellWordColor(r, c)}
-                  neighbors={getCellNeighbors(r, c)}
-                  isHint={hintCells.has(`${r}-${c}`)}
-                  styles={styles}
-                  onPointerDown={(e) => handlePointerDown(e, r, c)}
-                />
-              ))
-            ))}
+            <div 
+              ref={gridRef}
+              className={cn("grid p-3 rounded-2xl touch-none", styles.grid.background, styles.grid.gap)}
+              style={{ 
+                touchAction: 'none',
+                gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
+              }}
+            >
+              {gridLetters.map((row, r) => (
+                row.map((char, c) => (
+                  <LetterCell
+                    key={`${r}-${c}`}
+                    char={char}
+                    r={r} c={c}
+                    status={getCellStatus(r, c)}
+                    wordColor={getCellWordColor(r, c)}
+                    neighbors={getCellNeighbors(r, c)}
+                    isHint={hintCells.has(`${r}-${c}`)}
+                    styles={styles}
+                    onPointerDown={(e) => handlePointerDown(e, r, c)}
+                  />
+                ))
+              ))}
+            </div>
+
+            {(isCampaignStarting || isCampaignSubmitting) && (
+              <div className={cn(
+                "absolute inset-0 rounded-2xl flex items-center justify-center",
+                "bg-black/30 backdrop-blur-sm"
+              )}>
+                <div className={cn(
+                  "px-4 py-2 rounded-xl text-sm font-semibold",
+                  "bg-white/10 text-white"
+                )}>
+                  {isCampaignSubmitting ? 'Отправляем результат…' : 'Готовим уровень…'}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </main>
 
       {/* Footer - Words to find */}
+      {(!isCampaignMode || !!campaignSessionId) && (
       <footer className={cn("p-4 pb-8 z-10", styles.footer.background, styles.footer.border)}>
         <div className="flex items-center justify-between mb-3">
           <h3 className={cn("text-xs font-bold uppercase tracking-wider", styles.footer.title)}>
@@ -943,6 +1206,7 @@ ${levelInfo}
           })}
         </div>
       </footer>
+      )}
 
       {/* Toast уведомление */}
       <AnimatePresence>
@@ -1050,8 +1314,12 @@ ${levelInfo}
                     styles.winModal.statCard.background,
                     styles.winModal.statCard.border
                   )}>
-                    <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>⏱️ Время</div>
-                    <div className={cn("text-lg font-bold", styles.winModal.statCard.valueDefault)}>{formatTime(time)}</div>
+                    <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>
+                      ⏱️ Время{typeof campaignResult?.timeSeconds === 'number' ? ' (сервер)' : ''}
+                    </div>
+                    <div className={cn("text-lg font-bold", styles.winModal.statCard.valueDefault)}>
+                      {formatTime(campaignResult?.timeSeconds ?? time)}
+                    </div>
                   </div>
                   <div className={cn(
                     "rounded-xl p-3 border",
@@ -1077,6 +1345,19 @@ ${levelInfo}
                     <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>🔥 Макс. комбо</div>
                     <div className={cn("text-lg font-bold", styles.winModal.statCard.valueCombo)}>×{combo}</div>
                   </div>
+
+                  {typeof campaignResult?.xpGained === 'number' && (
+                    <div className={cn(
+                      "rounded-xl p-3 border",
+                      styles.winModal.statCard.background,
+                      styles.winModal.statCard.border
+                    )}>
+                      <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>✨ XP</div>
+                      <div className={cn("text-lg font-bold", styles.winModal.statCard.valueDefault)}>
+                        +{campaignResult.xpGained}
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
                 
                 {/* Кнопки */}
@@ -1128,48 +1409,49 @@ ${levelInfo}
                       );
                     })()
                   ) : (
-                    // Режим кампании - переход к следующей категории
+                    // Кампания (server): если сервер сообщил, что открылся новый уровень — предлагаем перейти
                     (() => {
-                      const currentIndex = categories.findIndex(c => c.id === category?.id);
-                      const nextCategory = currentIndex >= 0 && currentIndex < categories.length - 1 
-                        ? categories[currentIndex + 1] 
-                        : null;
-                      const isNextUnlocked = nextCategory && state.stats.totalStars >= nextCategory.unlockRequirement;
-                      
-                      if (nextCategory) {
+                      const nextSlug = campaignResult?.unlockedLevelSlugs?.[0];
+                      if (nextSlug) {
                         return (
-                          <button 
-                            onClick={() => isNextUnlocked && store.selectCategory(nextCategory.id)}
-                            disabled={!isNextUnlocked}
+                          <button
+                            onClick={() => store.selectCategory(nextSlug)}
                             className={cn(
                               "w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
-                              isNextUnlocked 
-                                ? `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
-                                : styles.winModal.nextLevelButton.disabled
+                              `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
                             )}
                           >
-                            {isNextUnlocked ? (
-                              <>
-                                <span>Следующий уровень</span>
-                                <span className="text-lg">{nextCategory.emoji}</span>
-                                <ChevronRight size={18} />
-                              </>
-                            ) : (
-                              <>
-                                <Lock size={16} />
-                                <span>Нужно ⭐ {nextCategory.unlockRequirement}</span>
-                              </>
-                            )}
+                            <span>Новый уровень</span>
+                            <span className="text-white/80 text-sm">({nextSlug})</span>
+                            <ChevronRight size={18} />
                           </button>
                         );
                       }
-                      return null;
+
+                      return (
+                        <button
+                          onClick={() => navigate('levels')}
+                          className={cn(
+                            "w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                            `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
+                          )}
+                        >
+                          <span>К списку уровней</span>
+                          <ChevronRight size={18} />
+                        </button>
+                      );
                     })()
                   )}
                   
                   <div className="flex gap-2">
                     <button 
-                      onClick={initGame}
+                      onClick={() => {
+                        if (isEndlessMode) {
+                          initEndlessGame();
+                        } else {
+                          void initCampaignGame();
+                        }
+                      }}
                       className={cn(
                         "flex-1 py-3 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2",
                         styles.winModal.secondaryButton.background,

@@ -59,6 +59,7 @@ export interface GameSettings {
   playerName: string;
   publicProfile: boolean;
   notificationsEnabled: boolean;
+  hasSeenHowTo: boolean; // пройдено ли обучение "Как играть"
 }
 
 export interface GameState {
@@ -86,7 +87,8 @@ export type Screen =
   | 'dictionary'
   | 'debug'
   | 'contribute' // Үгын Дархан - Словарная мастерская
-  | 'onboarding'; // Онбординг для новых пользователей
+  | 'onboarding' // Онбординг для новых пользователей
+  | 'howto'; // Обучение "Как играть"
 
 // === Режимы игры ===
 export type GameMode = 'campaign' | 'endless';

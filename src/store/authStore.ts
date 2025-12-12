@@ -7,6 +7,11 @@ import {
   refreshToken, 
   AUTH_REQUIRED_EVENT, 
   type AuthResponse,
+  getMe,
+  type MeResponse,
+  type MeStreakInfo,
+  type MeCampaignStats,
+  type MeXpInfo,
   type AgeRange,
   type BuriatLevel,
   type ReminderPlan,
@@ -20,9 +25,12 @@ export interface User {
   name: string;
   telegramUsername?: string;
   photoUrl?: string;
+  languageCode?: string;
+  isPremium?: boolean;
   role: string;
   trustScore: number;
-  currentStreak?: number;
+
+  // Статистика вклада в словарь
   stats: {
     wordsAdded: number;
     wordsVerified: number;
@@ -30,6 +38,17 @@ export interface User {
     wordsRejected: number;
     verificationAccuracy: number;
   };
+
+  // Серия дней
+  streak?: MeStreakInfo;
+  // Статистика кампании
+  campaignStats?: MeCampaignStats;
+  // Опыт и уровень
+  xp?: MeXpInfo;
+
+  isBanned?: boolean;
+  lastActiveAt?: string;
+  createdAt?: string;
   // Поля онбординга
   onboardingCompleted: boolean;
   onboardingStep?: string;
@@ -62,8 +81,7 @@ const loadUser = (): User | null => {
   try {
     const stored = localStorage.getItem(AUTH_USER_KEY);
     if (!stored) return null;
-    const parsed: User = JSON.parse(stored);
-    return { ...parsed, currentStreak: parsed.currentStreak ?? 0 };
+    return JSON.parse(stored) as User;
   } catch {
     return null;
   }
@@ -85,14 +103,48 @@ const mapAuthResponseToUser = (response: AuthResponse): User => ({
   photoUrl: response.photoUrl,
   role: response.role,
   trustScore: response.trustScore,
-  currentStreak: response.currentStreak ?? 0,
   stats: response.stats,
+  // streak/campaignStats/xp придут из /auth/me
+  streak: response.currentStreak != null
+    ? { current: response.currentStreak, longest: response.currentStreak }
+    : undefined,
   onboardingCompleted: response.onboardingCompleted,
   onboardingStep: response.onboardingStep,
   ageRange: response.ageRange,
   buriatLevel: response.buriatLevel,
   reminderPlan: response.reminderPlan,
   reminderTime: response.reminderTime,
+});
+
+const mapMeResponseToUser = (me: MeResponse, prevUser?: User | null): User => ({
+  _id: me.id,
+  telegramId: me.telegramId,
+  name: me.name,
+  telegramUsername: me.telegramUsername,
+  photoUrl: me.photoUrl,
+  languageCode: me.languageCode,
+  isPremium: me.isPremium,
+  role: me.role,
+  trustScore: me.trustScore,
+  stats: {
+    wordsAdded: me.stats?.wordsAdded ?? prevUser?.stats.wordsAdded ?? 0,
+    wordsVerified: me.stats?.wordsVerified ?? prevUser?.stats.wordsVerified ?? 0,
+    wordsApproved: me.stats?.wordsApproved ?? prevUser?.stats.wordsApproved ?? 0,
+    wordsRejected: me.stats?.wordsRejected ?? prevUser?.stats.wordsRejected ?? 0,
+    verificationAccuracy: me.stats?.verificationAccuracy ?? prevUser?.stats.verificationAccuracy ?? 0,
+  },
+  streak: me.streak ?? prevUser?.streak,
+  campaignStats: me.campaignStats ?? prevUser?.campaignStats,
+  xp: me.xp ?? prevUser?.xp,
+  isBanned: me.isBanned ?? prevUser?.isBanned,
+  lastActiveAt: me.lastActiveAt ?? prevUser?.lastActiveAt,
+  createdAt: me.createdAt ?? prevUser?.createdAt,
+  onboardingCompleted: me.onboardingCompleted,
+  onboardingStep: me.onboardingStep,
+  ageRange: me.ageRange,
+  buriatLevel: me.buriatLevel,
+  reminderPlan: me.reminderPlan,
+  reminderTime: me.reminderTime,
 });
 
 export function useAuthStore(): AuthStore {
@@ -124,7 +176,15 @@ export function useAuthStore(): AuthStore {
     try {
       const response: AuthResponse = await telegramAuth(initData);
       
-      const user: User = mapAuthResponseToUser(response);
+      let user: User = mapAuthResponseToUser(response);
+
+      // Подтягиваем актуальные данные пользователя (level/xp и т.д.)
+      try {
+        const me = await getMe();
+        user = mapMeResponseToUser(me, user);
+      } catch (e) {
+        console.log('⚠️ Не удалось загрузить /auth/me после логина:', e);
+      }
 
       saveUser(user);
 
@@ -223,6 +283,18 @@ export function useAuthStore(): AuthStore {
             });
           }
 
+          // После успешного рефреша — обновляем профиль через /auth/me
+          try {
+            const me = await getMe();
+            setState(prev => {
+              const updatedUser = mapMeResponseToUser(me, prev.user);
+              saveUser(updatedUser);
+              return { ...prev, user: updatedUser, isAuthenticated: true };
+            });
+          } catch (e) {
+            console.log('⚠️ Не удалось обновить профиль через /auth/me при старте:', e);
+          }
+
           console.log('✅ Токен успешно обновлён при старте');
           return; // Успех - выходим
         } catch (error) {
@@ -262,7 +334,14 @@ export function useAuthStore(): AuthStore {
         try {
           const response: AuthResponse = await telegramAuth(initData);
           
-          const user: User = mapAuthResponseToUser(response);
+          let user: User = mapAuthResponseToUser(response);
+
+          try {
+            const me = await getMe();
+            user = mapMeResponseToUser(me, user);
+          } catch (e) {
+            console.log('⚠️ Не удалось загрузить /auth/me после авто-логина:', e);
+          }
 
           saveUser(user);
 
@@ -325,7 +404,14 @@ export function useAuthStore(): AuthStore {
         try {
           const response: AuthResponse = await telegramAuth(initData);
           
-          const user: User = mapAuthResponseToUser(response);
+          let user: User = mapAuthResponseToUser(response);
+
+          try {
+            const me = await getMe();
+            user = mapMeResponseToUser(me, user);
+          } catch (e) {
+            console.log('⚠️ Не удалось загрузить /auth/me после переавторизации:', e);
+          }
 
           saveUser(user);
 

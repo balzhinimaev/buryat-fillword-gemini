@@ -23,6 +23,7 @@ const defaultSettings: GameSettings = {
   playerName: 'Игрок',
   publicProfile: true,
   notificationsEnabled: true,
+  hasSeenHowTo: false,
 };
 
 const defaultStats: PlayerStats = {

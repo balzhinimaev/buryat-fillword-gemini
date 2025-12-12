@@ -157,7 +157,20 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const { openLink } = useTelegram();
   const { state: authState } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
-  const currentStreak = authState.user?.currentStreak ?? stats.currentStreak;
+
+  // Streak — берём из бэка или fallback на локальное
+  const currentStreak = authState.user?.streak?.current ?? stats.currentStreak;
+
+  // XP/Level — берём из бэка или fallback на локальное
+  const backendXp = authState.user?.xp;
+  const displayLevel = backendXp?.level ?? stats.level;
+  const displayXpProgress = backendXp
+    ? backendXp.progressPercent / 100
+    : xpProgress;
+  const displayXpToNextLevel = backendXp?.xpToNextLevel ?? xpToNextLevel;
+
+  // Звёзды кампании — берём из бэка или локальное
+  const displayTotalStars = authState.user?.campaignStats?.totalStars ?? stats.totalStars;
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
@@ -220,7 +233,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
                   <div className={cn("text-xs text-right", styles.statsCard.text.secondary)}>Всего звёзд</div>
                   <div className={cn("font-bold text-right flex items-center gap-1 justify-end", styles.statsCard.text.accent)}>
                     <Star size={16} className="fill-current" />
-                    {stats.totalStars}
+                    {displayTotalStars}
                   </div>
                 </div>
               </div>
@@ -232,18 +245,18 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
                 "w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg",
                 styles.statsCard.levelBadge
               )}>
-                {stats.level}
+                {displayLevel}
               </div>
               <div className="flex-1">
                 <div className="flex justify-between text-xs mb-1.5">
-                  <span className={cn("font-medium", styles.statsCard.text.primary)}>Уровень {stats.level}</span>
-                  <span className={styles.statsCard.text.secondary}>{xpToNextLevel} XP</span>
+                  <span className={cn("font-medium", styles.statsCard.text.primary)}>Уровень {displayLevel}</span>
+                  <span className={styles.statsCard.text.secondary}>{displayXpToNextLevel} XP</span>
                 </div>
                 <div className={cn("h-2.5 rounded-full overflow-hidden", styles.statsCard.progressTrack)}>
                   <motion.div
                     className={cn("h-full rounded-full", styles.statsCard.progressFill)}
                     initial={{ width: 0 }}
-                    animate={{ width: `${xpProgress * 100}%` }}
+                    animate={{ width: `${displayXpProgress * 100}%` }}
                     transition={{ type: 'spring', stiffness: 50 }}
                   />
                 </div>
@@ -265,7 +278,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('gameMode')}
+            onClick={() => navigate(state.settings.hasSeenHowTo ? 'gameMode' : 'howto')}
             className="relative w-full p-5 rounded-2xl overflow-hidden group"
           >
             <div className={cn("absolute inset-0 transition-all duration-300", styles.buttons.play.gradient)} />
@@ -363,6 +376,27 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             </div>
             <div className="text-left flex-1">
               <div className={cn("font-semibold", styles.buttons.text.primary)}>Настройки</div>
+            </div>
+          </motion.button>
+
+          {/* Как играть */}
+          <motion.button
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('howto')}
+            className={cn(
+              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
+              styles.buttons.card.background,
+              styles.buttons.card.border,
+              styles.buttons.card.borderHover
+            )}
+          >
+            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", styles.buttons.iconColors.help.bg)}>
+              <HelpCircle size={22} className={styles.buttons.iconColors.help.icon} />
+            </div>
+            <div className="text-left flex-1">
+              <div className={cn("font-semibold", styles.buttons.text.primary)}>Как играть</div>
+              <div className={cn("text-sm", styles.buttons.text.muted)}>Пошаговое обучение</div>
             </div>
           </motion.button>
 

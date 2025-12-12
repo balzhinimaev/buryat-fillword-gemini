@@ -46,6 +46,79 @@ export interface RefreshResponse {
   currentStreak?: number;
 }
 
+// Текущий пользователь
+// (отдельный эндпоинт /auth/me; поля могут расширяться)
+export interface MeStreakInfo {
+  current: number;
+  longest: number;
+  lastActiveDate?: string;
+}
+
+export interface MeCampaignStats {
+  totalStars: number;
+  maxPossibleStars: number;
+  levelsCompleted: number;
+  totalLevels: number;
+  perfectLevels: number;
+  totalAttempts?: number;
+  totalPlayTimeSeconds?: number;
+  globalRank?: number;
+  completionPercent: number;
+  bestLevel?: {
+    slug: string;
+    name?: string;
+    timeSeconds?: number;
+    rank?: number;
+  };
+}
+
+export interface MeXpInfo {
+  total: number;
+  level: number;
+  xpInCurrentLevel: number;
+  xpToNextLevel: number;
+  progressPercent: number;
+  maxLevel?: number;
+}
+
+export interface MeResponse {
+  id: string;
+  telegramId: number;
+  name: string;
+  telegramUsername?: string;
+  photoUrl?: string;
+  languageCode?: string;
+  isPremium?: boolean;
+
+  onboardingCompleted: boolean;
+  onboardingStep?: string;
+  ageRange?: AgeRange;
+  buriatLevel?: BuriatLevel;
+  reminderPlan?: ReminderPlan;
+  reminderTime?: ReminderTime;
+
+  role: string;
+  trustScore: number;
+
+  // Статистика вклада в словарь
+  stats?: {
+    wordsAdded: number;
+    wordsVerified: number;
+    wordsApproved: number;
+    wordsRejected: number;
+    verificationAccuracy: number;
+  };
+
+  // Новые структурированные блоки
+  streak?: MeStreakInfo;
+  campaignStats?: MeCampaignStats;
+  xp?: MeXpInfo;
+
+  isBanned?: boolean;
+  lastActiveAt?: string;
+  createdAt?: string;
+}
+
 // Ответ пользователя (для join/leave keepers)
 export interface UserResponse {
   _id: string;
@@ -404,6 +477,11 @@ export async function refreshToken(): Promise<RefreshResponse> {
   return response;
 }
 
+// Текущий пользователь
+export async function getMe(): Promise<MeResponse> {
+  return apiRequest<MeResponse>('/auth/me', { method: 'GET' });
+}
+
 // Выход
 export async function logout(): Promise<void> {
   const tokens = getStoredTokens();
@@ -496,10 +574,144 @@ export async function updateOnboarding(data: UpdateOnboardingRequest): Promise<U
   });
 }
 
+// =========================
+// Campaign (server-driven)
+// =========================
+
+// Делает типы "гибкими": допускаем расширение ответа новыми полями без правок фронта.
+type ExtensibleRecord = Record<string, unknown>;
+
+export type CampaignDifficulty = 'beginner' | 'intermediate' | 'expert' | string;
+
+export interface CampaignWord extends ExtensibleRecord {
+  bur: string;
+  ru: string;
+}
+
+export interface CampaignOverviewLevel extends ExtensibleRecord {
+  id: string;
+  slug: string;
+  name?: string;
+  nameBur?: string;
+  difficulty?: CampaignDifficulty;
+  order?: number;
+  icon?: string;
+  requiredStars?: number;
+  wordCount?: number;
+  maxStars?: number;
+  timeLimitSeconds?: number;
+  isActive?: boolean;
+  description?: string;
+  descriptionBur?: string;
+
+  // Progress fields (may be absent for new users / future changes)
+  earnedStars?: number;
+  isUnlocked?: boolean;
+  bestTimeSeconds?: number;
+  attempts?: number;
+  firstCompletedAt?: string;
+}
+
+export interface CampaignOverviewCategory extends ExtensibleRecord {
+  difficulty: CampaignDifficulty;
+  name?: string;
+  nameBur?: string;
+  order?: number;
+  requiredStars?: number;
+  isUnlocked?: boolean;
+  levels: CampaignOverviewLevel[];
+  totalStars?: number;
+  earnedStars?: number;
+}
+
+export interface CampaignOverviewResponse extends ExtensibleRecord {
+  categories: CampaignOverviewCategory[];
+  totalStars?: number;
+  earnedStars?: number;
+  progressPercent?: number;
+}
+
+export interface CampaignLevelResponse extends ExtensibleRecord {
+  id: string;
+  slug: string;
+  name?: string;
+  nameBur?: string;
+  words: CampaignWord[];
+  timeLimitSeconds?: number;
+  maxStars?: number;
+  currentStars?: number;
+  bestTimeSeconds?: number;
+}
+
+export interface CampaignLevelStartResponse extends ExtensibleRecord {
+  sessionId: string;
+  expiresAt: string;
+}
+
+export interface CampaignSubmitLevelResultRequest extends ExtensibleRecord {
+  // required
+  timeSeconds: number;
+  foundWords: string[];
+  // optional
+  sessionId?: string;
+  mistakes?: number;
+}
+
+export interface CampaignLevelResultResponse extends ExtensibleRecord {
+  success?: boolean;
+  earnedStars?: number;
+  isNewStarRecord?: boolean;
+  isNewTimeRecord?: boolean;
+  timeSeconds?: number; // server time (if sessionId used)
+  totalUserStars?: number;
+  unlockedLevelSlugs?: string[];
+
+  // details
+  wordsFound?: number;
+  wordsTotal?: number;
+  wordsFoundPercent?: number;
+  validFoundWords?: string[];
+  missedWords?: string[];
+  timeLimitSeconds?: number;
+  previousBestStars?: number;
+  previousBestTime?: number;
+  attemptNumber?: number;
+
+  // XP
+  xpGained?: number;
+  totalXp?: number;
+  userLevel?: number;
+  leveledUp?: boolean;
+  xpReason?: string;
+}
+
+export async function getCampaignOverview(): Promise<CampaignOverviewResponse> {
+  return apiRequest<CampaignOverviewResponse>('/campaign/overview', { method: 'GET' });
+}
+
+export async function getCampaignLevel(slug: string): Promise<CampaignLevelResponse> {
+  return apiRequest<CampaignLevelResponse>(`/campaign/level/${encodeURIComponent(slug)}`, { method: 'GET' });
+}
+
+export async function startCampaignLevel(slug: string): Promise<CampaignLevelStartResponse> {
+  return apiRequest<CampaignLevelStartResponse>(`/campaign/level/${encodeURIComponent(slug)}/start`, { method: 'POST' });
+}
+
+export async function submitCampaignLevel(
+  slug: string,
+  body: CampaignSubmitLevelResultRequest
+): Promise<CampaignLevelResultResponse> {
+  return apiRequest<CampaignLevelResultResponse>(`/campaign/level/${encodeURIComponent(slug)}/submit`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 // API экспорт
 export const api = {
   telegramAuth,
   refreshToken,
+  getMe,
   logout,
   getStoredTokens,
   clearStoredTokens,
@@ -517,6 +729,12 @@ export const api = {
   voteWord,
   updateOnboarding,
   updateName,
+
+  // Campaign
+  getCampaignOverview,
+  getCampaignLevel,
+  startCampaignLevel,
+  submitCampaignLevel,
   
   // Универсальные методы для других запросов
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),

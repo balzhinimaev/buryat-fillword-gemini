@@ -20,6 +20,7 @@ import DictionaryScreen from './screens/DictionaryScreen';
 import DebugGridScreen from './screens/DebugGridScreen';
 import WordContributionScreen from './screens/WordContributionScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
+import HowToPlayScreen from './screens/HowToPlayScreen';
 
 // Плавный fade переход
 const pageVariants = {
@@ -74,6 +75,8 @@ export default function App() {
     switch (effectiveScreen) {
       case 'onboarding':
         return <OnboardingScreen store={store} />;
+      case 'howto':
+        return <HowToPlayScreen store={store} />;
       case 'menu':
         return <MainMenu store={store} />;
       case 'gameMode':

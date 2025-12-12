@@ -1,37 +1,101 @@
 // src/screens/LevelsScreen.tsx
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Star, ArrowLeft, Layers } from 'lucide-react';
+import { Star, ArrowLeft, Layers, Lock, Clock, Hash, RefreshCw } from 'lucide-react';
 import { CategoryCard, cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
-import { categories } from '../data/words';
+import { api, type ApiError, type CampaignDifficulty, type CampaignOverviewResponse, type CampaignOverviewLevel } from '../services/api';
 
 interface LevelsScreenProps {
   store: GameStore;
 }
 
 export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
-  const { state, navigate, selectCategory, getLevelProgress, isLevelUnlocked } = store;
+  const { state, navigate, selectCategory, getLevelProgress } = store;
   const { theme } = useTheme();
   
   useBackButton(() => navigate('gameMode'));
 
-  const difficultyGroups = {
-    easy: categories.filter(c => c.difficulty === 'easy'),
-    medium: categories.filter(c => c.difficulty === 'medium'),
-    hard: categories.filter(c => c.difficulty === 'hard'),
+  const [overview, setOverview] = useState<CampaignOverviewResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const errorToMessage = (e: unknown): string => {
+    if (!e) return 'Не удалось загрузить кампанию';
+    const apiError = e as Partial<ApiError>;
+    if (typeof apiError.message === 'string' && apiError.message.length > 0) return apiError.message;
+    if (e instanceof Error && e.message) return e.message;
+    return 'Не удалось загрузить кампанию';
   };
+
+  const mapDifficulty = (d: CampaignDifficulty | undefined): 'easy' | 'medium' | 'hard' => {
+    switch (d) {
+      case 'beginner':
+        return 'easy';
+      case 'intermediate':
+        return 'medium';
+      case 'expert':
+        return 'hard';
+      default:
+        return 'easy';
+    }
+  };
+
+  const formatTime = (seconds?: number) => {
+    if (!seconds || seconds <= 0) return '—';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const loadOverview = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await api.getCampaignOverview();
+      setOverview(data);
+    } catch (e) {
+      setError(errorToMessage(e));
+      setOverview(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadOverview();
+  }, [loadOverview]);
+
+  const difficultySections = useMemo(() => {
+    const cats = overview?.categories ?? [];
+    return [...cats].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [overview]);
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
       {/* Sticky Header при скролле */}
       <StickyHeader 
-        title="Выбор категории" 
+        title="Кампания" 
         onBack={() => navigate('gameMode')}
-        rightElement={<Layers size={22} className={theme.text.accent} />}
+        rightElement={
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void loadOverview()}
+              className={cn(
+                "p-2 rounded-xl transition-colors",
+                "bg-white/10 hover:bg-white/20"
+              )}
+              aria-label="Обновить"
+              disabled={isLoading}
+            >
+              <RefreshCw size={18} className={cn(theme.header.text, isLoading && "animate-spin")} />
+            </button>
+            <Layers size={22} className={theme.text.accent} />
+          </div>
+        }
       />
       
       {/* Декоративный фон */}
@@ -55,7 +119,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
             >
               <ArrowLeft size={24} className={theme.header.text} />
             </motion.button>
-            <h1 className="text-xl font-bold flex-1">Выбор категории</h1>
+            <h1 className="text-xl font-bold flex-1">Кампания</h1>
             <Layers size={24} />
           </div>
           
@@ -65,19 +129,33 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
               <Star size={20} className="text-white fill-white" />
             </div>
             <div className="flex-1">
-              <div className="text-sm text-white/70 mb-1">Собрано звёзд</div>
+              <div className="text-sm text-white/70 mb-1">
+                Собрано звёзд
+                {typeof overview?.progressPercent === 'number' && (
+                  <span className="ml-2 text-white/60">
+                    ({overview.progressPercent.toFixed(2)}%)
+                  </span>
+                )}
+              </div>
               <div className={cn("h-2 rounded-full overflow-hidden", theme.progress.track)}>
                 <motion.div 
                   className={theme.progress.fill.amber}
                   style={{ height: '100%' }}
                   initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(100, (state.stats.totalStars / 36) * 100)}%` }}
+                  animate={{ 
+                    width: `${Math.min(
+                      100, 
+                      (typeof overview?.totalStars === 'number' && overview.totalStars > 0)
+                        ? ((overview.earnedStars ?? 0) / overview.totalStars) * 100
+                        : (state.stats.totalStars / 36) * 100
+                    )}%` 
+                  }}
                 />
               </div>
             </div>
             <div className="text-2xl font-bold">
-              <span className="text-amber-400">{state.stats.totalStars}</span>
-              <span className="text-white/50">/36</span>
+              <span className="text-amber-400">{overview?.earnedStars ?? state.stats.totalStars}</span>
+              <span className="text-white/50">/{overview?.totalStars ?? 36}</span>
             </div>
           </div>
         </div>
@@ -85,49 +163,118 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
 
       {/* Categories list */}
       <main className="flex-1 p-4 overflow-auto relative z-10">
-        {(['easy', 'medium', 'hard'] as const).map((difficulty) => (
-          <div key={difficulty} className="mb-6">
-            <div className={cn(
-              'inline-flex items-center gap-2 px-3 py-1 rounded-full mb-3',
-              theme.difficultyBadge[difficulty].bg
-            )}>
-              <span className={cn('font-semibold text-sm', theme.difficultyBadge[difficulty].text)}>
-                {difficulty === 'easy' ? 'Начинающий' : difficulty === 'medium' ? 'Продолжающий' : 'Эксперт'}
-              </span>
-            </div>
-            
-            <div className="space-y-3">
-              {difficultyGroups[difficulty].map((category, index) => {
-                const progress = getLevelProgress(category.id);
-                const unlocked = isLevelUnlocked(category.unlockRequirement);
-                
-                return (
-                  <motion.div
-                    key={category.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    <CategoryCard
-                      emoji={category.emoji}
-                      name={category.name}
-                      description={category.description}
-                      stars={progress?.stars || 0}
-                      isLocked={!unlocked}
-                      difficulty={category.difficulty}
-                      onClick={() => selectCategory(category.id)}
-                    />
-                    {!unlocked && (
-                      <div className={cn("text-xs text-center mt-1", theme.text.muted)}>
-                        Нужно {category.unlockRequirement} ⭐ для разблокировки
-                      </div>
-                    )}
-                  </motion.div>
-                );
-              })}
-            </div>
+        {isLoading && !overview && (
+          <div className={cn("text-center py-10", theme.text.muted)}>Загрузка кампании…</div>
+        )}
+
+        {error && (
+          <div className={cn("mb-4 p-4 rounded-2xl border", theme.categoryCard.bg, theme.categoryCard.border)}>
+            <div className={cn("font-semibold mb-1", theme.text.primary)}>Ошибка</div>
+            <div className={cn("text-sm", theme.text.secondary)}>{error}</div>
+            <button
+              onClick={() => void loadOverview()}
+              className={cn("mt-3 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors", theme.header.text)}
+            >
+              Повторить
+            </button>
           </div>
-        ))}
+        )}
+
+        {difficultySections.map((section) => {
+          const uiDifficulty = mapDifficulty(section.difficulty);
+          const levels = [...(section.levels ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          const sectionLocked = section.isUnlocked === false;
+
+          return (
+            <div key={`${section.difficulty}-${section.order ?? 0}`} className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className={cn(
+                  'inline-flex items-center gap-2 px-3 py-1 rounded-full',
+                  theme.difficultyBadge[uiDifficulty].bg
+                )}>
+                  <span className={cn('font-semibold text-sm', theme.difficultyBadge[uiDifficulty].text)}>
+                    {section.name ?? (uiDifficulty === 'easy' ? 'Начинающий' : uiDifficulty === 'medium' ? 'Продолжающий' : 'Эксперт')}
+                  </span>
+                  {sectionLocked && <Lock size={14} className={theme.text.muted} />}
+                </div>
+
+                <div className={cn("text-xs", theme.text.muted)}>
+                  <span className="mr-2">
+                    ⭐ {section.earnedStars ?? 0}/{section.totalStars ?? levels.reduce((s, l) => s + (l.maxStars ?? 3), 0)}
+                  </span>
+                  {typeof section.requiredStars === 'number' && sectionLocked && (
+                    <span>Нужно {section.requiredStars} ⭐</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {levels.map((lvl: CampaignOverviewLevel, index) => {
+                  // Если API явно указал isUnlocked, используем это значение
+                  // Иначе проверяем по earnedStars из overview
+                  const unlocked = lvl.isUnlocked === true || 
+                    (lvl.isUnlocked !== false && 
+                     typeof overview?.earnedStars === 'number' && 
+                     overview.earnedStars >= (lvl.requiredStars ?? 0));
+
+                  const stars = lvl.earnedStars ?? getLevelProgress(lvl.slug)?.stars ?? 0;
+                  const icon = lvl.icon ?? '📚';
+                  const desc = lvl.description ?? 'Уровень кампании';
+
+                  return (
+                    <motion.div
+                      key={lvl.slug}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="space-y-1"
+                    >
+                      <CategoryCard
+                        emoji={icon}
+                        name={lvl.name ?? lvl.slug}
+                        description={desc}
+                        stars={stars}
+                        isLocked={!unlocked}
+                        difficulty={uiDifficulty}
+                        onClick={() => selectCategory(lvl.slug)}
+                      />
+
+                      {/* Плашки-детали (плюшки) */}
+                      <div className={cn("flex items-center justify-between px-2", theme.text.muted)}>
+                        <div className="flex items-center gap-2 text-[11px]">
+                          {typeof lvl.timeLimitSeconds === 'number' && (
+                            <span className="inline-flex items-center gap-1">
+                              <Clock size={12} />
+                              {formatTime(lvl.timeLimitSeconds)}
+                            </span>
+                          )}
+                          {typeof lvl.wordCount === 'number' && (
+                            <span className="inline-flex items-center gap-1">
+                              <Hash size={12} />
+                              {lvl.wordCount}
+                            </span>
+                          )}
+                          {typeof lvl.bestTimeSeconds === 'number' && (
+                            <span className="inline-flex items-center gap-1">
+                              ⭐ {formatTime(lvl.bestTimeSeconds)}
+                            </span>
+                          )}
+                        </div>
+
+                        {!unlocked && typeof lvl.requiredStars === 'number' && (
+                          <div className="text-[11px] inline-flex items-center gap-1">
+                            <Lock size={12} />
+                            Нужно {lvl.requiredStars} ⭐
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </main>
     </div>
   );

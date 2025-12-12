@@ -10,7 +10,11 @@ import {
   BookOpen,
   TrendingUp,
   Star,
-  ArrowLeft
+  ArrowLeft,
+  Plus,
+  CheckCircle2,
+  XCircle,
+  Shield
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -29,7 +33,25 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const { stats, levelProgress } = state;
   const { theme } = useTheme();
   const { state: authState } = useAuth();
-  const currentStreak = authState.user?.currentStreak ?? stats.currentStreak;
+
+  // Streak — берём из бэка или fallback на локальное
+  const currentStreak = authState.user?.streak?.current ?? stats.currentStreak;
+  const longestStreak = authState.user?.streak?.longest ?? stats.longestStreak;
+
+  // XP/Level — берём из бэка или fallback на локальное
+  const backendXp = authState.user?.xp;
+  const displayLevel = backendXp?.level ?? stats.level;
+  const displayXpProgress = backendXp
+    ? backendXp.progressPercent / 100
+    : xpProgress;
+  const displayXpToNextLevel = backendXp?.xpToNextLevel ?? xpToNextLevel;
+
+  // Campaign stats — берём из бэка или fallback на локальное
+  const campaignStats = authState.user?.campaignStats;
+  const displayTotalStars = campaignStats?.totalStars ?? stats.totalStars;
+  const displayMaxStars = campaignStats?.maxPossibleStars ?? 36;
+  const displayPlayTime = campaignStats?.totalPlayTimeSeconds ?? stats.totalTimePlayed;
+  const displayTotalAttempts = campaignStats?.totalAttempts ?? stats.totalGamesPlayed;
   
   useBackButton(() => navigate('menu'));
 
@@ -57,11 +79,11 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
     { id: 'fifty_words', name: 'Полтинник', icon: '5️⃣0️⃣', condition: stats.totalWordsFound >= 50, description: 'Найти 50 слов' },
     { id: 'hundred_words', name: 'Сотня', icon: '💯', condition: stats.totalWordsFound >= 100, description: 'Найти 100 слов' },
     { id: 'first_level', name: 'Первая победа', icon: '🏆', condition: completedLevels >= 1, description: 'Пройти первый уровень' },
-    { id: 'streak_3', name: 'Три дня подряд', icon: '🔥', condition: stats.longestStreak >= 3, description: 'Играть 3 дня подряд' },
-    { id: 'streak_7', name: 'Неделя!', icon: '📅', condition: stats.longestStreak >= 7, description: 'Играть 7 дней подряд' },
+    { id: 'streak_3', name: 'Три дня подряд', icon: '🔥', condition: longestStreak >= 3, description: 'Играть 3 дня подряд' },
+    { id: 'streak_7', name: 'Неделя!', icon: '📅', condition: longestStreak >= 7, description: 'Играть 7 дней подряд' },
     { id: 'learned_10', name: 'Ученик', icon: '📚', condition: stats.learnedWords.length >= 10, description: 'Выучить 10 слов' },
-    { id: 'all_stars', name: 'Коллекционер', icon: '⭐', condition: stats.totalStars >= 36, description: 'Собрать все звёзды' },
-    { id: 'level_5', name: 'Прокачанный', icon: '⬆️', condition: stats.level >= 5, description: 'Достигнуть 5 уровня' },
+    { id: 'all_stars', name: 'Коллекционер', icon: '⭐', condition: displayTotalStars >= displayMaxStars, description: 'Собрать все звёзды' },
+    { id: 'level_5', name: 'Прокачанный', icon: '⬆️', condition: displayLevel >= 5, description: 'Достигнуть 5 уровня' },
   ];
 
   const unlockedAchievements = achievements.filter(a => a.condition);
@@ -69,9 +91,9 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   // Статы для отображения
   const statCards = [
     { icon: Target, label: 'Слов найдено', value: stats.totalWordsFound, color: 'amber' },
-    { icon: Clock, label: 'Время в игре', value: formatPlayTime(stats.totalTimePlayed), color: 'terra' },
-    { icon: Flame, label: 'Серия дней', value: currentStreak, subValue: `Рекорд: ${stats.longestStreak}`, color: 'orange' },
-    { icon: BarChart3, label: 'Игр сыграно', value: stats.totalGamesPlayed, color: 'meadow' },
+    { icon: Clock, label: 'Время в игре', value: formatPlayTime(displayPlayTime), color: 'terra' },
+    { icon: Flame, label: 'Серия дней', value: currentStreak, subValue: `Рекорд: ${longestStreak}`, color: 'orange' },
+    { icon: BarChart3, label: 'Игр сыграно', value: displayTotalAttempts, color: 'meadow' },
   ];
 
   return (
@@ -110,19 +132,19 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
         >
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-steppe-500 to-steppe-700 flex items-center justify-center shadow-lg shadow-steppe-500/20">
-              <span className="text-white font-bold text-xl">{stats.level}</span>
+              <span className="text-white font-bold text-xl">{displayLevel}</span>
             </div>
             <div className="flex-1">
               <div className="flex justify-between items-center mb-2">
-                <span className={cn("font-semibold", theme.text.primary)}>Уровень {stats.level}</span>
-                <span className={theme.text.muted}>{xpToNextLevel} XP до след.</span>
+                <span className={cn("font-semibold", theme.text.primary)}>Уровень {displayLevel}</span>
+                <span className={theme.text.muted}>{displayXpToNextLevel} XP до след.</span>
               </div>
               <div className={cn("h-3 rounded-full overflow-hidden", theme.progress.track)}>
                 <motion.div
                   className={theme.progress.fill.primary}
                   style={{ height: '100%' }}
                   initial={{ width: 0 }}
-                  animate={{ width: `${xpProgress * 100}%` }}
+                  animate={{ width: `${displayXpProgress * 100}%` }}
                   transition={{ type: 'spring', stiffness: 50 }}
                 />
               </div>
@@ -133,6 +155,78 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
 
       {/* Content */}
       <main className="flex-1 px-4 pb-6 space-y-4 overflow-auto relative z-10">
+        {/* Profile / contribution (backend) */}
+        {authState.user && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-4")}
+          >
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="min-w-0">
+                <div className={cn("font-semibold truncate", theme.text.primary)}>
+                  {authState.user.name}
+                </div>
+                <div className={cn("text-xs truncate", theme.text.muted)}>
+                  @{authState.user.telegramUsername || '—'} • роль: {authState.user.role} • trust: {authState.user.trustScore}
+                </div>
+              </div>
+              {authState.user.isPremium && (
+                <div className="px-2 py-1 rounded-lg text-xs bg-gradient-to-r from-amber-500/30 to-orange-500/20 text-amber-300 border border-amber-500/20">
+                  Premium
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-3")}>
+                <div className={cn("flex items-center gap-2 text-xs mb-1", theme.text.muted)}>
+                  <Plus size={12} />
+                  Добавлено слов
+                </div>
+                <div className={cn("text-xl font-bold", theme.text.primary)}>{authState.user.stats.wordsAdded}</div>
+              </div>
+
+              <div className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-3")}>
+                <div className={cn("flex items-center gap-2 text-xs mb-1", theme.text.muted)}>
+                  <CheckCircle2 size={12} />
+                  Одобрено
+                </div>
+                <div className={cn("text-xl font-bold", theme.text.primary)}>{authState.user.stats.wordsApproved}</div>
+              </div>
+
+              <div className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-3")}>
+                <div className={cn("flex items-center gap-2 text-xs mb-1", theme.text.muted)}>
+                  <BarChart3 size={12} />
+                  Проверено
+                </div>
+                <div className={cn("text-xl font-bold", theme.text.primary)}>{authState.user.stats.wordsVerified}</div>
+              </div>
+
+              <div className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-3")}>
+                <div className={cn("flex items-center gap-2 text-xs mb-1", theme.text.muted)}>
+                  <XCircle size={12} />
+                  Отклонено
+                </div>
+                <div className={cn("text-xl font-bold", theme.text.primary)}>{authState.user.stats.wordsRejected}</div>
+              </div>
+            </div>
+
+            <div className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-3 mt-3")}>
+              <div className="flex items-center justify-between">
+                <div className={cn("flex items-center gap-2 text-sm", theme.text.secondary)}>
+                  <Shield size={14} />
+                  Точность проверок
+                </div>
+                <div className={cn("text-lg font-bold", theme.text.primary)}>
+                  {authState.user.stats.verificationAccuracy}%
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Main stats grid */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -223,14 +317,14 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
             <div>
               <div className="flex justify-between text-sm mb-1.5">
                 <span className={theme.text.secondary}>Собрано звёзд</span>
-                <span className={cn("font-medium", theme.text.accent)}>{stats.totalStars}/36</span>
+                <span className={cn("font-medium", theme.text.accent)}>{displayTotalStars}/{displayMaxStars}</span>
               </div>
               <div className={cn("h-2.5 rounded-full overflow-hidden", theme.progress.track)}>
                 <motion.div
                   className={theme.progress.fill.amber}
                   style={{ height: '100%' }}
                   initial={{ width: 0 }}
-                  animate={{ width: `${(stats.totalStars / 36) * 100}%` }}
+                  animate={{ width: `${(displayTotalStars / displayMaxStars) * 100}%` }}
                   transition={{ delay: 0.5, duration: 0.8 }}
                 />
               </div>
