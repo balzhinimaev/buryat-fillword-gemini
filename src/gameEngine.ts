@@ -15,6 +15,34 @@ export interface GameState {
   size: number;
 }
 
+// ============================================================================
+// НОРМАЛИЗАЦИЯ СЛОВ ДЛЯ СЕТКИ
+// ============================================================================
+
+/**
+ * Нормализуем строку бурятского слова для размещения на сетке:
+ * - trim
+ * - upper-case
+ * - убираем любые пробельные/невидимые разделители внутри слова
+ *
+ * Важно: уровни кампании должны давать ровный квадрат по числу букв.
+ * Поэтому пробелы (и NBSP/ZWSP) не должны влиять на длину.
+ */
+const normalizeBurForGrid = (s: string): string => {
+  const normalized = String(s ?? '')
+    .normalize('NFC')
+    .trim()
+    .toUpperCase();
+
+  // Берём только буквенные символы (и кириллица, и латиница, и т.д.).
+  // Это автоматически убирает:
+  // - пробелы/разделители (в т.ч. NBSP)
+  // - формат-символы (ZWJ/ZWNJ/WORD JOINER/FEFF и др.)
+  // - пунктуацию/дефисы и прочий "мусор", который ломает длину
+  const parts = normalized.match(/\p{L}+/gu);
+  return parts ? parts.join('') : '';
+};
+
 // Соседи: Верх, Вниз, Влево, Вправо (без диагоналей)
 const DIRECTIONS = [
   { dr: -1, dc: 0 },
@@ -289,6 +317,107 @@ export const generateSnakeLevel = (
 
   // Последний fallback: заполняем шумом если не получилось
   return generateWithNoise(gridSize, wordsToPlace);
+};
+
+// ============================================================================
+// ГЕНЕРАТОР ДЛЯ КАМПАНИИ (ФИКСИРОВАННЫЕ СЛОВА)
+// ============================================================================
+
+/**
+ * Генерация стартовых позиций в порядке "от угла" (спираль/змейка)
+ * Начинаем с левого верхнего угла, двигаемся по строкам
+ */
+const generateCornerStartCells = (gridSize: number): Coord[] => {
+  const cells: Coord[] = [];
+  // Сначала добавляем ячейки в порядке "змейка" от (0,0)
+  for (let r = 0; r < gridSize; r++) {
+    if (r % 2 === 0) {
+      // Чётные строки: слева направо
+      for (let c = 0; c < gridSize; c++) {
+        cells.push({ r, c });
+      }
+    } else {
+      // Нечётные строки: справа налево
+      for (let c = gridSize - 1; c >= 0; c--) {
+        cells.push({ r, c });
+      }
+    }
+  }
+  return cells;
+};
+
+/**
+ * Генерирует уровень для кампании с ФИКСИРОВАННЫМИ словами
+ * Размер сетки вычисляется автоматически как sqrt(суммы букв)
+ * @param words - фиксированный список слов уровня
+ */
+export const generateCampaignLevel = (words: WordData[]): GameState => {
+  // Нормализуем слова (убираем пробелы/невидимые разделители) и фильтруем валидные
+  const normalizedWords: WordData[] = (words ?? [])
+    .map(w => ({
+      bur: normalizeBurForGrid(w?.bur ?? ''),
+      ru: String(w?.ru ?? '').trim(),
+    }))
+    .filter(w => w.bur.length >= 2);
+
+  if (normalizedWords.length === 0) {
+    return { grid: [[]], placedWords: [], size: 1 };
+  }
+
+  // Точное количество букв (без пробелов!)
+  const totalLetters = normalizedWords.reduce((sum, w) => sum + w.bur.length, 0);
+
+  // Размер сетки: если сумма — точный квадрат, делаем ровно N×N (N² === totalLetters)
+  const exactSqrt = Math.sqrt(totalLetters);
+  const isPerfectSquare = Number.isInteger(exactSqrt);
+  const gridSize = isPerfectSquare ? exactSqrt : Math.ceil(exactSqrt);
+
+  if (!isPerfectSquare) {
+    console.warn(
+      `Campaign level: total letters is not a perfect square. Letters: ${totalLetters}, Grid: ${gridSize}x${gridSize}. ` +
+      `Consider adjusting campaign words to make total letters = N^2 for clean square levels. ` +
+      `Words: ${normalizedWords.map(w => `${w.bur}(${w.bur.length})`).join(', ')}`
+    );
+  }
+
+  // Детерминированная укладка "змейкой" от левого верхнего угла:
+  // объединяем слова и кладём подряд по маршруту; каждое слово остаётся связным путём.
+  const grid: string[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(''));
+  const placedWords: PlacedWord[] = [];
+  const cells = generateCornerStartCells(gridSize);
+
+  let cursor = 0;
+  for (const w of normalizedWords) {
+    const word = w.bur;
+    if (cursor + word.length > cells.length) {
+      // На всякий случай: если слов больше чем клеток (не должно случиться при корректных данных)
+      console.warn(
+        `Campaign level overflow: letters=${totalLetters}, grid=${gridSize}x${gridSize}, ` +
+        `attempted to place "${word}" at cursor=${cursor}`
+      );
+      break;
+    }
+
+    const path = cells.slice(cursor, cursor + word.length);
+    for (let i = 0; i < word.length; i++) {
+      const { r, c } = path[i];
+      grid[r][c] = word[i];
+    }
+    placedWords.push({ word: w, path });
+    cursor += word.length;
+  }
+
+  // Если сетка больше чем букв (неидеальный квадрат) — заполняем остаток шумом,
+  // чтобы UI/логика всегда имели полностью заполненную таблицу.
+  if (cursor < cells.length) {
+    const ALPHABET = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯӨҮҺ";
+    for (let i = cursor; i < cells.length; i++) {
+      const { r, c } = cells[i];
+      grid[r][c] = ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+    }
+  }
+
+  return { grid, placedWords, size: gridSize };
 };
 
 /**
