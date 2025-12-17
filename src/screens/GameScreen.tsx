@@ -19,7 +19,7 @@ import { cn, StarsDisplay } from '../components/ui';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
 import { getWordsForEndlessLevel } from '../data/words';
-import { generateSnakeLevel, findWordByPath, type PlacedWord } from '../gameEngine';
+import { generateSnakeLevel, generateCampaignLevel, findWordByPath, isPalindromeWord, type PlacedWord } from '../gameEngine';
 import type { Coord, CellStatus, WordData } from '../types';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
@@ -76,7 +76,8 @@ const FlippableWordChip = React.memo(({
   color, 
   styles,
   isDark,
-  index
+  index,
+  onHint
 }: { 
   word: { bur: string; ru: string };
   isFound: boolean;
@@ -84,6 +85,7 @@ const FlippableWordChip = React.memo(({
   styles: GameThemeStyles;
   isDark: boolean;
   index: number;
+  onHint?: () => void;
 }) => {
   const [isRevealed, setIsRevealed] = useState(false);
   const [hasBeenClicked, setHasBeenClicked] = useState(false);
@@ -101,6 +103,7 @@ const FlippableWordChip = React.memo(({
     
     setIsRevealed(true);
     setHasBeenClicked(true);
+    onHint?.();
     
     // Автоматически скрываем через 2 секунды
     timeoutRef.current = setTimeout(() => {
@@ -357,6 +360,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [selectedPath, setSelectedPath] = useState<Coord[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
   const [foundCellsRegistry, setFoundCellsRegistry] = useState<Map<string, FoundCellInfo>>(new Map());
+  const [manualHintCells, setManualHintCells] = useState<Set<string>>(new Set());
+  const manualHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [showWinModal, setShowWinModal] = useState(false);
   const [time, setTime] = useState(0);
@@ -372,16 +377,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const cellRectsRef = useRef<Map<string, DOMRect>>(new Map());
 
   // Инициализация игры
-  const inferCampaignGridSize = (words: WordData[]) => {
-    const safeWords = words.filter(w => (w?.bur?.trim()?.length ?? 0) >= 2);
-    const totalLetters = safeWords.reduce((s, w) => s + w.bur.trim().length, 0);
-
-    // В кампании слова можно укладывать "змейкой", поэтому размер стороны не обязан быть >= длине слова.
-    // Стараемся выбирать минимальную сетку, которая вмещает все буквы (например, 25 букв => 5x5).
-    const areaHint = Math.ceil(Math.sqrt(Math.max(25, totalLetters)));
-    return Math.min(10, Math.max(5, areaHint));
-  };
-
   const initEndlessGame = useCallback(() => {
     if (!endlessLevelData) return;
     if (timerRef.current) clearInterval(timerRef.current);
@@ -437,8 +432,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         }))
         .filter(w => w.bur.length >= 2);
 
-      const size = inferCampaignGridSize(words);
-      const result = generateSnakeLevel(size, words);
+      // Используем специальный генератор для кампании:
+      // - вычисляет точный размер сетки (sqrt от суммы букв)
+      // - размещает слова начиная с угла
+      const result = generateCampaignLevel(words);
       setGridLetters(result.grid);
       setGridSize(result.size);
       setPlacedWords(result.placedWords);
@@ -873,10 +870,44 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       if (!foundWordIds.has(pw.word.bur) && pw.path.length > 0) {
         const firstCell = pw.path[0];
         hints.add(`${firstCell.r}-${firstCell.c}`);
+
+        // Для палиндромов подсказка должна быть "двусторонней":
+        // игрок может начинать с любого конца, поэтому добавляем и последний символ.
+        if (pw.path.length > 1 && isPalindromeWord(pw.word.bur)) {
+          const lastCell = pw.path[pw.path.length - 1];
+          hints.add(`${lastCell.r}-${lastCell.c}`);
+        }
       }
     });
     return hints;
   }, [state.settings.showHints, placedWords, foundWordIds]);
+
+  const showWordStartHint = useCallback((pw: PlacedWord) => {
+    if (!pw.path || pw.path.length === 0) return;
+    if (manualHintTimeoutRef.current) clearTimeout(manualHintTimeoutRef.current);
+
+    const next = new Set<string>();
+    const first = pw.path[0];
+    next.add(`${first.r}-${first.c}`);
+
+    // Для палиндромов пользователь может начинать с любой стороны — подсветим оба конца
+    if (pw.path.length > 1 && isPalindromeWord(pw.word.bur)) {
+      const last = pw.path[pw.path.length - 1];
+      next.add(`${last.r}-${last.c}`);
+    }
+
+    setManualHintCells(next);
+    manualHintTimeoutRef.current = setTimeout(() => {
+      setManualHintCells(new Set());
+    }, 1800);
+  }, []);
+
+  // cleanup таймера подсказки
+  useEffect(() => {
+    return () => {
+      if (manualHintTimeoutRef.current) clearTimeout(manualHintTimeoutRef.current);
+    };
+  }, []);
 
   const shareResult = async () => {
     const stars = typeof campaignResult?.earnedStars === 'number'
@@ -1141,7 +1172,10 @@ ${levelInfo}
                     status={getCellStatus(r, c)}
                     wordColor={getCellWordColor(r, c)}
                     neighbors={getCellNeighbors(r, c)}
-                    isHint={hintCells.has(`${r}-${c}`)}
+                    // Подсказки:
+                    // - авто (настройка showHints)
+                    // - явная подсказка по клику на слово
+                    isHint={hintCells.has(`${r}-${c}`) || manualHintCells.has(`${r}-${c}`)}
                     styles={styles}
                     onPointerDown={(e) => handlePointerDown(e, r, c)}
                   />
@@ -1201,6 +1235,7 @@ ${levelInfo}
                 styles={styles}
                 isDark={isDark}
                 index={isFound ? -1 : unfoundIndex}
+                onHint={() => showWordStartHint(pw)}
               />
             );
           })}

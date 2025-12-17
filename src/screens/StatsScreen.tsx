@@ -1,5 +1,5 @@
 // src/screens/StatsScreen.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   BarChart3, 
@@ -32,7 +32,14 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const { state, navigate, xpProgress, xpToNextLevel } = store;
   const { stats, levelProgress } = state;
   const { theme } = useTheme();
-  const { state: authState } = useAuth();
+  const { state: authState, refreshUser } = useAuth();
+
+  // Обновляем данные пользователя при монтировании компонента
+  useEffect(() => {
+    if (authState.isAuthenticated) {
+      refreshUser();
+    }
+  }, [authState.isAuthenticated, refreshUser]);
 
   // Streak — берём из бэка или fallback на локальное
   const currentStreak = authState.user?.streak?.current ?? stats.currentStreak;
@@ -44,7 +51,8 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const displayXpProgress = backendXp
     ? backendXp.progressPercent / 100
     : xpProgress;
-  const displayXpToNextLevel = backendXp?.xpToNextLevel ?? xpToNextLevel;
+  // xpRemainingToNextLevel — сколько осталось до следующего уровня
+  const displayXpRemaining = backendXp?.xpRemainingToNextLevel ?? xpToNextLevel;
 
   // Campaign stats — берём из бэка или fallback на локальное
   const campaignStats = authState.user?.campaignStats;
@@ -137,7 +145,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
             <div className="flex-1">
               <div className="flex justify-between items-center mb-2">
                 <span className={cn("font-semibold", theme.text.primary)}>Уровень {displayLevel}</span>
-                <span className={theme.text.muted}>{displayXpToNextLevel} XP до след.</span>
+                <span className={theme.text.muted}>{displayXpRemaining} XP до след.</span>
               </div>
               <div className={cn("h-3 rounded-full overflow-hidden", theme.progress.track)}>
                 <motion.div

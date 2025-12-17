@@ -76,7 +76,8 @@ export interface MeXpInfo {
   total: number;
   level: number;
   xpInCurrentLevel: number;
-  xpToNextLevel: number;
+  xpToNextLevel: number; // Общее количество XP, нужное для перехода на следующий уровень
+  xpRemainingToNextLevel: number; // Сколько осталось XP до следующего уровня
   progressPercent: number;
   maxLevel?: number;
 }

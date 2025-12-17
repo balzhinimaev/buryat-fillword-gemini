@@ -15,7 +15,7 @@
 body {
   margin: 0;
   padding: 0;
-  background: linear-gradient(to bottom right, #0c4a6e, #0369a1);
+  background: linear-gradient(to bottom right, #232121, #050b0e);
   min-height: 100vh;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;

@@ -1,5 +1,5 @@
 // src/screens/MainMenu.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Play, 
@@ -155,8 +155,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
   const { openLink } = useTelegram();
-  const { state: authState } = useAuth();
+  const { state: authState, refreshUser } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
+
+  // Обновляем данные пользователя при монтировании компонента
+  useEffect(() => {
+    if (authState.isAuthenticated) {
+      refreshUser();
+    }
+  }, [authState.isAuthenticated, refreshUser]);
 
   // Streak — берём из бэка или fallback на локальное
   const currentStreak = authState.user?.streak?.current ?? stats.currentStreak;
@@ -167,7 +174,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const displayXpProgress = backendXp
     ? backendXp.progressPercent / 100
     : xpProgress;
-  const displayXpToNextLevel = backendXp?.xpToNextLevel ?? xpToNextLevel;
+  // xpRemainingToNextLevel — сколько осталось до следующего уровня
+  const displayXpRemaining = backendXp?.xpRemainingToNextLevel ?? xpToNextLevel;
 
   // Звёзды кампании — берём из бэка или локальное
   const displayTotalStars = authState.user?.campaignStats?.totalStars ?? stats.totalStars;
@@ -250,7 +258,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
               <div className="flex-1">
                 <div className="flex justify-between text-xs mb-1.5">
                   <span className={cn("font-medium", styles.statsCard.text.primary)}>Уровень {displayLevel}</span>
-                  <span className={styles.statsCard.text.secondary}>{displayXpToNextLevel} XP</span>
+                  <span className={styles.statsCard.text.secondary}>{displayXpRemaining} XP</span>
                 </div>
                 <div className={cn("h-2.5 rounded-full overflow-hidden", styles.statsCard.progressTrack)}>
                   <motion.div

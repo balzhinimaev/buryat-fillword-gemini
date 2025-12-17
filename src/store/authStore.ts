@@ -73,6 +73,7 @@ export interface AuthStore {
   logout: () => void;
   setOnboardingCompleted: (user: User) => void;
   setUserName: (name: string) => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AUTH_USER_KEY = 'auth_user';
@@ -454,12 +455,51 @@ export function useAuthStore(): AuthStore {
     return () => window.removeEventListener(AUTH_REQUIRED_EVENT, handleAuthRequired);
   }, [isTelegram, initData]);
 
+  // Обновление данных пользователя через /auth/me
+  // apiRequest автоматически обновит access_token через refresh_token при необходимости
+  const refreshUser = useCallback(async () => {
+    const tokens = getStoredTokens();
+    // Проверяем наличие хотя бы refresh_token, так как apiRequest сам обновит access_token при 401
+    if (!tokens?.refresh_token) {
+      console.log('⚠️ Нет токенов для обновления пользователя');
+      return;
+    }
+
+    try {
+      // apiRequest автоматически обновит токен при 401 через refresh_token
+      const me = await getMe();
+      setState(prev => {
+        if (!prev.user) {
+          // Если пользователя нет, но пришли данные — создаём его
+          const newUser = mapMeResponseToUser(me);
+          saveUser(newUser);
+          return {
+            ...prev,
+            user: newUser,
+            isAuthenticated: true,
+          };
+        }
+        // Обновляем существующего пользователя
+        const updatedUser = mapMeResponseToUser(me, prev.user);
+        saveUser(updatedUser);
+        return { ...prev, user: updatedUser };
+      });
+      console.log('✅ Данные пользователя обновлены через /auth/me');
+    } catch (error) {
+      console.error('❌ Ошибка при обновлении данных пользователя:', error);
+      // Не меняем состояние при ошибке, чтобы не потерять текущие данные
+      // Если токен истёк и refresh не помог, apiRequest отправит AUTH_REQUIRED_EVENT
+      // и authStore обработает это через существующий обработчик события
+    }
+  }, []);
+
   return {
     state,
     login,
     logout,
     setOnboardingCompleted,
     setUserName,
+    refreshUser,
   };
 }
 
