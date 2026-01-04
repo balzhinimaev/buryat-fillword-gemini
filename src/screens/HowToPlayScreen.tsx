@@ -34,6 +34,11 @@ type HowToStep = {
 };
 
 // Мини-сетка для иллюстрации
+// Константы для точного позиционирования
+const CELL_SIZE = 36; // w-9 = 36px
+const GAP = 4; // gap-1 = 4px
+const STEP = CELL_SIZE + GAP; // 40px между центрами клеток
+
 const MiniGrid: React.FC<{ 
   letters: string[][]; 
   highlighted?: [number, number][];
@@ -43,7 +48,13 @@ const MiniGrid: React.FC<{
     highlighted.some(([hr, hc]) => hr === r && hc === c);
   
   return (
-    <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${letters[0].length}, 1fr)` }}>
+    <div 
+      className="grid" 
+      style={{ 
+        gridTemplateColumns: `repeat(${letters[0].length}, ${CELL_SIZE}px)`,
+        gap: `${GAP}px`
+      }}
+    >
       {letters.map((row, r) => 
         row.map((letter, c) => (
           <motion.div
@@ -52,7 +63,7 @@ const MiniGrid: React.FC<{
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: (r * letters[0].length + c) * 0.03 }}
             className={cn(
-              "w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm transition-all",
+              "rounded-lg flex items-center justify-center font-bold text-sm transition-all",
               isHighlighted(r, c)
                 ? isDark 
                   ? "bg-gradient-to-br from-amber-400 to-orange-500 text-stone-900 shadow-lg shadow-amber-500/30"
@@ -61,6 +72,7 @@ const MiniGrid: React.FC<{
                   ? "bg-stone-700/60 text-stone-300"
                   : "bg-stone-200 text-stone-600"
             )}
+            style={{ width: CELL_SIZE, height: CELL_SIZE }}
           >
             {letter}
           </motion.div>
@@ -71,11 +83,6 @@ const MiniGrid: React.FC<{
 };
 
 // Анимированная рука для демонстрации свайпа
-// Размер клетки: 36px (w-9), gap: 4px (gap-1)
-// Шаг перемещения между клетками = 36 + 4 = 40px
-const CELL_SIZE = 36;
-const GAP = 4;
-const STEP = CELL_SIZE + GAP;
 const HAND_SIZE = 32; // w-8
 
 const SwipeHand: React.FC<{ isDark: boolean }> = ({ isDark }) => (
@@ -92,11 +99,11 @@ const SwipeHand: React.FC<{ isDark: boolean }> = ({ isDark }) => (
       y: [0, 0, 0, STEP],
     }}
     transition={{ 
-      duration: 2.5,
+      duration: 2.4,
       repeat: Infinity,
-      repeatDelay: 0.8,
-      ease: "easeInOut",
-      times: [0, 0.3, 0.6, 1], // Равномерные шаги
+      repeatDelay: 1,
+      ease: "linear", // Линейное движение между точками
+      times: [0, 0.33, 0.66, 1], // Равные интервалы для каждого шага
     }}
   >
     <div className={cn(
