@@ -156,10 +156,7 @@ const FlippableWordChip = React.memo(({
       )}
     >
       {isRevealed ? (
-        <>
-          <span className="whitespace-nowrap font-bold">{word.bur}</span>
-          <span className="text-xs opacity-80">🇲🇳</span>
-        </>
+        <span className="whitespace-nowrap font-bold">{word.bur}</span>
       ) : (
         <>
           <span className="whitespace-nowrap">{word.ru}</span>
