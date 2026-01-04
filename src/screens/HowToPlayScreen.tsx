@@ -37,7 +37,6 @@ type HowToStep = {
 // Константы для точного позиционирования
 const CELL_SIZE = 36; // w-9 = 36px
 const GAP = 4; // gap-1 = 4px
-const STEP = CELL_SIZE + GAP; // 40px между центрами клеток
 
 const MiniGrid: React.FC<{ 
   letters: string[][]; 
@@ -82,39 +81,6 @@ const MiniGrid: React.FC<{
   );
 };
 
-// Анимированная рука для демонстрации свайпа
-const HAND_SIZE = 32; // w-8
-
-const SwipeHand: React.FC<{ isDark: boolean }> = ({ isDark }) => (
-  <motion.div
-    className="absolute pointer-events-none"
-    style={{
-      // Начальная позиция: центр первой клетки [0,0] минус половина размера иконки руки
-      left: CELL_SIZE / 2 - HAND_SIZE / 2,
-      top: CELL_SIZE / 2 - HAND_SIZE / 2,
-    }}
-    animate={{ 
-      // Путь: [0,0] → [0,1] → [0,2] → [1,2]
-      x: [0, STEP, STEP * 2, STEP * 2],
-      y: [0, 0, 0, STEP],
-    }}
-    transition={{ 
-      duration: 2.4,
-      repeat: Infinity,
-      repeatDelay: 1,
-      ease: "linear", // Линейное движение между точками
-      times: [0, 0.33, 0.66, 1], // Равные интервалы для каждого шага
-    }}
-  >
-    <div className={cn(
-      "w-8 h-8 rounded-full flex items-center justify-center shadow-lg",
-      isDark ? "bg-amber-400/90" : "bg-amber-500/90"
-    )}>
-      <Hand size={16} className="text-white -rotate-12" />
-    </div>
-  </motion.div>
-);
-
 const createSteps = (isDark: boolean): HowToStep[] => [
   {
     title: 'Привет! 👋',
@@ -158,19 +124,15 @@ const createSteps = (isDark: boolean): HowToStep[] => [
     darkColor: 'from-blue-600 to-cyan-600',
     illustration: (
       <div className="flex items-center justify-center py-2">
-        {/* Обёртка для точного позиционирования руки относительно сетки */}
-        <div className="relative">
-          <MiniGrid 
-            letters={[
-              ['С', 'А', 'Й'],
-              ['М', 'И', 'Н'],
-              ['Э', 'Н', 'Д'],
-            ]}
-            highlighted={[[0, 0], [0, 1], [0, 2], [1, 2]]}
-            isDark={isDark}
-          />
-          <SwipeHand isDark={isDark} />
-        </div>
+        <MiniGrid 
+          letters={[
+            ['С', 'А', 'Й'],
+            ['М', 'И', 'Н'],
+            ['Э', 'Н', 'Д'],
+          ]}
+          highlighted={[[0, 0], [0, 1], [0, 2], [1, 2]]}
+          isDark={isDark}
+        />
       </div>
     ),
     tips: [
