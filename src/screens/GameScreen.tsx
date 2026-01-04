@@ -23,7 +23,7 @@ import { generateSnakeLevel, generateCampaignLevel, findWordByPath, isPalindrome
 import type { Coord, CellStatus, WordData } from '../types';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
-import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse } from '../services/api';
+import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
 
 interface GameScreenProps {
   store: GameStore;
@@ -968,13 +968,30 @@ ${levelInfo}
     }
 
     if (campaignLevelError) {
+      // Проверяем, является ли ошибка Unauthorized (истёкший токен)
+      const isUnauthorized = campaignLevelError.toLowerCase().includes('unauthorized') || 
+                             campaignLevelError.toLowerCase().includes('401');
+      
+      const handleErrorAction = () => {
+        if (isUnauthorized) {
+          // Очищаем токены и запрашиваем переавторизацию
+          clearStoredTokens();
+          window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
+          // Перенаправляем на главную страницу
+          navigate('menu');
+        } else {
+          // Просто повторяем попытку загрузки
+          void initCampaignGame();
+        }
+      };
+      
       return (
         <div className={cn("min-h-[100dvh] flex items-center justify-center p-6 text-center", styles.page.background)}>
           <div>
             <p className={cn("mb-2", styles.categoryTitle.text)}>Ошибка загрузки</p>
             <p className={cn("text-sm opacity-70 mb-4", styles.categoryTitle.text)}>{campaignLevelError}</p>
             <button
-              onClick={() => void initCampaignGame()}
+              onClick={handleErrorAction}
               className={cn(
                 "px-4 py-2 rounded-xl transition-colors",
                 styles.headerButton.background,
@@ -982,7 +999,7 @@ ${levelInfo}
                 styles.headerButton.text
               )}
             >
-              Повторить
+              {isUnauthorized ? 'На главную' : 'Повторить'}
             </button>
           </div>
         </div>
