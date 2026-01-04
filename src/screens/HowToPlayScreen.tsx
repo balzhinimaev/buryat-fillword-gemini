@@ -71,23 +71,36 @@ const MiniGrid: React.FC<{
 };
 
 // Анимированная рука для демонстрации свайпа
+// Размер клетки: 36px (w-9), gap: 4px (gap-1)
+// Шаг перемещения между клетками = 36 + 4 = 40px
+const CELL_SIZE = 36;
+const GAP = 4;
+const STEP = CELL_SIZE + GAP;
+const HAND_SIZE = 32; // w-8
+
 const SwipeHand: React.FC<{ isDark: boolean }> = ({ isDark }) => (
   <motion.div
-    className="absolute"
-    initial={{ x: 0, y: 0 }}
+    className="absolute pointer-events-none"
+    style={{
+      // Начальная позиция: центр первой клетки [0,0] минус половина размера иконки руки
+      left: CELL_SIZE / 2 - HAND_SIZE / 2,
+      top: CELL_SIZE / 2 - HAND_SIZE / 2,
+    }}
     animate={{ 
-      x: [0, 36, 36, 36],
-      y: [0, 0, 36, 72],
+      // Путь: [0,0] → [0,1] → [0,2] → [1,2]
+      x: [0, STEP, STEP * 2, STEP * 2],
+      y: [0, 0, 0, STEP],
     }}
     transition={{ 
-      duration: 2,
+      duration: 2.5,
       repeat: Infinity,
-      repeatDelay: 1,
-      ease: "easeInOut"
+      repeatDelay: 0.8,
+      ease: "easeInOut",
+      times: [0, 0.3, 0.6, 1], // Равномерные шаги
     }}
   >
     <div className={cn(
-      "w-8 h-8 rounded-full flex items-center justify-center",
+      "w-8 h-8 rounded-full flex items-center justify-center shadow-lg",
       isDark ? "bg-amber-400/90" : "bg-amber-500/90"
     )}>
       <Hand size={16} className="text-white -rotate-12" />
@@ -137,17 +150,20 @@ const createSteps = (isDark: boolean): HowToStep[] => [
     color: 'from-blue-500 to-cyan-500',
     darkColor: 'from-blue-600 to-cyan-600',
     illustration: (
-      <div className="relative flex items-center justify-center py-2">
-        <MiniGrid 
-          letters={[
-            ['С', 'А', 'Й'],
-            ['М', 'И', 'Н'],
-            ['Э', 'Н', 'Д'],
-          ]}
-          highlighted={[[0, 0], [0, 1], [0, 2], [1, 2]]}
-          isDark={isDark}
-        />
-        <SwipeHand isDark={isDark} />
+      <div className="flex items-center justify-center py-2">
+        {/* Обёртка для точного позиционирования руки относительно сетки */}
+        <div className="relative">
+          <MiniGrid 
+            letters={[
+              ['С', 'А', 'Й'],
+              ['М', 'И', 'Н'],
+              ['Э', 'Н', 'Д'],
+            ]}
+            highlighted={[[0, 0], [0, 1], [0, 2], [1, 2]]}
+            isDark={isDark}
+          />
+          <SwipeHand isDark={isDark} />
+        </div>
       </div>
     ),
     tips: [
