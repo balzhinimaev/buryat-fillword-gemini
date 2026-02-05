@@ -1,76 +1,336 @@
 // src/screens/LeaderboardScreen.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Medal, Clock, Crown, Filter, ArrowLeft } from 'lucide-react';
+import { Trophy, ArrowLeft, Star, Zap, Flame, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
+import { useAuth } from '../store/authStore';
 import type { GameStore } from '../store/gameStore';
-import { categories, getCategoryById } from '../data/words';
+import {
+  api,
+  type LeaderboardType,
+  type LeaderboardPeriod,
+  type LeaderboardEntry,
+  type LeaderboardResponse,
+} from '../services/api';
+import { UserProfileSheet } from '../components/UserProfileSheet';
 
 interface LeaderboardScreenProps {
   store: GameStore;
 }
 
+// Призы за топ-3 в турнире месяца (XP + month)
+const PRIZES: Record<number, { amount: string; emoji: string; color: string }> = {
+  1: { amount: '$50', emoji: '🥇', color: 'from-amber-400 to-yellow-500' },
+  2: { amount: '$25', emoji: '🥈', color: 'from-slate-300 to-slate-400' },
+  3: { amount: '$15', emoji: '🥉', color: 'from-amber-600 to-amber-700' },
+};
+
+// Конфигурация табов по типу рейтинга
+const TYPE_TABS: { id: LeaderboardType; label: string; icon: React.ReactNode }[] = [
+  { id: 'stars',  label: 'Звёзды', icon: <Star size={16} className="fill-current" /> },
+  { id: 'xp',     label: 'Опыт',   icon: <Zap size={16} /> },
+  { id: 'streak', label: 'Серия',   icon: <Flame size={16} /> },
+];
+
+const PERIOD_TABS: { id: LeaderboardPeriod; label: string }[] = [
+  { id: 'all',   label: 'Все время' },
+  { id: 'week',  label: 'Неделя' },
+  { id: 'month', label: 'Месяц' },
+];
+
+// ─── Призовой баннер ─────────────────────────────────────────────
+const PrizeBanner: React.FC = () => (
+  <motion.div
+    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+    animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+    transition={{ duration: 0.25, ease: 'easeInOut' }}
+    className="mx-4 mb-1 relative overflow-hidden rounded-2xl"
+  >
+    {/* Dark premium background */}
+    <div className="absolute inset-0 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950" />
+
+    {/* Subtle gold accent glow */}
+    <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 via-transparent to-amber-500/5" />
+    <div className="absolute top-0 left-1/3 w-32 h-16 bg-amber-400/8 blur-2xl rounded-full" />
+
+    {/* Content */}
+    <div className="relative z-10 px-4 py-4">
+      {/* Title */}
+      <div className="flex items-center gap-2 mb-3">
+        <motion.span
+          className="text-lg"
+          animate={{ rotate: [0, 10, -10, 0] }}
+          transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+        >
+          🏆
+        </motion.span>
+        <span className="font-bold text-amber-400 text-sm tracking-wide uppercase">
+          Турнир месяца
+        </span>
+      </div>
+
+      {/* Prizes row */}
+      <div className="flex gap-2 mb-3">
+        {[1, 2, 3].map((place) => {
+          const prize = PRIZES[place];
+          return (
+            <motion.div
+              key={place}
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.1 + place * 0.1, type: 'spring', stiffness: 400 }}
+              className={cn(
+                'flex-1 flex flex-col items-center py-2.5 rounded-xl',
+                'bg-white/5 border border-white/10',
+                place === 1 && 'bg-amber-400/10 border-amber-400/25 shadow-lg shadow-amber-500/10',
+              )}
+            >
+              <span className={cn("text-2xl mb-0.5", place === 1 && "text-3xl")}>
+                {prize.emoji}
+              </span>
+              <span className={cn(
+                "font-extrabold",
+                place === 1 ? "text-xl text-amber-400" : "text-base text-white/90"
+              )}>
+                {prize.amount}
+              </span>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Subtitle */}
+      <p className="text-center text-xs text-white/50 font-medium">
+        Набирай опыт до конца месяца — топ-3 получат призы!
+      </p>
+    </div>
+  </motion.div>
+);
+
+// ─── Бейдж приза на карточке ──────────────────────────────────────
+const PrizeBadge: React.FC<{ rank: number }> = ({ rank }) => {
+  const prize = PRIZES[rank];
+  if (!prize) return null;
+
+  return (
+    <motion.div
+      initial={{ scale: 0 }}
+      animate={{ scale: 1 }}
+      transition={{ type: 'spring', stiffness: 500, delay: 0.3 }}
+      className={cn(
+        'absolute -top-2 -right-2 z-10 flex items-center gap-0.5',
+        'px-2 py-0.5 rounded-full shadow-lg',
+        'bg-gradient-to-r text-white font-bold text-xs',
+        prize.color,
+      )}
+    >
+      <span>{prize.emoji}</span>
+      <span>{prize.amount}</span>
+    </motion.div>
+  );
+};
+
+// ─── Основной экран ───────────────────────────────────────────────
 export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) => {
-  const { state, navigate } = store;
-  const { leaderboard } = state;
+  const { navigate } = store;
   const { theme, isDark } = useTheme();
-  
+  const { state: authState } = useAuth();
+
   useBackButton(() => navigate('menu'));
-  
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Фильтрация по категории
-  const filteredLeaderboard = selectedCategory
-    ? leaderboard.filter(e => e.categoryId === selectedCategory)
-    : leaderboard;
+  // Фильтры
+  const [type, setType] = useState<LeaderboardType>('stars');
+  const [period, setPeriod] = useState<LeaderboardPeriod>('all');
 
-  // Сортировка по очкам
-  const sortedLeaderboard = [...filteredLeaderboard].sort((a, b) => b.score - a.score);
+  // Данные
+  const [data, setData] = useState<LeaderboardResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const getMedalColor = (index: number) => {
-    switch (index) {
-      case 0: return 'from-amber-400 to-yellow-500';
-      case 1: return isDark ? 'from-slate-400 to-slate-500' : 'from-slate-300 to-slate-400';
-      case 2: return 'from-amber-600 to-amber-700';
-      default: return isDark ? 'from-stone-600 to-stone-700' : 'from-slate-100 to-slate-200';
+  // Профиль пользователя (bottom sheet)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
+  // Турнирный режим: XP + месяц
+  const isPrizeMode = type === 'xp' && period === 'month';
+
+  const fetchLeaderboard = useCallback(async (t: LeaderboardType, p: LeaderboardPeriod) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await api.getLeaderboard({ type: t, period: p, limit: 50 });
+      setData(response);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : (e as { message?: string })?.message || 'Ошибка загрузки';
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Загружаем при смене типа или периода
+  useEffect(() => {
+    void fetchLeaderboard(type, period);
+  }, [type, period, fetchLeaderboard]);
+
+  const currentUserId = authState.user?._id;
+  const entries = data?.entries ?? [];
+  const currentUser = data?.currentUser ?? null;
+
+  // Подпись значения
+  const getValueSuffix = () => {
+    switch (type) {
+      case 'stars': return '⭐';
+      case 'xp': return 'XP';
+      case 'streak': return 'дн.';
     }
   };
 
-  const getMedalIcon = (index: number) => {
-    switch (index) {
-      case 0: return <Crown size={18} className="text-amber-900" />;
-      case 1: return <Medal size={18} className={isDark ? "text-slate-200" : "text-slate-600"} />;
-      case 2: return <Medal size={18} className="text-amber-800" />;
-      default: return <span className={cn("font-bold", theme.text.muted)}>{index + 1}</span>;
+  // Ранг: эмодзи для топ-3, число для остальных
+  const getRankDisplay = (rank: number) => {
+    switch (rank) {
+      case 1: return { emoji: '🥇', color: 'text-amber-500' };
+      case 2: return { emoji: '🥈', color: isDark ? 'text-slate-300' : 'text-slate-500' };
+      case 3: return { emoji: '🥉', color: 'text-amber-600' };
+      default: return null;
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  const renderEntry = (entry: LeaderboardEntry, isCurrentUserCard = false) => {
+    const isMe = currentUserId && entry.userId === currentUserId;
+    const rank = entry.rank;
+    const showPrizeBadge = isPrizeMode && rank <= 3;
+    const rankDisplay = getRankDisplay(rank);
+
+    return (
+      <motion.div
+        key={isCurrentUserCard ? `me-${entry.userId}` : `${entry.rank}-${entry.userId}`}
+        initial={isCurrentUserCard ? undefined : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={isCurrentUserCard ? undefined : { delay: Math.min(rank * 0.025, 0.4) }}
+        onClick={() => setSelectedUserId(entry.userId)}
+        className={cn(
+          'relative rounded-2xl px-3 py-2.5 cursor-pointer transition-all active:scale-[0.98]',
+          // Фон
+          isDark ? 'bg-white/[0.06]' : 'bg-white/80',
+          // Рамка
+          isDark ? 'border border-white/[0.06]' : 'border border-stone-200/60',
+          // Топ-3 — лёгкая подсветка
+          rank === 1 && (isDark ? 'bg-amber-500/[0.08] border-amber-400/20' : 'bg-amber-50/80 border-amber-200/60'),
+          rank === 2 && (isDark ? 'bg-slate-400/[0.06] border-slate-400/15' : 'bg-slate-50/80 border-slate-200/60'),
+          rank === 3 && (isDark ? 'bg-amber-700/[0.06] border-amber-600/15' : 'bg-orange-50/60 border-orange-200/50'),
+          // Свой пользователь
+          isMe && !isCurrentUserCard && (isDark ? 'ring-1 ring-amber-400/30' : 'ring-1 ring-amber-400/40'),
+          // Призовой режим — золотая тень на 1 месте
+          showPrizeBadge && rank === 1 && 'shadow-lg shadow-amber-400/15',
+        )}
+      >
+        {/* Призовой бейдж */}
+        {showPrizeBadge && !isCurrentUserCard && <PrizeBadge rank={rank} />}
+
+        <div className="flex items-center gap-3">
+          {/* Rank number */}
+          <div className="w-7 flex-shrink-0 text-center">
+            {rankDisplay ? (
+              <span className="text-lg leading-none">{rankDisplay.emoji}</span>
+            ) : (
+              <span className={cn(
+                'text-sm font-bold tabular-nums',
+                isDark ? 'text-white/30' : 'text-stone-400',
+              )}>
+                {rank}
+              </span>
+            )}
+          </div>
+
+          {/* Avatar */}
+          <div className="relative flex-shrink-0">
+            {entry.photoUrl ? (
+              <img
+                src={entry.photoUrl}
+                alt=""
+                className={cn(
+                  'w-10 h-10 rounded-full object-cover',
+                  rank === 1 && 'ring-2 ring-amber-400/50 ring-offset-1',
+                  rank === 1 && (isDark ? 'ring-offset-slate-900' : 'ring-offset-amber-50'),
+                )}
+                loading="lazy"
+              />
+            ) : (
+              <div className={cn(
+                'w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold',
+                isDark ? 'bg-white/10 text-white/50' : 'bg-stone-100 text-stone-400',
+              )}>
+                {entry.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          {/* Name + meta */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className={cn(
+                'font-semibold text-[15px] truncate leading-tight',
+                theme.text.primary,
+                isMe && 'text-amber-500',
+              )}>
+                {entry.name}
+              </span>
+              {isMe && (
+                <span className={cn(
+                  'text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0',
+                  isDark ? 'bg-amber-400/15 text-amber-400' : 'bg-amber-100 text-amber-600',
+                )}>
+                  вы
+                </span>
+              )}
+            </div>
+            <div className={cn('flex items-center gap-2 text-[11px] mt-0.5 leading-none', theme.text.muted)}>
+              <span>Ур. {entry.level}</span>
+              <span className={cn('w-0.5 h-0.5 rounded-full', isDark ? 'bg-white/20' : 'bg-stone-300')} />
+              <span>⭐ {entry.totalStars}</span>
+              {entry.currentStreak > 0 && (
+                <>
+                  <span className={cn('w-0.5 h-0.5 rounded-full', isDark ? 'bg-white/20' : 'bg-stone-300')} />
+                  <span className="flex items-center gap-0.5">
+                    <Flame size={9} className="text-orange-400" />
+                    {entry.currentStreak}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Value */}
+          <div className="text-right flex-shrink-0 pl-2">
+            <div className={cn(
+              'text-lg font-bold tabular-nums leading-tight',
+              rank === 1 ? 'text-amber-500' : theme.text.accent,
+            )}>
+              {entry.value.toLocaleString()}
+            </div>
+            <div className={cn('text-[10px] leading-none mt-0.5', theme.text.dimmed)}>{getValueSuffix()}</div>
+          </div>
+        </div>
+      </motion.div>
+    );
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('ru-RU', { 
-      day: 'numeric', 
-      month: 'short' 
-    });
-  };
+  // Проверяем, есть ли текущий пользователь в видимом списке
+  const isCurrentUserVisible = currentUser && entries.some(e => e.userId === currentUser.userId);
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
-      {/* Sticky Header при скролле */}
-      <StickyHeader 
-        title="Рекорды" 
+      {/* Sticky Header */}
+      <StickyHeader
+        title={isPrizeMode ? '🏆 Турнир месяца' : 'Рекорды'}
         onBack={() => navigate('menu')}
         rightElement={<Trophy size={22} className={isDark ? "text-amber-400" : "text-amber-500"} />}
       />
-      
+
       {/* Декоративный фон */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-amber-500/10 via-steppe-500/5 to-transparent rounded-full blur-3xl" />
@@ -78,7 +338,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
       </div>
 
       {/* Header */}
-      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-6 rounded-b-3xl shadow-lg")}>
+      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-4 rounded-b-3xl shadow-lg")}>
         <div className="flex items-center gap-4 mb-4">
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -91,44 +351,133 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
           <h1 className="text-xl font-bold flex-1">Таблица рекордов</h1>
           <Trophy size={24} />
         </div>
-        
-        {/* Category filter */}
-        <div className="flex items-center gap-2">
-          <Filter size={16} />
-          <div className="flex-1 overflow-x-auto flex gap-2 pb-1 scrollbar-hide">
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className={cn(
-                'px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all',
-                !selectedCategory
-                  ? cn('bg-white/90', theme.text.accent)
-                  : 'bg-white/20 text-white'
-              )}
-            >
-              Все
-            </button>
-            {categories.map((cat) => (
+
+        {/* Табы: тип рейтинга */}
+        <div className="flex gap-2 mb-3">
+          {TYPE_TABS.map((tab) => {
+            const isActive = type === tab.id;
+            const isXpTab = tab.id === 'xp';
+
+            return (
               <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
+                key={tab.id}
+                onClick={() => setType(tab.id)}
                 className={cn(
-                  'px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all flex items-center gap-1',
-                  selectedCategory === cat.id
-                    ? cn('bg-white/90', theme.text.accent)
-                    : 'bg-white/20 text-white'
+                  'relative flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all',
+                  isActive
+                    ? 'bg-white/90 text-stone-800 shadow-sm'
+                    : 'bg-white/15 text-white/80 hover:bg-white/25'
                 )}
               >
-                <span>{cat.emoji}</span>
-                <span className="hidden sm:inline">{cat.name}</span>
+                {tab.icon}
+                <span>{tab.label}</span>
+
+                {/* Бейдж "💰" на табе Опыт — мерцает, привлекает внимание */}
+                {isXpTab && !isActive && (
+                  <motion.span
+                    className="absolute -top-1.5 -right-0.5 text-xs"
+                    animate={{ scale: [1, 1.2, 1], opacity: [0.8, 1, 0.8] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    💰
+                  </motion.span>
+                )}
+                {isXpTab && isActive && (
+                  <span className="absolute -top-1.5 -right-0.5 text-xs">💰</span>
+                )}
               </button>
-            ))}
-          </div>
+            );
+          })}
+        </div>
+
+        {/* Табы: период */}
+        <div className="flex gap-1.5">
+          {PERIOD_TABS.map((tab) => {
+            const isActive = period === tab.id;
+            const isMonthTab = tab.id === 'month';
+            // Когда выбран XP, таб "Месяц" подсвечивается золотым пульсом
+            const isHighlighted = isMonthTab && type === 'xp' && !isActive;
+
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setPeriod(tab.id)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-xs font-medium transition-all relative',
+                  isActive
+                    ? isPrizeMode
+                      // Активный "Месяц" в призовом режиме — золотой
+                      ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-amber-950 shadow-sm shadow-amber-400/30'
+                      : 'bg-white/80 text-stone-800'
+                    : isHighlighted
+                      // Неактивный "Месяц" при XP — приглашающий пульс
+                      ? 'bg-white/15 text-white/80 hover:bg-white/25'
+                      : 'bg-white/15 text-white/70 hover:bg-white/25'
+                )}
+              >
+                {/* Пульсирующая рамка-подсветка на "Месяц" когда XP активен */}
+                {isHighlighted && (
+                  <motion.span
+                    className="absolute inset-0 rounded-full border-2 border-amber-400/60"
+                    animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.05, 1] }}
+                    transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1">
+                  {isMonthTab && type === 'xp' && <span>🏆</span>}
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+
+          {/* Кол-во участников */}
+          {data && (
+            <div className="ml-auto flex items-center text-xs text-white/50 px-2">
+              {data.total} чел.
+            </div>
+          )}
         </div>
       </header>
 
+      {/* Призовой баннер (XP + Месяц) */}
+      <AnimatePresence>
+        {isPrizeMode && !isLoading && <PrizeBanner />}
+      </AnimatePresence>
+
       {/* Content */}
-      <main className="flex-1 p-4 overflow-auto relative z-10">
-        {sortedLeaderboard.length === 0 ? (
+      <main className="flex-1 p-4 overflow-auto relative z-10 pb-24">
+        {/* Loading */}
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center h-64">
+            <Loader2 size={36} className={cn("animate-spin mb-3", theme.text.muted)} />
+            <p className={theme.text.muted}>Загрузка рейтинга...</p>
+          </div>
+        )}
+
+        {/* Error */}
+        {!isLoading && error && (
+          <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+            <div className={cn("w-16 h-16 rounded-full flex items-center justify-center mb-4", isDark ? "bg-red-500/20" : "bg-red-50")}>
+              <AlertCircle size={32} className={isDark ? "text-red-400" : "text-red-500"} />
+            </div>
+            <h3 className={cn("text-lg font-semibold mb-1", theme.text.secondary)}>Ошибка</h3>
+            <p className={cn("text-sm mb-4", theme.text.muted)}>{error}</p>
+            <button
+              onClick={() => fetchLeaderboard(type, period)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors",
+                isDark ? "bg-white/10 text-white hover:bg-white/20" : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+              )}
+            >
+              <RefreshCw size={16} />
+              Повторить
+            </button>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!isLoading && !error && entries.length === 0 && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -138,83 +487,64 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
               <Trophy size={40} className={theme.text.muted} />
             </div>
             <h3 className={cn("text-lg font-semibold mb-2", theme.text.secondary)}>
-              Пока нет рекордов
+              {isPrizeMode ? 'Турнир только начался!' : 'Пока нет рекордов'}
             </h3>
             <p className={theme.text.muted}>
-              Сыграй несколько игр, чтобы попасть в таблицу!
+              {isPrizeMode
+                ? 'Набирай XP первым и займи призовое место!'
+                : period !== 'all'
+                  ? 'За этот период ещё никто не играл'
+                  : 'Сыграй несколько игр, чтобы попасть в таблицу!'}
             </p>
           </motion.div>
-        ) : (
-          <div className="space-y-2">
-            <AnimatePresence>
-              {sortedLeaderboard.slice(0, 50).map((entry, index) => {
-                const category = getCategoryById(entry.categoryId);
-                
-                return (
-                  <motion.div
-                    key={`${entry.date}-${entry.score}-${index}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ delay: index * 0.05 }}
-                    className={cn(
-                      theme.backgrounds.cardSolid,
-                      'rounded-xl p-3 shadow-sm border',
-                      theme.borders.subtle,
-                      index < 3 && 'border-2',
-                      index === 0 && 'border-amber-400',
-                      index === 1 && (isDark ? 'border-slate-400' : 'border-slate-300'),
-                      index === 2 && 'border-amber-600/50'
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      {/* Rank */}
-                      <div className={cn(
-                        'w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br',
-                        getMedalColor(index)
-                      )}>
-                        {getMedalIcon(index)}
-                      </div>
-                      
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={cn("font-semibold truncate", theme.text.primary)}>
-                            {entry.playerName}
-                          </span>
-                          {category && (
-                            <span className="text-sm" title={category.name}>
-                              {category.emoji}
-                            </span>
-                          )}
-                        </div>
-                        <div className={cn("flex items-center gap-3 text-xs", theme.text.muted)}>
-                          <span className="flex items-center gap-1">
-                            <Clock size={12} />
-                            {formatTime(entry.time)}
-                          </span>
-                          <span>{formatDate(entry.date)}</span>
-                        </div>
-                      </div>
-                      
-                      {/* Score */}
-                      <div className="text-right">
-                        <div className={cn("text-xl font-bold", theme.text.accent)}>
-                          {entry.score}
-                        </div>
-                        <div className={cn("text-xs", theme.text.muted)}>очков</div>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
+        )}
+
+        {/* Leaderboard entries */}
+        {!isLoading && !error && entries.length > 0 && (
+          <div className="space-y-1.5">
+            <AnimatePresence mode="popLayout">
+              {entries.map((entry) => renderEntry(entry))}
             </AnimatePresence>
           </div>
         )}
       </main>
+
+      {/* Sticky footer: текущий пользователь (если не виден в списке) */}
+      <AnimatePresence>
+        {!isLoading && currentUser && !isCurrentUserVisible && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            className={cn(
+              "fixed bottom-0 left-0 right-0 z-30 p-3 pt-2 pb-6",
+              "backdrop-blur-xl border-t",
+              isDark
+                ? "bg-slate-900/90 border-slate-700/50"
+                : "bg-white/90 border-stone-200/50"
+            )}
+          >
+            <div className={cn("text-xs font-medium mb-1.5 px-1", theme.text.muted)}>
+              Ваша позиция
+              {isPrizeMode && currentUser.rank <= 3 && (
+                <span className="ml-1.5 text-amber-500 font-bold">— вы в призовой зоне! 🎉</span>
+              )}
+              {isPrizeMode && currentUser.rank > 3 && (
+                <span className="ml-1.5 text-amber-500/70">— до топ-3 осталось чуть-чуть!</span>
+              )}
+            </div>
+            {renderEntry(currentUser, true)}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* User Profile Bottom Sheet */}
+      <UserProfileSheet
+        userId={selectedUserId}
+        onClose={() => setSelectedUserId(null)}
+      />
     </div>
   );
 };
 
 export default LeaderboardScreen;
-

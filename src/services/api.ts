@@ -708,6 +708,121 @@ export async function submitCampaignLevel(
   });
 }
 
+// =========================
+// Leaderboard
+// =========================
+
+export type LeaderboardType = 'stars' | 'xp' | 'streak';
+export type LeaderboardPeriod = 'all' | 'week' | 'month';
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  name: string;
+  telegramUsername?: string | null;
+  photoUrl?: string | null;
+  value: number;
+  level: number;
+  totalStars: number;
+  levelsCompleted: number;
+  currentStreak: number;
+}
+
+export interface LeaderboardResponse {
+  entries: LeaderboardEntry[];
+  total: number;
+  currentUser: LeaderboardEntry | null;
+}
+
+export interface LeaderboardParams {
+  type?: LeaderboardType;
+  period?: LeaderboardPeriod;
+  limit?: number;
+  offset?: number;
+}
+
+export async function getLeaderboard(params: LeaderboardParams = {}): Promise<LeaderboardResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.type) searchParams.set('type', params.type);
+  if (params.period) searchParams.set('period', params.period);
+  if (params.limit) searchParams.set('limit', String(params.limit));
+  if (params.offset) searchParams.set('offset', String(params.offset));
+
+  const qs = searchParams.toString();
+  return apiRequest<LeaderboardResponse>(`/leaderboard${qs ? `?${qs}` : ''}`, { method: 'GET' });
+}
+
+// =========================
+// User Profile
+// =========================
+
+export interface UserProfileUser {
+  id: string;
+  name: string;
+  photoUrl?: string | null;
+  telegramUsername?: string | null;
+  isLanguageKeeper: boolean;
+  registeredAt: string;
+}
+
+export interface UserProfileXp {
+  totalXp: number;
+  level: number;
+  xpInCurrentLevel: number;
+  xpToNextLevel: number;
+  progressPercent: number;
+}
+
+export interface UserProfileStreak {
+  currentStreak: number;
+  longestStreak: number;
+  isStreakActive: boolean;
+}
+
+export interface UserProfileCampaign {
+  totalStars: number;
+  levelsCompleted: number;
+  levelsPlayed: number;
+}
+
+export interface UserProfileDictionary {
+  wordsAdded: number;
+  wordsVerified: number;
+  wordsApproved: number;
+}
+
+export interface UserProfileXpByType {
+  type: string;
+  totalAmount: number;
+  count: number;
+}
+
+export interface UserProfileXpHistoryItem {
+  id: string;
+  type: string;
+  amount: number;
+  totalXpAfter: number;
+  levelAfter: number;
+  description: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface UserProfileResponse {
+  user: UserProfileUser;
+  xp: UserProfileXp;
+  streak: UserProfileStreak;
+  campaign: UserProfileCampaign;
+  dictionary: UserProfileDictionary;
+  xpByType: UserProfileXpByType[];
+  recentXpHistory: UserProfileXpHistoryItem[];
+  isOwnProfile: boolean;
+}
+
+export async function getUserProfile(userId: string): Promise<UserProfileResponse> {
+  return apiRequest<UserProfileResponse>(`/users/${encodeURIComponent(userId)}/profile`, { method: 'GET' });
+}
+
 // API экспорт
 export const api = {
   telegramAuth,
@@ -737,6 +852,12 @@ export const api = {
   startCampaignLevel,
   submitCampaignLevel,
   
+  // Leaderboard
+  getLeaderboard,
+
+  // User Profile
+  getUserProfile,
+
   // Универсальные методы для других запросов
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),
   post: <T>(endpoint: string, data?: unknown) => 

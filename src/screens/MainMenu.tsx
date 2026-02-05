@@ -467,7 +467,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           {/* Вопросы и ответы */}
           <motion.button
             onClick={() => {
-              openLink('https://t.me/buryat_words');
+              openLink('https://t.me/frntdev');
             }}
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
@@ -486,7 +486,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             </div>
             <div className="text-left flex-1">
               <div className={cn("font-semibold", styles.buttons.text.primary)}>Вопросы и ответы</div>
-              <div className={cn("text-sm", styles.buttons.text.muted)}>Telegram: @buryat_words</div>
+              <div className={cn("text-sm", styles.buttons.text.muted)}>Telegram: @frntdev</div>
             </div>
           </motion.button>
 
