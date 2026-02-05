@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
 import {
   X, Loader2, AlertCircle, Star, Zap, Flame, BookOpen,
-  CheckCircle2, Calendar, TrendingUp, Award, Clock, ChevronRight,
+  CheckCircle2, Calendar, TrendingUp, Clock,
 } from 'lucide-react';
 import { cn } from './ui';
 import { useTheme } from '../theme/ThemeContext';
@@ -97,14 +97,6 @@ export const UserProfileSheet: React.FC<UserProfileSheetProps> = ({ userId, onCl
       setCanDrag(contentRef.current.scrollTop <= 0);
     }
   }, []);
-
-  // Level bar color
-  const getLevelColor = (level: number) => {
-    if (level >= 50) return 'from-amber-400 to-yellow-500';
-    if (level >= 25) return 'from-purple-400 to-indigo-500';
-    if (level >= 10) return 'from-blue-400 to-cyan-500';
-    return 'from-emerald-400 to-teal-500';
-  };
 
   return (
     <AnimatePresence>
