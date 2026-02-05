@@ -599,14 +599,66 @@ export const isPalindromeWord = (bur: string): boolean => {
 };
 
 // Найти слово по пути
+// Обобщённая проверка: принимает любой порядок обхода тех же клеток,
+// если прочитанная последовательность букв даёт правильное слово.
+// Это покрывает:
+//   - полные палиндромы (обратный путь)
+//   - палиндромные окончания/начала (например, «ДУУЛАХА» → суффикс «АХА»)
+//   - любые перестановки в участках с одинаковыми буквами
 export const findWordByPath = (placedWords: PlacedWord[], selectedPath: Coord[]): PlacedWord | undefined => {
   for (const pw of placedWords) {
+    // Быстрая проверка: точное совпадение путей (наиболее частый случай)
     if (pathsMatch(pw.path, selectedPath)) return pw;
 
-    // Для палиндромов разрешаем чертить с любой стороны (обратный путь тоже валиден)
-    if (isPalindromeWord(pw.word.bur)) {
-      const reversed = [...pw.path].reverse();
-      if (pathsMatch(reversed, selectedPath)) return pw;
+    // Длины путей должны совпадать
+    if (pw.path.length !== selectedPath.length) continue;
+
+    // Строим карту «клетка → буква» из размещённого слова
+    const wordUpper = pw.word.bur.toUpperCase();
+    const cellToLetter = new Map<string, string>();
+    for (let i = 0; i < pw.path.length; i++) {
+      cellToLetter.set(`${pw.path[i].r},${pw.path[i].c}`, wordUpper[i]);
+    }
+
+    // Проверяем: все выбранные клетки принадлежат этому слову
+    // и прочитанное по ним даёт то же самое слово
+    let match = true;
+    let spelled = '';
+    for (const c of selectedPath) {
+      const letter = cellToLetter.get(`${c.r},${c.c}`);
+      if (letter === undefined) { match = false; break; }
+      spelled += letter;
+    }
+
+    if (match && spelled === wordUpper) {
+      // Логируем альтернативный путь: определяем, какая часть была обведена иначе
+      const placedKeys = pw.path.map(p => `${p.r},${p.c}`);
+      const selectedKeys = selectedPath.map(p => `${p.r},${p.c}`);
+
+      // Находим первый индекс, где пути расходятся
+      let divergeIdx = 0;
+      while (divergeIdx < placedKeys.length && placedKeys[divergeIdx] === selectedKeys[divergeIdx]) {
+        divergeIdx++;
+      }
+      // И последний (с конца)
+      let divergeEnd = placedKeys.length - 1;
+      while (divergeEnd > divergeIdx && placedKeys[divergeEnd] === selectedKeys[divergeEnd]) {
+        divergeEnd--;
+      }
+
+      const altSegment = wordUpper.slice(divergeIdx, divergeEnd + 1);
+      const isFullReverse = divergeIdx === 0 && divergeEnd === placedKeys.length - 1;
+
+      console.log(
+        `[findWordByPath] Альтернативный путь принят для «${wordUpper}»:`,
+        isFullReverse
+          ? `полный палиндром (обратный обход)`
+          : `палиндромный участок «${altSegment}» (позиции ${divergeIdx}–${divergeEnd})`,
+        `\n  Размещённый путь: [${placedKeys.join(' → ')}]`,
+        `\n  Выбранный путь:   [${selectedKeys.join(' → ')}]`
+      );
+
+      return pw;
     }
   }
   return undefined;

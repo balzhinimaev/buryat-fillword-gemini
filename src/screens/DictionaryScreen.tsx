@@ -23,6 +23,7 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showLearnedOnly, setShowLearnedOnly] = useState(false);
+  const [tooltipWordId, setTooltipWordId] = useState<string | null>(null);
 
   const allWords = useMemo(() => getAllWords(), []);
 
@@ -61,14 +62,10 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
     })).filter(g => g.words.length > 0);
   }, [selectedCategory, filteredWords]);
 
-  const speakWord = (word: string) => {
-    // В будущем можно добавить озвучку через Web Speech API
-    // Пока просто показываем подсказку
-    if (window.speechSynthesis) {
-      const utterance = new SpeechSynthesisUtterance(word);
-      utterance.lang = 'ru-RU'; // Бурятского нет, используем русский как fallback
-      window.speechSynthesis.speak(utterance);
-    }
+  const handleSpeakClick = (wordId: string) => {
+    setTooltipWordId(prev => prev === wordId ? null : wordId);
+    // Автоматически скрываем тултип через 2 секунды
+    setTimeout(() => setTooltipWordId(prev => prev === wordId ? null : prev), 2000);
   };
 
   return (
@@ -250,19 +247,39 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                               </div>
                             </div>
                             
-                            {/* Speak button */}
-                            <button
-                              onClick={() => speakWord(word.bur)}
-                              className={cn(
-                                "p-2 rounded-lg transition-colors",
-                                isDark 
-                                  ? "bg-stone-700/50 hover:bg-stone-600/50" 
-                                  : "bg-slate-100 hover:bg-slate-200"
-                              )}
-                              title="Произнести"
-                            >
-                              <Volume2 size={18} className={theme.text.muted} />
-                            </button>
+                            {/* Speak button (disabled — в разработке) */}
+                            <div className="relative">
+                              <button
+                                onClick={() => handleSpeakClick(word.bur)}
+                                className={cn(
+                                  "p-2 rounded-lg transition-colors cursor-not-allowed opacity-40",
+                                  isDark 
+                                    ? "bg-stone-700/50" 
+                                    : "bg-slate-100"
+                                )}
+                                title="В разработке"
+                              >
+                                <Volume2 size={18} className={theme.text.muted} />
+                              </button>
+                              <AnimatePresence>
+                                {tooltipWordId === word.bur && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 4 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 4 }}
+                                    transition={{ duration: 0.15 }}
+                                    className={cn(
+                                      "absolute -top-9 right-0 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap z-50 shadow-lg",
+                                      isDark 
+                                        ? "bg-stone-700 text-stone-200" 
+                                        : "bg-stone-800 text-white"
+                                    )}
+                                  >
+                                    В разработке
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
                           </div>
                           
                           {/* Progress bar */}

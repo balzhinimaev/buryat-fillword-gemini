@@ -9,7 +9,10 @@ import {
   Lock,
   ChevronRight,
   GraduationCap,
-  Zap
+  Zap,
+  Trophy,
+  Crown,
+  Medal
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -327,19 +330,58 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
           </div>
         </motion.div>
 
-        {/* Подсказка */}
+        {/* Баннер рейтинга */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.7 }}
-          className={cn(
-            "text-center py-4 px-6 rounded-2xl",
-            isDark ? "bg-white/5" : "bg-black/5"
-          )}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
         >
-          <p className={cn("text-sm", styles.buttons.text.muted)}>
-            💡 Кампания поможет выучить слова по темам, а уровневый режим — закрепить знания
-          </p>
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('leaderboard')}
+            className={cn(
+              "relative w-full p-4 rounded-2xl overflow-hidden text-left",
+              isDark
+                ? "bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-500/20"
+                : "bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-200/60"
+            )}
+          >
+            {/* Shimmer */}
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+              animate={{ x: ['-100%', '200%'] }}
+              transition={{ duration: 3, repeat: Infinity, repeatDelay: 4 }}
+            />
+
+            <div className="relative z-10 flex items-center gap-3.5">
+              {/* Trophy icon */}
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center shrink-0",
+                isDark
+                  ? "bg-gradient-to-br from-amber-500/25 to-orange-500/25"
+                  : "bg-gradient-to-br from-amber-100 to-orange-100"
+              )}>
+                <Trophy size={24} className={isDark ? "text-amber-400" : "text-amber-600"} />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={cn("font-bold text-[15px]", styles.buttons.text.primary)}>
+                    Рейтинг игроков
+                  </span>
+                  <div className="flex items-center gap-0.5">
+                    <Crown size={12} className={isDark ? "text-amber-400" : "text-amber-500"} />
+                    <Medal size={12} className={isDark ? "text-stone-400" : "text-stone-500"} />
+                  </div>
+                </div>
+                <p className={cn("text-xs mt-0.5", styles.buttons.text.muted)}>
+                  Играй, набирай очки и соревнуйся!
+                </p>
+              </div>
+
+              <ChevronRight size={20} className={isDark ? "text-amber-400/60" : "text-amber-500/60"} />
+            </div>
+          </motion.button>
         </motion.div>
       </main>
     </div>
