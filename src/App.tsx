@@ -17,6 +17,7 @@ import SettingsScreen from './screens/SettingsScreen';
 import StatsScreen from './screens/StatsScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
 import DictionaryScreen from './screens/DictionaryScreen';
+import WordDetailScreen from './screens/WordDetailScreen';
 import DebugGridScreen from './screens/DebugGridScreen';
 import WordContributionScreen from './screens/WordContributionScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
@@ -95,6 +96,8 @@ export default function App() {
         return <LeaderboardScreen store={store} />;
       case 'dictionary':
         return <DictionaryScreen store={store} />;
+      case 'wordDetail':
+        return <WordDetailScreen store={store} />;
       case 'debug':
         return <DebugGridScreen store={store} />;
       case 'contribute':

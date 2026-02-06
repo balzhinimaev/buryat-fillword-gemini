@@ -67,6 +67,7 @@ export interface GameState {
   selectedCategory: string | null;
   selectedLevelPack: string | null; // выбранный пакет уровней
   selectedEndlessLevel: number | null; // выбранный уровень в бесконечном режиме
+  selectedWordId: string | null; // выбранное слово для детальной страницы
   gameMode: GameMode; // текущий режим игры
   settings: GameSettings;
   stats: PlayerStats;
@@ -85,6 +86,7 @@ export type Screen =
   | 'stats' 
   | 'leaderboard'
   | 'dictionary'
+  | 'wordDetail' // Детальная страница слова
   | 'debug'
   | 'contribute' // Үгын Дархан - Словарная мастерская
   | 'onboarding' // Онбординг для новых пользователей

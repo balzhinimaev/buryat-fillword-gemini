@@ -263,6 +263,108 @@ export interface WordsStats {
   activeInGame: number;
 }
 
+// Слово из API (GET /words)
+export type WordStatus = 'pending' | 'verified' | 'rejected' | 'archived';
+export type WordSortBy = 'createdAt' | 'viewCount' | 'lookupCount';
+
+export interface ApiWordComment {
+  _id?: string;
+  userId: string;
+  userName: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface ApiWord {
+  _id: string;
+  // Основное
+  bur: string;
+  ru: string;
+  // Дополнительно
+  exampleBur?: string;
+  exampleRu?: string;
+  pronunciation?: string;
+  audioUrl?: string | null;
+  // Лексические связи
+  synonyms: string[];
+  antonyms: string[];
+  relatedWords: { _id: string; bur: string; ru: string }[];
+  // Классификация
+  categoryId?: string;
+  dialectId?: { _id: string; code: string; name: string } | null;
+  partOfSpeechId?: { _id: string; code: string; name: string; emoji: string } | null;
+  tags: string[];
+  // Источники
+  sources: string[];
+  // Комментарии
+  comments: ApiWordComment[];
+  // Популярность
+  viewCount: number;
+  lookupCount: number;
+  // Контрибьютор
+  contributor: {
+    id: string;
+    name: string;
+    telegramId?: number;
+  };
+  // Верификация
+  status: WordStatus;
+  verificationScore: number;
+  upvotes: string[];
+  downvotes: string[];
+  // Игра
+  isActiveInGame: boolean;
+  difficulty: number;
+  // Модерация
+  rejectionReason?: string | null;
+  moderatedBy?: string | null;
+  moderatedAt?: string | null;
+  // Таймстампы
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiWordsResponse {
+  words: ApiWord[];
+  total: number;
+}
+
+// Детальная страница слова (GET /words/:id)
+export interface ApiWordDetailRelated {
+  _id: string;
+  bur: string;
+  ru: string;
+  tags: string[];
+  difficulty: number;
+  status: string;
+}
+
+export interface ApiWordDetail extends Omit<ApiWord, 'categoryId' | 'relatedWords'> {
+  categoryId: { _id: string; name: string; slug: string } | null;
+  relatedWords: ApiWordDetailRelated[];
+}
+
+export interface ApiWordDetailResponse {
+  word: ApiWordDetail;
+  otherTranslations: { _id: string; bur: string; ru: string }[];
+  relatedWords: ApiWordDetailRelated[];
+  commentsCount: number;
+  votesUp: number;
+  votesDown: number;
+}
+
+export interface GetWordsParams {
+  status?: WordStatus;
+  categoryId?: string;
+  dialectId?: string;
+  partOfSpeechId?: string;
+  isActiveInGame?: boolean;
+  tag?: string;
+  sortBy?: WordSortBy;
+  limit?: number;
+  offset?: number;
+}
+
 // Ответ при создании слова
 export interface CreateWordResponse {
   _id: string;
@@ -532,6 +634,28 @@ export async function getProjectStats(): Promise<ProjectStats> {
 // Получение общей статистики слов
 export async function getWordsStats(): Promise<WordsStats> {
   return apiRequest<WordsStats>('/words/stats', { method: 'GET' });
+}
+
+// Получение списка слов (публичный эндпоинт)
+export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.status) searchParams.set('status', params.status);
+  if (params.categoryId) searchParams.set('categoryId', params.categoryId);
+  if (params.dialectId) searchParams.set('dialectId', params.dialectId);
+  if (params.partOfSpeechId) searchParams.set('partOfSpeechId', params.partOfSpeechId);
+  if (params.isActiveInGame !== undefined) searchParams.set('isActiveInGame', String(params.isActiveInGame));
+  if (params.tag) searchParams.set('tag', params.tag);
+  if (params.sortBy) searchParams.set('sortBy', params.sortBy);
+  if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+  if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
+
+  const qs = searchParams.toString();
+  return apiRequest<ApiWordsResponse>(`/words${qs ? `?${qs}` : ''}`, { method: 'GET' });
+}
+
+// Получение детальной информации о слове (публичный эндпоинт)
+export async function getWordDetail(id: string): Promise<ApiWordDetailResponse> {
+  return apiRequest<ApiWordDetailResponse>(`/words/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
 // Топ хранителей языка
@@ -837,6 +961,8 @@ export const api = {
   createWord,
   getProjectStats,
   getWordsStats,
+  getWords,
+  getWordDetail,
   getLanguageKeepersLeaderboard,
   getUserStats,
   joinLanguageKeepers,

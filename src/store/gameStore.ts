@@ -52,6 +52,7 @@ const defaultGameState: GameState = {
   selectedCategory: null,
   selectedLevelPack: null,
   selectedEndlessLevel: null,
+  selectedWordId: null,
   gameMode: 'campaign',
   settings: defaultSettings,
   stats: defaultStats,
@@ -151,6 +152,15 @@ export const useGameStore = () => {
   // Навигация
   const navigate = useCallback((screen: Screen) => {
     setState(prev => ({ ...prev, currentScreen: screen }));
+  }, []);
+
+  // Навигация к детальной странице слова
+  const navigateToWord = useCallback((wordId: string) => {
+    setState(prev => ({
+      ...prev,
+      selectedWordId: wordId,
+      currentScreen: 'wordDetail' as Screen,
+    }));
   }, []);
 
   const selectCategory = useCallback((categoryId: string) => {
@@ -457,6 +467,7 @@ export const useGameStore = () => {
   return {
     state,
     navigate,
+    navigateToWord,
     selectCategory,
     setGameMode,
     selectLevelPack,
