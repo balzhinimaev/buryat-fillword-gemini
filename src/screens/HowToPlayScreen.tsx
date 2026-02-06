@@ -6,7 +6,6 @@ import {
   ChevronRight, 
   Play,
   CheckCircle2,
-  Sparkles
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { useTheme } from '../theme/ThemeContext';
@@ -49,9 +48,6 @@ const FloatingParticles: React.FC<{ color: string }> = ({ color }) => {
 const CELL = 40;
 const GAP = 5;
 
-// Animation phases: idle → swiping cell by cell → hold → fade out → pause → repeat
-type SwipePhase = 'idle' | 'swiping' | 'hold' | 'pause';
-
 const AnimatedGrid: React.FC<{
   letters: string[][];
   path: [number, number][];
@@ -65,7 +61,7 @@ const AnimatedGrid: React.FC<{
   const [visitedCount, setVisitedCount] = useState(0);
   const [fingerVisible, setFingerVisible] = useState(false);
   const [fingerIdx, setFingerIdx] = useState(0); // which cell the finger is over
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const STEP_MS = 420;   // time per cell
   const HOLD_MS = 700;   // hold after last cell

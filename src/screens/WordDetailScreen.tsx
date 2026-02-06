@@ -1,6 +1,6 @@
 // src/screens/WordDetailScreen.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ArrowLeft, Loader2, RefreshCw, Eye, Search as SearchIcon, ThumbsUp, ThumbsDown,
   MessageSquare, BookOpen, Volume2, Link2, User, ChevronRight,
