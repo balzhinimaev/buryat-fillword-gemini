@@ -11,7 +11,8 @@ import {
   RotateCcw,
   AlertTriangle,
   ArrowLeft,
-  Check
+  Check,
+  Gauge
 } from 'lucide-react';
 import { Modal, cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -19,7 +20,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import { themeList } from '../theme';
 import type { GameStore } from '../store/gameStore';
-import type { ThemeId } from '../types';
+import type { ThemeId, Difficulty } from '../types';
 import { useAuth } from '../store/authStore';
 import { updateName } from '../services/api';
 
@@ -28,12 +29,12 @@ interface SettingsScreenProps {
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
-  const { state, navigate, updateSettings, resetProgress } = store;
+  const { state, navigate, goBack, updateSettings, resetProgress } = store;
   const { settings } = state;
   const { theme, isDark } = useTheme();
   const { setUserName } = useAuth();
   
-  useBackButton(() => navigate('menu'));
+  useBackButton(() => goBack());
   
   const [showResetModal, setShowResetModal] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -80,7 +81,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
       {/* Sticky Header при скролле */}
       <StickyHeader 
         title="Настройки" 
-        onBack={() => navigate('menu')} 
+        onBack={() => goBack()} 
       />
       
       {/* Декоративный фон для тёмных тем */}
@@ -98,7 +99,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('menu')}
+            onClick={() => goBack()}
             className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
           >
             <ArrowLeft size={24} />
@@ -258,11 +259,44 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
           </div>
         </motion.div>
 
-        {/* Notifications */}
+        {/* Difficulty */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.22 }}
+          className={cn(
+            "rounded-2xl p-4",
+            isDark 
+              ? cn(theme.backgrounds.card, "border", theme.borders.subtle)
+              : "bg-white shadow-sm border border-stone-100"
+          )}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center",
+              isDark ? "bg-orange-500/20" : "bg-orange-100"
+            )}>
+              <Gauge size={20} className={isDark ? "text-orange-400" : "text-orange-600"} />
+            </div>
+            <div>
+              <span className={cn("font-semibold", theme.text.primary)}>Сложность игры</span>
+              <p className={cn("text-sm", theme.text.muted)}>Влияет на размер сетки и количество слов</p>
+            </div>
+          </div>
+          
+          <DifficultySelector
+            value={settings.difficulty}
+            onChange={(d) => updateSettings({ difficulty: d })}
+            isDark={isDark}
+            theme={theme}
+          />
+        </motion.div>
+
+        {/* Notifications */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.28 }}
           className="space-y-3"
         >
           <div className="flex items-center gap-3 px-1">
@@ -293,7 +327,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
+          transition={{ delay: 0.32 }}
           className="space-y-3"
         >
           <div className="flex items-center gap-3 px-1">
@@ -324,7 +358,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.36 }}
           className={cn(
             "rounded-2xl p-4",
             isDark 
@@ -387,7 +421,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          transition={{ delay: 0.42 }}
         >
           <button
             onClick={() => setShowResetModal(true)}
@@ -407,7 +441,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.48 }}
           className={cn("text-center py-4 text-sm", theme.text.dimmed)}
         >
           <p>Бурятский Филлворд v1.0.0</p>
@@ -491,6 +525,126 @@ const ToggleSwitchThemed: React.FC<ToggleSwitchThemedProps> = ({
       />
     </div>
   </button>
+);
+
+// Конфигурация вариантов сложности
+const DIFFICULTY_OPTIONS: {
+  id: Difficulty;
+  label: string;
+  description: string;
+  emoji: string;
+  color: { bg: string; bgDark: string; text: string; textDark: string; ring: string };
+}[] = [
+  {
+    id: 'easy',
+    label: 'Легко',
+    description: 'Маленькая сетка, мало слов',
+    emoji: '🌱',
+    color: {
+      bg: 'bg-emerald-50',
+      bgDark: 'bg-emerald-500/15',
+      text: 'text-emerald-700',
+      textDark: 'text-emerald-400',
+      ring: 'ring-emerald-500',
+    },
+  },
+  {
+    id: 'medium',
+    label: 'Средне',
+    description: 'Стандартный размер',
+    emoji: '🔥',
+    color: {
+      bg: 'bg-amber-50',
+      bgDark: 'bg-amber-500/15',
+      text: 'text-amber-700',
+      textDark: 'text-amber-400',
+      ring: 'ring-amber-500',
+    },
+  },
+  {
+    id: 'hard',
+    label: 'Сложно',
+    description: 'Большая сетка, много слов',
+    emoji: '⚡',
+    color: {
+      bg: 'bg-red-50',
+      bgDark: 'bg-red-500/15',
+      text: 'text-red-700',
+      textDark: 'text-red-400',
+      ring: 'ring-red-500',
+    },
+  },
+];
+
+// Компонент выбора сложности
+interface DifficultySelectorProps {
+  value: Difficulty;
+  onChange: (value: Difficulty) => void;
+  isDark: boolean;
+  theme: { text: { primary: string; muted: string; secondary: string } };
+}
+
+const DifficultySelector: React.FC<DifficultySelectorProps> = ({
+  value,
+  onChange,
+  isDark,
+}) => (
+  <div className="grid grid-cols-3 gap-2">
+    {DIFFICULTY_OPTIONS.map((opt) => {
+      const isSelected = value === opt.id;
+      return (
+        <motion.button
+          key={opt.id}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={() => onChange(opt.id)}
+          className={cn(
+            'relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all',
+            isSelected
+              ? cn(
+                  'ring-2',
+                  opt.color.ring,
+                  isDark ? opt.color.bgDark : opt.color.bg,
+                  isDark ? 'border-transparent' : 'border-transparent'
+                )
+              : isDark
+                ? 'border-stone-700/50 hover:border-stone-600 bg-stone-800/30'
+                : 'border-stone-200 hover:border-stone-300 bg-stone-50/50'
+          )}
+        >
+          <span className="text-2xl leading-none">{opt.emoji}</span>
+          <span className={cn(
+            'text-sm font-semibold',
+            isSelected
+              ? (isDark ? opt.color.textDark : opt.color.text)
+              : (isDark ? 'text-stone-300' : 'text-stone-600')
+          )}>
+            {opt.label}
+          </span>
+          <span className={cn(
+            'text-[10px] leading-tight text-center',
+            isSelected
+              ? (isDark ? opt.color.textDark : opt.color.text)
+              : (isDark ? 'text-stone-500' : 'text-stone-400')
+          )}>
+            {opt.description}
+          </span>
+          {isSelected && (
+            <motion.div
+              layoutId="difficulty-check"
+              className={cn(
+                'absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center',
+                opt.id === 'easy' ? 'bg-emerald-500' : opt.id === 'medium' ? 'bg-amber-500' : 'bg-red-500'
+              )}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+            >
+              <Check size={12} className="text-white" />
+            </motion.div>
+          )}
+        </motion.button>
+      );
+    })}
+  </div>
 );
 
 export default SettingsScreen;

@@ -50,6 +50,9 @@ export interface LeaderboardEntry {
 // Доступные темы оформления
 export type ThemeId = 'steppe' | 'light' | 'dark';
 
+// Сложность игры
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
 export interface GameSettings {
   soundEnabled: boolean;
   vibrationEnabled: boolean;
@@ -60,10 +63,12 @@ export interface GameSettings {
   publicProfile: boolean;
   notificationsEnabled: boolean;
   hasSeenHowTo: boolean; // пройдено ли обучение "Как играть"
+  difficulty: Difficulty; // сложность игры
 }
 
 export interface GameState {
   currentScreen: Screen;
+  screenHistory: Screen[]; // стек навигации для кнопки «назад»
   selectedCategory: string | null;
   selectedLevelPack: string | null; // выбранный пакет уровней
   selectedEndlessLevel: number | null; // выбранный уровень в бесконечном режиме

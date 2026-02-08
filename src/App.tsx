@@ -42,6 +42,13 @@ export default function App() {
   const currentTheme = getTheme(settings.theme);
   const { state: authState } = useAuth();
 
+  // Загружаем настройки с сервера после авторизации
+  useEffect(() => {
+    if (authState.isAuthenticated && !authState.isLoading) {
+      store.loadSettingsFromApi();
+    }
+  }, [authState.isAuthenticated, authState.isLoading]);
+
   // Определяем нужно ли показывать онбординг
   const shouldShowOnboarding = useMemo(() => {
     // Показываем онбординг если:

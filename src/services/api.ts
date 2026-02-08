@@ -166,6 +166,36 @@ export async function updateName(name: string): Promise<UserResponse> {
   });
 }
 
+// === Настройки пользователя ===
+
+// Ответ/запрос настроек (имена полей = серверные)
+export interface ApiSettings {
+  isPublicProfile: boolean;
+  remindersEnabled: boolean;
+  hintsEnabled: boolean;
+  timerEnabled: boolean;
+  vibrationEnabled: boolean;
+  soundEffectsEnabled: boolean;
+  theme: 'steppe' | 'light' | 'dark';
+  difficulty: 'easy' | 'medium' | 'hard';
+}
+
+// Частичное обновление — все поля опциональные
+export type ApiSettingsUpdate = Partial<ApiSettings>;
+
+// Получить текущие настройки
+export async function getSettings(): Promise<ApiSettings> {
+  return apiRequest<ApiSettings>('/users/me/settings', { method: 'GET' });
+}
+
+// Обновить настройки (PATCH, частично)
+export async function patchSettings(data: ApiSettingsUpdate): Promise<ApiSettings> {
+  return apiRequest<ApiSettings>('/users/me/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
 export interface ApiError {
   statusCode: number;
   message: string;
@@ -983,6 +1013,10 @@ export const api = {
 
   // User Profile
   getUserProfile,
+
+  // Settings
+  getSettings,
+  patchSettings,
 
   // Универсальные методы для других запросов
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),

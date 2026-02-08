@@ -9,7 +9,7 @@ import {
   Lock,
   ChevronRight,
   GraduationCap,
-  Zap,
+  Settings,
   Trophy,
   Crown,
   Medal
@@ -28,11 +28,11 @@ interface GameModeSelectScreenProps {
 }
 
 export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ store }) => {
-  const { navigate, selectLevelPack, isPackUnlocked, getPackProgress, state } = store;
+  const { navigate, goBack, selectLevelPack, isPackUnlocked, getPackProgress, state } = store;
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
   
-  useBackButton(() => navigate('menu'));
+  useBackButton(() => goBack());
 
   const totalCompletedLevels = state.endlessProgress.completedLevels.length;
 
@@ -69,8 +69,20 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
       {/* Sticky Header */}
       <StickyHeader 
         title="Выбор режима" 
-        onBack={() => navigate('menu')}
-        rightElement={<Zap size={22} className={isDark ? "text-amber-400" : "text-amber-500"} />}
+        onBack={() => goBack()}
+        rightElement={
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => navigate('settings')}
+            className={cn(
+              "p-1.5 rounded-lg transition-colors",
+              isDark ? "hover:bg-white/10" : "hover:bg-black/5"
+            )}
+          >
+            <Settings size={20} className={isDark ? "text-stone-400" : "text-stone-500"} />
+          </motion.button>
+        }
       />
 
       {/* Декоративный фон */}
@@ -96,13 +108,25 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('menu')}
+          onClick={() => goBack()}
           className={cn(
             "absolute top-4 left-4 p-2 rounded-xl transition-colors",
             isDark ? "bg-white/10 hover:bg-white/20" : "bg-black/5 hover:bg-black/10"
           )}
         >
           <ArrowLeft size={24} className={styles.buttons.text.primary} />
+        </motion.button>
+
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => navigate('settings')}
+          className={cn(
+            "absolute top-4 right-4 p-2 rounded-xl transition-colors",
+            isDark ? "bg-white/10 hover:bg-white/20" : "bg-black/5 hover:bg-black/10"
+          )}
+        >
+          <Settings size={22} className={isDark ? "text-stone-400" : "text-stone-500"} />
         </motion.button>
         
         <motion.div

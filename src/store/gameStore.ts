@@ -11,6 +11,57 @@ import type {
   EndlessProgress,
   LevelPack
 } from '../types';
+import { patchSettings as apiPatchSettings, getSettings as apiGetSettings } from '../services/api';
+import type { ApiSettings, ApiSettingsUpdate } from '../services/api';
+
+// ============================================================================
+// Маппинг между фронтовыми полями (GameSettings) и серверными (ApiSettings)
+// ============================================================================
+
+// Поля, которые синхронизируются с сервером (без playerName и hasSeenHowTo)
+type SyncableField = 'soundEnabled' | 'vibrationEnabled' | 'theme' | 'showHints' | 'timerEnabled' | 'publicProfile' | 'notificationsEnabled' | 'difficulty';
+
+// Frontend → API маппинг имён полей
+const FIELD_TO_API: Record<SyncableField, keyof ApiSettings> = {
+  soundEnabled: 'soundEffectsEnabled',
+  vibrationEnabled: 'vibrationEnabled',
+  theme: 'theme',
+  showHints: 'hintsEnabled',
+  timerEnabled: 'timerEnabled',
+  publicProfile: 'isPublicProfile',
+  notificationsEnabled: 'remindersEnabled',
+  difficulty: 'difficulty',
+};
+
+/** Конвертирует частичный Partial<GameSettings> → ApiSettingsUpdate (только синхронизируемые поля) */
+function toApiSettingsUpdate(updates: Partial<GameSettings>): ApiSettingsUpdate | null {
+  const apiUpdate: ApiSettingsUpdate = {};
+  let hasFields = false;
+
+  for (const [frontKey, apiKey] of Object.entries(FIELD_TO_API)) {
+    const value = (updates as Record<string, unknown>)[frontKey];
+    if (value !== undefined) {
+      (apiUpdate as Record<string, unknown>)[apiKey] = value;
+      hasFields = true;
+    }
+  }
+
+  return hasFields ? apiUpdate : null;
+}
+
+/** Конвертирует ApiSettings → Partial<GameSettings> */
+function fromApiSettings(api: ApiSettings): Partial<GameSettings> {
+  return {
+    soundEnabled: api.soundEffectsEnabled,
+    vibrationEnabled: api.vibrationEnabled,
+    theme: api.theme,
+    showHints: api.hintsEnabled,
+    timerEnabled: api.timerEnabled,
+    publicProfile: api.isPublicProfile,
+    notificationsEnabled: api.remindersEnabled,
+    difficulty: api.difficulty,
+  };
+}
 
 const STORAGE_KEY = 'buryat_fillword_game';
 
@@ -24,6 +75,7 @@ const defaultSettings: GameSettings = {
   publicProfile: true,
   notificationsEnabled: true,
   hasSeenHowTo: false,
+  difficulty: 'medium',
 };
 
 const defaultStats: PlayerStats = {
@@ -49,6 +101,7 @@ const defaultEndlessProgress: EndlessProgress = {
 
 const defaultGameState: GameState = {
   currentScreen: 'menu',
+  screenHistory: [],
   selectedCategory: null,
   selectedLevelPack: null,
   selectedEndlessLevel: null,
@@ -114,6 +167,7 @@ const loadState = (): GameState => {
       return {
         ...defaultGameState,
         ...parsed,
+        screenHistory: [], // не восстанавливаем историю навигации
         settings: { ...defaultSettings, ...parsed.settings },
         stats: { ...defaultStats, ...parsed.stats },
         endlessProgress: { ...defaultEndlessProgress, ...parsed.endlessProgress },
@@ -125,10 +179,11 @@ const loadState = (): GameState => {
   return defaultGameState;
 };
 
-// Сохранение состояния
+// Сохранение состояния (без screenHistory — она runtime-only)
 const saveState = (state: GameState) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const { screenHistory, ...toSave } = state;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch (e) {
     console.error('Failed to save game state:', e);
   }
@@ -149,15 +204,33 @@ export const useGameStore = () => {
     saveState(state);
   }, [state]);
 
-  // Навигация
+  // Навигация (с сохранением истории)
   const navigate = useCallback((screen: Screen) => {
-    setState(prev => ({ ...prev, currentScreen: screen }));
+    setState(prev => ({
+      ...prev,
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      currentScreen: screen,
+    }));
+  }, []);
+
+  // Назад — возвращает на предыдущий экран из стека, или на 'menu' если стек пуст
+  const goBack = useCallback(() => {
+    setState(prev => {
+      const history = [...prev.screenHistory];
+      const previousScreen = history.pop() || 'menu';
+      return {
+        ...prev,
+        screenHistory: history,
+        currentScreen: previousScreen,
+      };
+    });
   }, []);
 
   // Навигация к детальной странице слова
   const navigateToWord = useCallback((wordId: string) => {
     setState(prev => ({
       ...prev,
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
       selectedWordId: wordId,
       currentScreen: 'wordDetail' as Screen,
     }));
@@ -221,12 +294,36 @@ export const useGameStore = () => {
     };
   }, [state.endlessProgress]);
 
-  // Настройки
+  // Настройки — обновляем локально + синхронизируем с API
   const updateSettings = useCallback((updates: Partial<GameSettings>) => {
+    // Оптимистично обновляем UI сразу
     setState(prev => ({
       ...prev,
       settings: { ...prev.settings, ...updates }
     }));
+
+    // Синхронизируем с API (fire & forget, не блокируем UI)
+    const apiUpdate = toApiSettingsUpdate(updates);
+    if (apiUpdate) {
+      apiPatchSettings(apiUpdate).catch(err => {
+        console.warn('⚠️ Не удалось сохранить настройки на сервере:', err);
+      });
+    }
+  }, []);
+
+  // Загрузка настроек с сервера и слияние с локальными
+  const loadSettingsFromApi = useCallback(async () => {
+    try {
+      const apiSettings = await apiGetSettings();
+      const merged = fromApiSettings(apiSettings);
+      setState(prev => ({
+        ...prev,
+        settings: { ...prev.settings, ...merged },
+      }));
+      console.log('✅ Настройки загружены с сервера');
+    } catch (err) {
+      console.warn('⚠️ Не удалось загрузить настройки с сервера:', err);
+    }
   }, []);
 
   // Обновление streak
@@ -467,6 +564,7 @@ export const useGameStore = () => {
   return {
     state,
     navigate,
+    goBack,
     navigateToWord,
     selectCategory,
     setGameMode,
@@ -476,6 +574,7 @@ export const useGameStore = () => {
     getPackProgress,
     completeEndlessLevel,
     updateSettings,
+    loadSettingsFromApi,
     completeLevel,
     addToLeaderboard,
     resetProgress,
