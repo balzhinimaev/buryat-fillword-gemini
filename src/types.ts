@@ -93,6 +93,8 @@ export type Screen =
   | 'dictionary'
   | 'wordDetail' // Детальная страница слова
   | 'debug'
+  | 'admin' // Админ-панель
+  | 'broadcast' // Рассылка сообщений
   | 'contribute' // Үгын Дархан - Словарная мастерская
   | 'onboarding' // Онбординг для новых пользователей
   | 'howto'; // Обучение "Как играть"

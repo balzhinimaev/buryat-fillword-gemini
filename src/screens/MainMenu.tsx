@@ -8,7 +8,7 @@ import {
   Trophy, 
   BookOpen,
   Flame,
-  Bug,
+  Shield,
   Sparkles,
   Star,
   HelpCircle,
@@ -490,16 +490,26 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             </div>
           </motion.button>
 
-          {/* Debug (admin only) */}
+          {/* Admin panel (admin only) */}
           {isAdmin && (
             <motion.button
-              whileHover={{ opacity: 0.8 }}
+              whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => navigate('debug')}
-              className={cn("w-full py-2 text-sm transition-colors flex items-center justify-center gap-2", styles.footer.text, "hover:opacity-80")}
+              onClick={() => navigate('admin')}
+              className={cn(
+                "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                "hover:border-violet-500/50"
+              )}
             >
-              <Bug size={14} />
-              Debug Grid
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform bg-violet-500/20">
+                <Shield size={22} className="text-violet-400" />
+              </div>
+              <div className="text-left flex-1">
+                <div className={cn("font-semibold", styles.buttons.text.primary)}>Админ-панель</div>
+                <div className={cn("text-sm", styles.buttons.text.muted)}>Управление и статистика</div>
+              </div>
             </motion.button>
           )}
         </motion.div>

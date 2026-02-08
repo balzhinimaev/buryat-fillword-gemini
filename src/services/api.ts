@@ -977,6 +977,99 @@ export async function getUserProfile(userId: string): Promise<UserProfileRespons
   return apiRequest<UserProfileResponse>(`/users/${encodeURIComponent(userId)}/profile`, { method: 'GET' });
 }
 
+// =========================
+// Broadcast (admin)
+// =========================
+
+export type BroadcastCohortType =
+  | 'all'
+  | 'telegram_ids'
+  | 'role'
+  | 'premium'
+  | 'active'
+  | 'inactive'
+  | 'language_keepers'
+  | 'prelaunch';
+
+export type BroadcastStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
+
+export interface BroadcastButton {
+  text: string;
+  url: string;
+  isMiniApp?: boolean;
+}
+
+export interface BroadcastRequest {
+  message: string;
+  cohortType: BroadcastCohortType;
+  telegramIds?: number[];
+  role?: 'user' | 'trusted' | 'moderator' | 'admin';
+  days?: number;
+  button?: BroadcastButton;
+}
+
+export interface BroadcastErrorBreakdown {
+  blocked: number;
+  deactivated: number;
+  chatNotFound: number;
+  other: number;
+}
+
+export interface BroadcastItem {
+  _id: string;
+  message: string;
+  cohortType: BroadcastCohortType;
+  cohortParams?: {
+    telegramIds?: number[];
+    role?: string;
+    days?: number;
+    button?: BroadcastButton;
+  };
+  status: BroadcastStatus;
+  totalRecipients: number;
+  sentCount: number;
+  failedCount: number;
+  failedTelegramIds: number[];
+  errorBreakdown?: BroadcastErrorBreakdown;
+  initiatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+export interface BroadcastPreviewResponse {
+  count: number;
+  sampleTelegramIds: number[];
+}
+
+export interface BroadcastListResponse {
+  items: BroadcastItem[];
+  total: number;
+}
+
+export async function sendBroadcast(data: BroadcastRequest): Promise<BroadcastItem> {
+  return apiRequest<BroadcastItem>('/broadcast', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function previewBroadcast(data: BroadcastRequest): Promise<BroadcastPreviewResponse> {
+  return apiRequest<BroadcastPreviewResponse>('/broadcast/preview', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getBroadcastList(page = 1, limit = 20): Promise<BroadcastListResponse> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  return apiRequest<BroadcastListResponse>(`/broadcast?${params}`, { method: 'GET' });
+}
+
+export async function getBroadcastDetail(id: string): Promise<BroadcastItem> {
+  return apiRequest<BroadcastItem>(`/broadcast/${encodeURIComponent(id)}`, { method: 'GET' });
+}
+
 // API экспорт
 export const api = {
   telegramAuth,
@@ -1017,6 +1110,12 @@ export const api = {
   // Settings
   getSettings,
   patchSettings,
+
+  // Broadcast
+  sendBroadcast,
+  previewBroadcast,
+  getBroadcastList,
+  getBroadcastDetail,
 
   // Универсальные методы для других запросов
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),
