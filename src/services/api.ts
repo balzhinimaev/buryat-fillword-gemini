@@ -298,11 +298,12 @@ export type WordStatus = 'pending' | 'verified' | 'rejected' | 'archived';
 export type WordSortBy = 'createdAt' | 'viewCount' | 'lookupCount';
 
 export interface ApiWordComment {
-  _id?: string;
+  _id: string;
   userId: string;
   userName: string;
   text: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface ApiWord {
@@ -570,6 +571,11 @@ async function apiRequest<T>(
     throw error;
   }
 
+  // 204 No Content — нет тела ответа
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json();
 }
 
@@ -686,6 +692,38 @@ export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsRes
 // Получение детальной информации о слове (публичный эндпоинт)
 export async function getWordDetail(id: string): Promise<ApiWordDetailResponse> {
   return apiRequest<ApiWordDetailResponse>(`/words/${encodeURIComponent(id)}`, { method: 'GET' });
+}
+
+// =========================
+// Комментарии к слову
+// =========================
+
+/** Добавить комментарий к слову (POST /words/:wordId/comments) — возвращает объект слова */
+export async function addComment(wordId: string, text: string): Promise<ApiWord> {
+  return apiRequest<ApiWord>(`/words/${encodeURIComponent(wordId)}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+}
+
+/** Редактировать комментарий (PATCH /words/:wordId/comments/:commentId) — возвращает объект слова */
+export async function editComment(
+  wordId: string,
+  commentId: string,
+  text: string,
+): Promise<ApiWord> {
+  return apiRequest<ApiWord>(
+    `/words/${encodeURIComponent(wordId)}/comments/${encodeURIComponent(commentId)}`,
+    { method: 'PATCH', body: JSON.stringify({ text }) },
+  );
+}
+
+/** Удалить комментарий (DELETE /words/:wordId/comments/:commentId) */
+export async function deleteComment(wordId: string, commentId: string): Promise<void> {
+  await apiRequest<void>(
+    `/words/${encodeURIComponent(wordId)}/comments/${encodeURIComponent(commentId)}`,
+    { method: 'DELETE' },
+  );
 }
 
 // Топ хранителей языка
@@ -1094,6 +1132,11 @@ export const api = {
   voteWord,
   updateOnboarding,
   updateName,
+
+  // Comments
+  addComment,
+  editComment,
+  deleteComment,
 
   // Campaign
   getCampaignOverview,

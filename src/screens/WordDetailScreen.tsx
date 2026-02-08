@@ -5,6 +5,7 @@ import {
   ArrowLeft, Loader2, RefreshCw, Eye, Search as SearchIcon, ThumbsUp, ThumbsDown,
   MessageSquare, BookOpen, Volume2, Link2, User, ChevronRight,
   Globe, Sparkles, Hash, Clock, CheckCircle2, AlertTriangle, Archive,
+  Send, Pencil, Trash2, X, Check,
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -12,7 +13,10 @@ import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
 import type { GameStore } from '../store/gameStore';
-import { getWordDetail, voteWord, type ApiWordDetailResponse } from '../services/api';
+import {
+  getWordDetail, voteWord, addComment, editComment, deleteComment,
+  type ApiWordDetailResponse,
+} from '../services/api';
 
 interface WordDetailScreenProps {
   store: GameStore;
@@ -99,6 +103,74 @@ const DifficultyDots: React.FC<{ value: number; isDark: boolean }> = ({ value, i
 };
 
 /* ==============================
+   Переиспользуемые UI-компоненты
+   (вынесены за пределы render-тела,
+    чтобы React не перемонтировал дерево
+    при каждом изменении стейта)
+   ============================== */
+
+// eslint-disable-next-line react/display-name
+const Card: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+  isDark: boolean;
+}> = React.memo(({ children, className, delay = 0, isDark }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 16 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.3, delay }}
+    className={cn(
+      'rounded-2xl overflow-hidden',
+      isDark
+        ? 'bg-white/[0.05] border border-white/[0.07]'
+        : 'bg-white/90 border border-stone-200/50 shadow-sm',
+      className,
+    )}
+  >
+    {children}
+  </motion.div>
+));
+Card.displayName = 'Card';
+
+const Pill: React.FC<{
+  children: React.ReactNode;
+  accent?: boolean;
+  className?: string;
+  isDark: boolean;
+}> = React.memo(({ children, accent, className, isDark }) => (
+  <span className={cn(
+    'inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border',
+    accent
+      ? (isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/15' : 'bg-amber-50 text-amber-700 border-amber-200/60')
+      : (isDark ? 'bg-white/[0.06] text-white/50 border-white/[0.06]' : 'bg-stone-50 text-stone-500 border-stone-200/50'),
+    className,
+  )}>
+    {children}
+  </span>
+));
+Pill.displayName = 'Pill';
+
+interface ThemeText {
+  primary: string;
+  secondary: string;
+  muted: string;
+  dimmed: string;
+}
+
+const InfoRow: React.FC<{
+  label: string;
+  value: React.ReactNode;
+  themeText: ThemeText;
+}> = React.memo(({ label, value, themeText }) => (
+  <div className="flex items-center justify-between py-1.5">
+    <span className={cn('text-[12px]', themeText.muted)}>{label}</span>
+    <span className={cn('text-[12px] font-medium text-right max-w-[60%]', themeText.primary)}>{value}</span>
+  </div>
+));
+InfoRow.displayName = 'InfoRow';
+
+/* ==============================
    Компонент
    ============================== */
 
@@ -152,7 +224,6 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
     setVoteLoading(type);
     try {
       await voteWord({ wordId, type });
-      // Перезагружаем данные, чтобы получить актуальные счётчики
       const result = await getWordDetail(wordId);
       setData(result);
     } catch (err) {
@@ -161,6 +232,113 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
       setVoteLoading(null);
     }
   }, [wordId, voteLoading, isAuthenticated]);
+
+  /* ==============================
+     Комментарии — CRUD
+     ============================== */
+  const [commentText, setCommentText] = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [commentError, setCommentError] = useState<string | null>(null);
+
+  // Клиентская пагинация комментариев
+  const COMMENTS_PER_PAGE = 5;
+  const [visibleCommentsCount, setVisibleCommentsCount] = useState(COMMENTS_PER_PAGE);
+
+  const allComments = data?.word?.comments ?? [];
+  const visibleComments = useMemo(
+    () => allComments.slice(0, visibleCommentsCount),
+    [allComments, visibleCommentsCount],
+  );
+  const hasMoreComments = allComments.length > visibleCommentsCount;
+  const hiddenCount = allComments.length - visibleCommentsCount;
+
+  const showMoreComments = useCallback(() => {
+    setVisibleCommentsCount((prev) => prev + COMMENTS_PER_PAGE);
+  }, []);
+
+  const collapseComments = useCallback(() => {
+    setVisibleCommentsCount(COMMENTS_PER_PAGE);
+  }, []);
+
+  const userRole = authState.user?.role ?? 'user';
+  const canModerate = userRole === 'moderator' || userRole === 'admin';
+
+  // Добавить комментарий
+  const handleAddComment = useCallback(async () => {
+    if (!wordId || !commentText.trim() || commentSubmitting) return;
+    setCommentSubmitting(true);
+    setCommentError(null);
+    try {
+      await addComment(wordId, commentText.trim());
+      // Перезагружаем полные данные (API возвращает только объект слова, не обёртку)
+      const result = await getWordDetail(wordId);
+      setData(result);
+      setCommentText('');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err
+        ? (err as { message: string }).message : 'Ошибка при отправке комментария';
+      setCommentError(msg);
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }, [wordId, commentText, commentSubmitting]);
+
+  // Начать редактирование
+  const startEditing = useCallback((commentId: string, text: string) => {
+    setEditingCommentId(commentId);
+    setEditingText(text);
+    setCommentError(null);
+  }, []);
+
+  // Отмена редактирования
+  const cancelEditing = useCallback(() => {
+    setEditingCommentId(null);
+    setEditingText('');
+  }, []);
+
+  // Сохранить редактирование
+  const handleEditComment = useCallback(async () => {
+    if (!wordId || !editingCommentId || !editingText.trim() || editSubmitting) return;
+    setEditSubmitting(true);
+    setCommentError(null);
+    try {
+      await editComment(wordId, editingCommentId, editingText.trim());
+      // Перезагружаем полные данные
+      const result = await getWordDetail(wordId);
+      setData(result);
+      setEditingCommentId(null);
+      setEditingText('');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err
+        ? (err as { message: string }).message : 'Ошибка при редактировании';
+      setCommentError(msg);
+    } finally {
+      setEditSubmitting(false);
+    }
+  }, [wordId, editingCommentId, editingText, editSubmitting]);
+
+  // Удалить комментарий
+  const handleDeleteComment = useCallback(async (commentId: string) => {
+    if (!wordId || deletingCommentId) return;
+    setDeletingCommentId(commentId);
+    setCommentError(null);
+    try {
+      await deleteComment(wordId, commentId);
+      // Перезагружаем данные
+      const result = await getWordDetail(wordId);
+      setData(result);
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err
+        ? (err as { message: string }).message : 'Ошибка при удалении';
+      setCommentError(msg);
+    } finally {
+      setDeletingCommentId(null);
+    }
+  }, [wordId, deletingCommentId]);
 
   /* ==============================
      Пустой wordId
@@ -176,53 +354,6 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
   const word = data?.word;
   const status = word ? statusCfg[word.status] ?? statusCfg.pending : null;
   const isLearned = word ? state.stats.learnedWords.includes(word.bur) : false;
-
-  /* ==============================
-     Помощник-компоненты (inline)
-     ============================== */
-
-  // Карточка-секция
-  const Card: React.FC<{ children: React.ReactNode; className?: string; delay?: number }> = ({
-    children, className, delay = 0,
-  }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay }}
-      className={cn(
-        'rounded-2xl overflow-hidden',
-        isDark
-          ? 'bg-white/[0.05] border border-white/[0.07]'
-          : 'bg-white/90 border border-stone-200/50 shadow-sm',
-        className,
-      )}
-    >
-      {children}
-    </motion.div>
-  );
-
-  // Мини-pill
-  const Pill: React.FC<{ children: React.ReactNode; accent?: boolean; className?: string }> = ({
-    children, accent, className,
-  }) => (
-    <span className={cn(
-      'inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border',
-      accent
-        ? (isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/15' : 'bg-amber-50 text-amber-700 border-amber-200/60')
-        : (isDark ? 'bg-white/[0.06] text-white/50 border-white/[0.06]' : 'bg-stone-50 text-stone-500 border-stone-200/50'),
-      className,
-    )}>
-      {children}
-    </span>
-  );
-
-  // Строка key-value
-  const InfoRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
-    <div className="flex items-center justify-between py-1.5">
-      <span className={cn('text-[12px]', theme.text.muted)}>{label}</span>
-      <span className={cn('text-[12px] font-medium text-right max-w-[60%]', theme.text.primary)}>{value}</span>
-    </div>
-  );
 
   /* ==============================
      Рендер
@@ -317,7 +448,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
             {/* ═══════════════════════════════
                1. HERO-КАРТОЧКА СЛОВА
                ═══════════════════════════════ */}
-            <Card delay={0}>
+            <Card isDark={isDark} delay={0}>
               <div className="px-5 pt-5 pb-4">
                 {/* Слово */}
                 <div className="text-center mb-3">
@@ -338,15 +469,15 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                 {/* Мета-пилы */}
                 <div className="flex flex-wrap items-center justify-center gap-1.5 mb-3">
                   {word.partOfSpeechId && (
-                    <Pill>
+                    <Pill isDark={isDark}>
                       <span>{word.partOfSpeechId.emoji}</span>
                       {word.partOfSpeechId.name}
                     </Pill>
                   )}
-                  {word.dialectId && <Pill>{word.dialectId.name}</Pill>}
-                  {word.categoryId && <Pill>{word.categoryId.name}</Pill>}
+                  {word.dialectId && <Pill isDark={isDark}>{word.dialectId.name}</Pill>}
+                  {word.categoryId && <Pill isDark={isDark}>{word.categoryId.name}</Pill>}
                   {isLearned && (
-                    <Pill className={isDark ? '!bg-emerald-500/10 !text-emerald-400 !border-emerald-500/20' : '!bg-emerald-50 !text-emerald-700 !border-emerald-200/60'}>
+                    <Pill isDark={isDark} className={isDark ? '!bg-emerald-500/10 !text-emerald-400 !border-emerald-500/20' : '!bg-emerald-50 !text-emerald-700 !border-emerald-200/60'}>
                       <CheckCircle2 size={10} /> Выучено
                     </Pill>
                   )}
@@ -356,7 +487,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                 {word.tags.length > 0 && (
                   <div className="flex flex-wrap items-center justify-center gap-1.5 mb-3">
                     {word.tags.map(tag => (
-                      <Pill key={tag} accent><Hash size={10} />{tag}</Pill>
+                      <Pill key={tag} isDark={isDark} accent><Hash size={10} />{tag}</Pill>
                     ))}
                   </div>
                 )}
@@ -393,7 +524,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
             {/* ═══════════════════════════════
                2. ГОЛОСОВАНИЕ
                ═══════════════════════════════ */}
-            <Card delay={0.05}>
+            <Card isDark={isDark} delay={0.05}>
               <div className="p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <span className={cn('text-[11px] font-semibold uppercase tracking-wider', theme.text.dimmed)}>
@@ -478,7 +609,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                3. ПРИМЕР ИСПОЛЬЗОВАНИЯ
                ═══════════════════════════════ */}
             {(word.exampleBur || word.exampleRu) && (
-              <Card delay={0.1}>
+              <Card isDark={isDark} delay={0.1}>
                 <div className="p-4">
                   <div className="flex items-center gap-2 mb-2.5">
                     <BookOpen size={14} className={isDark ? 'text-steppe-400' : 'text-steppe-600'} />
@@ -509,7 +640,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                4. ДРУГИЕ ПЕРЕВОДЫ
                ═══════════════════════════════ */}
             {data.otherTranslations.length > 0 && (
-              <Card delay={0.12}>
+              <Card isDark={isDark} delay={0.12}>
                 <div className="p-4">
                   <div className="flex items-center gap-2 mb-2.5">
                     <Globe size={14} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
@@ -552,7 +683,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                5. ЛЕКСИЧЕСКИЕ СВЯЗИ (синонимы, антонимы)
                ═══════════════════════════════ */}
             {(word.synonyms.length > 0 || word.antonyms.length > 0) && (
-              <Card delay={0.15}>
+              <Card isDark={isDark} delay={0.15}>
                 <div className="p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Link2 size={14} className={isDark ? 'text-purple-400' : 'text-purple-600'} />
@@ -610,7 +741,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                6. СВЯЗАННЫЕ СЛОВА
                ═══════════════════════════════ */}
             {data.relatedWords.length > 0 && (
-              <Card delay={0.18}>
+              <Card isDark={isDark} delay={0.18}>
                 <div className="p-4">
                   <div className="flex items-center gap-2 mb-2.5">
                     <Sparkles size={14} className={isDark ? 'text-amber-400' : 'text-amber-600'} />
@@ -663,8 +794,9 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
             {/* ═══════════════════════════════
                7. КОММЕНТАРИИ
                ═══════════════════════════════ */}
-            <Card delay={0.22}>
+            <Card isDark={isDark} delay={0.22}>
               <div className="p-4">
+                {/* Заголовок секции */}
                 <div className="flex items-center gap-2 mb-3">
                   <MessageSquare size={14} className={isDark ? 'text-sky-400' : 'text-sky-600'} />
                   <span className={cn('text-[11px] font-semibold uppercase tracking-wider', theme.text.dimmed)}>
@@ -680,8 +812,99 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                   )}
                 </div>
 
-                {word.comments.length === 0 ? (
-                  /* Пустое состояние */
+                {/* ── Ошибка комментариев ── */}
+                {commentError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={cn(
+                      'text-[12px] px-3 py-2 rounded-lg mb-3 border',
+                      isDark ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-200',
+                    )}
+                  >
+                    {commentError}
+                  </motion.div>
+                )}
+
+                {/* ── Форма добавления комментария ── */}
+                {isAuthenticated ? (
+                  <div className="mb-3">
+                    <div className={cn(
+                      'flex items-end gap-2 rounded-xl p-2 border transition-colors',
+                      isDark
+                        ? 'bg-white/[0.03] border-white/[0.08] focus-within:border-sky-500/30'
+                        : 'bg-stone-50/60 border-stone-200/50 focus-within:border-sky-300',
+                    )}>
+                      <textarea
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value.slice(0, 1000))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleAddComment();
+                          }
+                        }}
+                        placeholder="Напишите комментарий…"
+                        rows={1}
+                        className={cn(
+                          'flex-1 bg-transparent text-[13px] leading-relaxed resize-none outline-none placeholder:text-stone-400',
+                          isDark ? 'text-white/90 placeholder:text-white/25' : 'text-stone-800',
+                        )}
+                        style={{ minHeight: 36, maxHeight: 120 }}
+                        onInput={(e) => {
+                          const target = e.target as HTMLTextAreaElement;
+                          target.style.height = 'auto';
+                          target.style.height = Math.min(target.scrollHeight, 120) + 'px';
+                        }}
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={handleAddComment}
+                        disabled={!commentText.trim() || commentSubmitting}
+                        className={cn(
+                          'flex items-center justify-center w-8 h-8 rounded-lg transition-all flex-shrink-0',
+                          commentText.trim()
+                            ? (isDark
+                                ? 'bg-sky-500/20 text-sky-400 hover:bg-sky-500/30'
+                                : 'bg-sky-100 text-sky-600 hover:bg-sky-200')
+                            : (isDark ? 'bg-white/[0.04] text-white/20' : 'bg-stone-100 text-stone-300'),
+                          commentSubmitting && 'opacity-50',
+                        )}
+                      >
+                        {commentSubmitting
+                          ? <Loader2 size={14} className="animate-spin" />
+                          : <Send size={14} />}
+                      </motion.button>
+                    </div>
+                    <div className="flex items-center justify-between mt-1 px-1">
+                      <span className={cn('text-[10px]', theme.text.dimmed)}>
+                        Enter — отправить, Shift+Enter — новая строка
+                      </span>
+                      {commentText.length > 0 && (
+                        <span className={cn(
+                          'text-[10px] tabular-nums',
+                          commentText.length > 900
+                            ? (isDark ? 'text-amber-400' : 'text-amber-600')
+                            : theme.text.dimmed,
+                        )}>
+                          {commentText.length}/1000
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className={cn(
+                    'text-center py-3 rounded-xl mb-3 border',
+                    isDark ? 'bg-white/[0.02] border-white/[0.06]' : 'bg-stone-50/40 border-stone-200/30',
+                  )}>
+                    <p className={cn('text-[12px]', theme.text.muted)}>
+                      Войдите, чтобы оставить комментарий
+                    </p>
+                  </div>
+                )}
+
+                {/* ── Список комментариев / пустое состояние ── */}
+                {allComments.length === 0 ? (
                   <div className={cn(
                     'flex flex-col items-center py-6 rounded-xl',
                     isDark ? 'bg-white/[0.02]' : 'bg-stone-50/40',
@@ -696,49 +919,200 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                     <p className={cn('text-[11px] mt-0.5', theme.text.dimmed)}>Будьте первым, кто оставит заметку</p>
                   </div>
                 ) : (
-                  /* Список комментариев */
                   <div className="space-y-2">
-                    {word.comments.map((comment, idx) => {
-                      const isOwn = currentUserId && comment.userId === currentUserId;
+                    {visibleComments.map((comment, idx) => {
+                      const isOwn = !!(currentUserId && comment.userId === currentUserId);
+                      const canEdit = isOwn || canModerate;
+                      const isEditing = editingCommentId === comment._id;
+                      const isDeleting = deletingCommentId === comment._id;
+                      const wasEdited = comment.updatedAt && comment.createdAt !== comment.updatedAt;
+
                       return (
                         <motion.div
-                          key={comment._id ?? idx}
+                          key={comment._id}
                           initial={{ opacity: 0, x: -8 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: idx * 0.05, duration: 0.2 }}
                           className={cn(
-                            'rounded-xl px-3.5 py-3 border',
+                            'rounded-xl px-3.5 py-3 border transition-colors',
+                            isDeleting && 'opacity-50 pointer-events-none',
                             isOwn
                               ? (isDark ? 'bg-sky-500/8 border-sky-500/15' : 'bg-sky-50/60 border-sky-200/40')
                               : (isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-stone-50/50 border-stone-200/30'),
                           )}
                         >
-                          {/* Шапка: аватар + имя + время */}
+                          {/* Шапка: аватар + имя + время + действия */}
                           <div className="flex items-center gap-2 mb-1.5">
                             <div className={cn(
-                              'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold',
+                              'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0',
                               isDark ? 'bg-white/10 text-white/60' : 'bg-stone-200 text-stone-500',
                             )}>
                               {comment.userName?.charAt(0)?.toUpperCase() ?? '?'}
                             </div>
-                            <span className={cn('text-[12px] font-semibold', theme.text.primary)}>
+                            <span className={cn('text-[12px] font-semibold truncate', theme.text.primary)}>
                               {comment.userName}
                               {isOwn && (
                                 <span className={cn('text-[9px] font-normal ml-1', theme.text.dimmed)}>(вы)</span>
                               )}
                             </span>
-                            <span className={cn('text-[10px] ml-auto flex-shrink-0', theme.text.dimmed)}>
-                              {relativeTime(comment.createdAt)}
-                            </span>
+
+                            <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+                              {wasEdited && (
+                                <span className={cn('text-[9px] italic', theme.text.dimmed)}>ред.</span>
+                              )}
+                              <span className={cn('text-[10px]', theme.text.dimmed)}>
+                                {relativeTime(comment.createdAt)}
+                              </span>
+                            </div>
                           </div>
 
-                          {/* Текст */}
-                          <p className={cn('text-[13px] leading-relaxed', theme.text.secondary)}>
-                            {comment.text}
-                          </p>
+                          {/* Текст / Режим редактирования */}
+                          {isEditing ? (
+                            <div className="mt-1">
+                              <textarea
+                                value={editingText}
+                                onChange={(e) => setEditingText(e.target.value.slice(0, 1000))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleEditComment();
+                                  }
+                                  if (e.key === 'Escape') cancelEditing();
+                                }}
+                                rows={2}
+                                autoFocus
+                                className={cn(
+                                  'w-full bg-transparent text-[13px] leading-relaxed resize-none outline-none rounded-lg p-2 border transition-colors',
+                                  isDark
+                                    ? 'border-sky-500/30 text-white/90 focus:border-sky-500/50'
+                                    : 'border-sky-200 text-stone-800 focus:border-sky-400',
+                                )}
+                                style={{ minHeight: 48, maxHeight: 120 }}
+                                onInput={(e) => {
+                                  const target = e.target as HTMLTextAreaElement;
+                                  target.style.height = 'auto';
+                                  target.style.height = Math.min(target.scrollHeight, 120) + 'px';
+                                }}
+                              />
+                              <div className="flex items-center justify-between mt-1.5">
+                                <span className={cn('text-[10px] tabular-nums', theme.text.dimmed)}>
+                                  {editingText.length}/1000
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <motion.button
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={cancelEditing}
+                                    className={cn(
+                                      'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-colors',
+                                      isDark ? 'text-white/50 hover:bg-white/[0.06]' : 'text-stone-500 hover:bg-stone-100',
+                                    )}
+                                  >
+                                    <X size={12} /> Отмена
+                                  </motion.button>
+                                  <motion.button
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={handleEditComment}
+                                    disabled={!editingText.trim() || editSubmitting}
+                                    className={cn(
+                                      'flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors',
+                                      editingText.trim()
+                                        ? (isDark
+                                            ? 'bg-sky-500/20 text-sky-400 hover:bg-sky-500/30'
+                                            : 'bg-sky-100 text-sky-600 hover:bg-sky-200')
+                                        : (isDark ? 'bg-white/[0.04] text-white/20' : 'bg-stone-100 text-stone-300'),
+                                      editSubmitting && 'opacity-50',
+                                    )}
+                                  >
+                                    {editSubmitting
+                                      ? <Loader2 size={12} className="animate-spin" />
+                                      : <Check size={12} />}
+                                    Сохранить
+                                  </motion.button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className={cn('text-[13px] leading-relaxed whitespace-pre-wrap', theme.text.secondary)}>
+                                {comment.text}
+                              </p>
+
+                              {/* Кнопки действий */}
+                              {canEdit && isAuthenticated && (
+                                <div className={cn(
+                                  'flex items-center gap-1 mt-2 pt-1.5 border-t',
+                                  isDark ? 'border-white/[0.05]' : 'border-stone-200/20',
+                                )}>
+                                  <motion.button
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => startEditing(comment._id, comment.text)}
+                                    className={cn(
+                                      'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-colors',
+                                      isDark ? 'text-white/40 hover:text-white/70 hover:bg-white/[0.06]' : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100',
+                                    )}
+                                  >
+                                    <Pencil size={11} /> Изменить
+                                  </motion.button>
+                                  <motion.button
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => {
+                                      if (window.confirm('Удалить комментарий?')) {
+                                        handleDeleteComment(comment._id);
+                                      }
+                                    }}
+                                    disabled={isDeleting}
+                                    className={cn(
+                                      'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-colors',
+                                      isDark ? 'text-red-400/50 hover:text-red-400 hover:bg-red-500/10' : 'text-red-300 hover:text-red-500 hover:bg-red-50',
+                                    )}
+                                  >
+                                    {isDeleting
+                                      ? <Loader2 size={11} className="animate-spin" />
+                                      : <Trash2 size={11} />}
+                                    Удалить
+                                  </motion.button>
+                                </div>
+                              )}
+                            </>
+                          )}
                         </motion.div>
                       );
                     })}
+
+                    {/* Кнопки пагинации */}
+                    {(hasMoreComments || visibleCommentsCount > COMMENTS_PER_PAGE) && (
+                      <div className="flex items-center justify-center gap-2 pt-1">
+                        {hasMoreComments && (
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={showMoreComments}
+                            className={cn(
+                              'flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-medium transition-colors',
+                              isDark
+                                ? 'bg-white/[0.05] text-white/60 hover:bg-white/[0.08] hover:text-white/80 border border-white/[0.06]'
+                                : 'bg-stone-50 text-stone-500 hover:bg-stone-100 hover:text-stone-700 border border-stone-200/40',
+                            )}
+                          >
+                            <MessageSquare size={12} />
+                            Показать ещё {Math.min(hiddenCount, COMMENTS_PER_PAGE)} из {hiddenCount}
+                          </motion.button>
+                        )}
+                        {visibleCommentsCount > COMMENTS_PER_PAGE && (
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={collapseComments}
+                            className={cn(
+                              'flex items-center gap-1 px-3 py-2 rounded-xl text-[12px] font-medium transition-colors',
+                              isDark
+                                ? 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]'
+                                : 'text-stone-400 hover:text-stone-600 hover:bg-stone-50',
+                            )}
+                          >
+                            Свернуть
+                          </motion.button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -748,7 +1122,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                8. ИСТОЧНИКИ
                ═══════════════════════════════ */}
             {word.sources.length > 0 && (
-              <Card delay={0.25}>
+              <Card isDark={isDark} delay={0.25}>
                 <div className="p-4">
                   <div className="flex items-center gap-2 mb-2.5">
                     <BookOpen size={14} className={isDark ? 'text-orange-400' : 'text-orange-600'} />
@@ -774,7 +1148,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
             {/* ═══════════════════════════════
                9. ИНФОРМАЦИЯ / МЕТА
                ═══════════════════════════════ */}
-            <Card delay={0.28}>
+            <Card isDark={isDark} delay={0.28}>
               <div className="p-4">
                 <div className="flex items-center gap-2 mb-2.5">
                   <User size={14} className={theme.text.muted} />
@@ -788,12 +1162,13 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                   isDark ? 'divide-white/[0.05]' : 'divide-stone-100',
                 )}>
                   {word.contributor && (
-                    <InfoRow label="Автор" value={word.contributor.name} />
+                    <InfoRow themeText={theme.text} label="Автор" value={word.contributor.name} />
                   )}
                   {word.categoryId && (
-                    <InfoRow label="Категория" value={word.categoryId.name} />
+                    <InfoRow themeText={theme.text} label="Категория" value={word.categoryId.name} />
                   )}
                   <InfoRow
+                    themeText={theme.text}
                     label="В филворде"
                     value={
                       <span className={cn(
@@ -806,8 +1181,8 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                       </span>
                     }
                   />
-                  <InfoRow label="Просмотров" value={word.viewCount} />
-                  <InfoRow label="Поисковых запросов" value={word.lookupCount} />
+                  <InfoRow themeText={theme.text} label="Просмотров" value={word.viewCount} />
+                  <InfoRow themeText={theme.text} label="Поисковых запросов" value={word.lookupCount} />
 
                   {word.rejectionReason && (
                     <div className="py-1.5">
