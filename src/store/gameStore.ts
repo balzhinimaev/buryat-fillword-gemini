@@ -239,6 +239,7 @@ export const useGameStore = () => {
   const selectCategory = useCallback((categoryId: string) => {
     setState(prev => ({ 
       ...prev, 
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
       selectedCategory: categoryId,
       gameMode: 'campaign',
       currentScreen: 'game' 
@@ -254,6 +255,7 @@ export const useGameStore = () => {
   const selectLevelPack = useCallback((packId: string) => {
     setState(prev => ({ 
       ...prev, 
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
       selectedLevelPack: packId,
       currentScreen: 'levelPack' 
     }));
@@ -263,6 +265,7 @@ export const useGameStore = () => {
   const selectEndlessLevel = useCallback((level: number) => {
     setState(prev => ({ 
       ...prev, 
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
       selectedEndlessLevel: level,
       gameMode: 'endless',
       currentScreen: 'game' 

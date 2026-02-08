@@ -274,7 +274,7 @@ const LetterCell = React.memo(({
 
 
 export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
-  const { state, navigate, completeEndlessLevel, addToLeaderboard, selectEndlessLevel } = store;
+  const { state, navigate, goBack, completeEndlessLevel, addToLeaderboard, selectEndlessLevel } = store;
   
   // Определяем режим игры
   const isEndlessMode = state.gameMode === 'endless';
@@ -1020,13 +1020,9 @@ ${levelInfo}
     );
   }
   
-  // Функция навигации "назад" в зависимости от режима
+  // Функция навигации "назад" — возвращает на предыдущий экран
   const handleBack = () => {
-    if (isEndlessMode) {
-      navigate('levelPack');
-    } else {
-      navigate('levels');
-    }
+    goBack();
   };
   
   // Заголовок для текущего уровня

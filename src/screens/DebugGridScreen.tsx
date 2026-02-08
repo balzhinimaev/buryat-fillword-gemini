@@ -165,7 +165,7 @@ const buildCellInfoGrid = (
 };
 
 export const DebugGridScreen: React.FC<DebugGridScreenProps> = ({ store }) => {
-  const { navigate } = store;
+  const { goBack } = store;
 
   const [gridSize, setGridSize] = useState(5);
   const [showWordId, setShowWordId] = useState(true);
@@ -229,7 +229,7 @@ export const DebugGridScreen: React.FC<DebugGridScreenProps> = ({ store }) => {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button
-          onClick={() => navigate('menu')}
+          onClick={() => goBack()}
           className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600"
         >
           ← Назад

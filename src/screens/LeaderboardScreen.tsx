@@ -136,11 +136,11 @@ const PrizeBadge: React.FC<{ rank: number }> = ({ rank }) => {
 
 // ─── Основной экран ───────────────────────────────────────────────
 export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) => {
-  const { navigate } = store;
+  const { goBack } = store;
   const { theme, isDark } = useTheme();
   const { state: authState } = useAuth();
 
-  useBackButton(() => navigate('menu'));
+  useBackButton(() => goBack());
 
   // Фильтры
   const [type, setType] = useState<LeaderboardType>('stars');
@@ -327,7 +327,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
       {/* Sticky Header */}
       <StickyHeader
         title={isPrizeMode ? '🏆 Турнир месяца' : 'Рекорды'}
-        onBack={() => navigate('menu')}
+        onBack={() => goBack()}
         rightElement={<Trophy size={22} className={isDark ? "text-amber-400" : "text-amber-500"} />}
       />
 
@@ -343,7 +343,7 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('menu')}
+            onClick={() => goBack()}
             className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
           >
             <ArrowLeft size={24} className={theme.header.text} />

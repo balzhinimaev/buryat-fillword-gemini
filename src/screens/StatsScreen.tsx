@@ -29,7 +29,7 @@ interface StatsScreenProps {
 }
 
 export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
-  const { state, navigate, xpProgress, xpToNextLevel } = store;
+  const { state, goBack, xpProgress, xpToNextLevel } = store;
   const { stats, levelProgress } = state;
   const { theme } = useTheme();
   const { state: authState, refreshUser } = useAuth();
@@ -61,7 +61,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const displayPlayTime = campaignStats?.totalPlayTimeSeconds ?? stats.totalTimePlayed;
   const displayTotalAttempts = campaignStats?.totalAttempts ?? stats.totalGamesPlayed;
   
-  useBackButton(() => navigate('menu'));
+  useBackButton(() => goBack());
 
   // Форматирование времени
   const formatPlayTime = (seconds: number) => {
@@ -109,7 +109,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
       {/* Sticky Header при скролле */}
       <StickyHeader 
         title="Статистика" 
-        onBack={() => navigate('menu')} 
+        onBack={() => goBack()} 
       />
       
       {/* Декоративный фон */}
@@ -124,7 +124,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('menu')}
+            onClick={() => goBack()}
             className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
           >
             <ArrowLeft size={24} className={theme.text.primary} />

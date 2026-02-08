@@ -17,11 +17,11 @@ interface DictionaryScreenProps {
 }
 
 export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => {
-  const { state, navigate, navigateToWord } = store;
+  const { state, goBack, navigateToWord } = store;
   const { stats } = state;
   const { theme, isDark } = useTheme();
 
-  useBackButton(() => navigate('menu'));
+  useBackButton(() => goBack());
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -216,7 +216,7 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
       {/* Sticky Header при скролле */}
       <StickyHeader
         title="Словарь"
-        onBack={() => navigate('menu')}
+        onBack={() => goBack()}
         rightElement={
           <div className={cn(
             "text-sm px-3 py-1 rounded-full flex items-center gap-1",
@@ -240,7 +240,7 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('menu')}
+            onClick={() => goBack()}
             className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
           >
             <ArrowLeft size={24} className={theme.header.text} />

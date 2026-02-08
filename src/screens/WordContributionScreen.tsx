@@ -43,12 +43,12 @@ interface Props {
 
 // Главный компонент экрана
 export const WordContributionScreen: React.FC<Props> = ({ store }) => {
-  const { navigate } = store;
+  const { goBack } = store;
   const contribution = useContributionStore();
   const { user: telegramUser } = useTelegram();
   const { theme, isDark } = useTheme();
   
-  useBackButton(() => navigate('menu'));
+  useBackButton(() => goBack());
   const [activeTab, setActiveTab] = useState<Tab>('add');
   
   // Категории из API
@@ -209,7 +209,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
       {/* Sticky Header при скролле */}
       <StickyHeader 
         title="Үгын Дархан" 
-        onBack={() => navigate('menu')}
+        onBack={() => goBack()}
         rightElement={<Heart size={20} className="text-rose-400 fill-rose-400/50" />}
       />
       
@@ -241,7 +241,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => navigate('menu')}
+            onClick={() => goBack()}
             className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center"
           >
             <ArrowLeft size={20} />

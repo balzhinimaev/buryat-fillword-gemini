@@ -574,7 +574,7 @@ const Check: React.FC<{ size: number; strokeWidth?: number }> = ({ size, strokeW
 
 // ─── Main component ────────────────────────────────────────────────
 export const HowToPlayScreen: React.FC<HowToPlayScreenProps> = ({ store }) => {
-  const { navigate, updateSettings, state } = store;
+  const { navigate, goBack, updateSettings, state } = store;
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
 
@@ -590,8 +590,8 @@ export const HowToPlayScreen: React.FC<HowToPlayScreenProps> = ({ store }) => {
 
   const closeToMenu = useCallback(() => {
     markSeen();
-    navigate('menu');
-  }, [markSeen, navigate]);
+    goBack();
+  }, [markSeen, goBack]);
 
   const goPrev = useCallback(() => {
     setStepIndex(s => Math.max(0, s - 1));
@@ -605,6 +605,7 @@ export const HowToPlayScreen: React.FC<HowToPlayScreenProps> = ({ store }) => {
     markSeen();
     navigate('gameMode');
   }, [markSeen, navigate]);
+  // handleFinish — прямой переход к игре, не goBack
 
   useBackButton(() => {
     if (!isFirst) { goPrev(); return; }

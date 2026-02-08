@@ -15,11 +15,11 @@ interface LevelPackScreenProps {
 }
 
 export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
-  const { navigate, selectEndlessLevel, state, getPackProgress } = store;
+  const { goBack, selectEndlessLevel, state, getPackProgress } = store;
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
   
-  useBackButton(() => navigate('gameMode'));
+  useBackButton(() => goBack());
 
   // Получаем выбранный пакет
   const currentPack = useMemo(() => {
@@ -65,7 +65,7 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
       {/* Sticky Header */}
       <StickyHeader 
         title={currentPack.name}
-        onBack={() => navigate('gameMode')}
+        onBack={() => goBack()}
         rightElement={
           <div className="flex items-center gap-1">
             <Star size={18} className={isDark ? "text-amber-400 fill-amber-400" : "text-amber-500 fill-amber-500"} />
@@ -87,7 +87,7 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('gameMode')}
+          onClick={() => goBack()}
           className={cn(
             "absolute top-4 left-4 p-2 rounded-xl transition-colors",
             isDark ? "bg-white/10 hover:bg-white/20" : "bg-black/5 hover:bg-black/10"

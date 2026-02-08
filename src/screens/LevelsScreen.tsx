@@ -14,10 +14,10 @@ interface LevelsScreenProps {
 }
 
 export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
-  const { state, navigate, selectCategory, getLevelProgress } = store;
+  const { state, goBack, selectCategory, getLevelProgress } = store;
   const { theme } = useTheme();
   
-  useBackButton(() => navigate('gameMode'));
+  useBackButton(() => goBack());
 
   const [overview, setOverview] = useState<CampaignOverviewResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -79,7 +79,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
       {/* Sticky Header при скролле */}
       <StickyHeader 
         title="Кампания" 
-        onBack={() => navigate('gameMode')}
+        onBack={() => goBack()}
         rightElement={
           <div className="flex items-center gap-3">
             <button
@@ -114,7 +114,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('gameMode')}
+              onClick={() => goBack()}
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
             >
               <ArrowLeft size={24} className={theme.header.text} />

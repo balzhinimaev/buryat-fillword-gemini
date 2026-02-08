@@ -103,14 +103,14 @@ const DifficultyDots: React.FC<{ value: number; isDark: boolean }> = ({ value, i
    ============================== */
 
 export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => {
-  const { state, navigate, navigateToWord } = store;
+  const { state, goBack, navigateToWord } = store;
   const { isDark, theme } = useTheme();
   const { state: authState } = useAuth();
   const wordId = state.selectedWordId;
   const currentUserId = authState.user?._id ?? null;
   const isAuthenticated = authState.isAuthenticated;
 
-  useBackButton(() => navigate('dictionary'));
+  useBackButton(() => goBack());
 
   // Основные данные
   const [data, setData] = useState<ApiWordDetailResponse | null>(null);
@@ -231,7 +231,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
     <div className={cn(theme.backgrounds.primaryGradient, 'min-h-[100dvh] flex flex-col relative overflow-x-hidden')}>
       <StickyHeader
         title={word ? capitalize(word.bur) : 'Слово'}
-        onBack={() => navigate('dictionary')}
+        onBack={() => goBack()}
       />
 
       {/* Декор */}
@@ -246,7 +246,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('dictionary')}
+            onClick={() => goBack()}
             className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
           >
             <ArrowLeft size={22} />
