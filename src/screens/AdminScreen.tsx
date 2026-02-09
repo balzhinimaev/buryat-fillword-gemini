@@ -22,6 +22,7 @@ import {
   Eye,
   Loader2,
   Megaphone,
+  Layers,
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -622,6 +623,14 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
           />
 
           <div className="space-y-2">
+            <NavCard
+              icon={<Layers size={18} className="text-white" />}
+              title="Управление уровнями"
+              subtitle="Создание и редактирование ручных уровней"
+              onClick={() => store.navigateToLevelEditor(null)}
+              isDark={isDark}
+              color={isDark ? "bg-violet-500/30" : "bg-violet-100"}
+            />
             <NavCard
               icon={<Megaphone size={18} className="text-white" />}
               title="Рассылка"

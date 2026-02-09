@@ -24,6 +24,7 @@ import BroadcastScreen from './screens/BroadcastScreen';
 import WordContributionScreen from './screens/WordContributionScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
 import HowToPlayScreen from './screens/HowToPlayScreen';
+import AdminLevelEditorScreen from './screens/AdminLevelEditorScreen';
 
 // Плавный fade переход
 const pageVariants = {
@@ -115,6 +116,8 @@ export default function App() {
         return <BroadcastScreen store={store} />;
       case 'contribute':
         return <WordContributionScreen store={store} />;
+      case 'adminLevelEditor':
+        return <AdminLevelEditorScreen store={store} />;
       default:
         return <MainMenu store={store} />;
     }

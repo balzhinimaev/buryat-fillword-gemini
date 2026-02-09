@@ -21,7 +21,7 @@ import { getMenuStyles } from '../theme/menuStyles';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
-import { api, type CampaignOverviewResponse } from '../services/api';
+import { api, type CampaignOverviewResponse, type LevelModeProgressResponse } from '../services/api';
 
 interface GameModeSelectScreenProps {
   store: GameStore;
@@ -34,17 +34,26 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
   
   useBackButton(() => goBack());
 
-  const totalCompletedLevels = state.endlessProgress.completedLevels.length;
+  // Серверный прогресс уровневого режима
+  const [levelModeProgress, setLevelModeProgress] = useState<LevelModeProgressResponse | null>(null);
+  
+  const totalCompletedLevels = levelModeProgress?.levelsCompleted
+    ?? state.endlessProgress.completedLevels.length;
 
   const [campaignOverview, setCampaignOverview] = useState<CampaignOverviewResponse | null>(null);
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
-        const data = await api.getCampaignOverview();
-        if (isMounted) setCampaignOverview(data);
+        const [campaignData, levelModeData] = await Promise.all([
+          api.getCampaignOverview().catch(() => null),
+          api.getLevelModeProgress().catch(() => null),
+        ]);
+        if (!isMounted) return;
+        if (campaignData) setCampaignOverview(campaignData);
+        if (levelModeData) setLevelModeProgress(levelModeData);
       } catch {
-        if (isMounted) setCampaignOverview(null);
+        // ignore
       }
     })();
     return () => { isMounted = false; };
@@ -228,7 +237,8 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
             <div className="text-right">
               <div className={cn("text-xs", styles.buttons.text.muted)}>Пройдено</div>
               <div className={cn("font-bold", styles.statsCard.text.accent)}>
-                {totalCompletedLevels}/200
+                {totalCompletedLevels}
+                {levelModeProgress ? ` ⭐${levelModeProgress.totalStars}` : '/200'}
               </div>
             </div>
           </div>
@@ -236,8 +246,26 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
           {/* Пакеты уровней */}
           <div className="space-y-3">
             {LEVEL_PACKS.map((pack, index) => {
-              const unlocked = isPackUnlocked(pack);
-              const progress = getPackProgress(pack);
+              // Разблокировка: серверный maxUnlockedLevel или fallback
+              const unlocked = levelModeProgress
+                ? pack.levelStart <= (levelModeProgress.maxUnlockedLevel ?? 1)
+                : isPackUnlocked(pack);
+              
+              // Прогресс: серверные данные или fallback
+              const progress = (() => {
+                if (levelModeProgress?.levels) {
+                  let completed = 0;
+                  let stars = 0;
+                  for (const lvl of levelModeProgress.levels) {
+                    if (lvl.levelNumber >= pack.levelStart && lvl.levelNumber <= pack.levelEnd) {
+                      if (lvl.stars >= 1) completed++;
+                      stars += lvl.stars;
+                    }
+                  }
+                  return { completed, total: pack.levelEnd - pack.levelStart + 1, stars };
+                }
+                return getPackProgress(pack);
+              })();
               const progressPercent = (progress.completed / progress.total) * 100;
               
               return (
@@ -309,7 +337,11 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                         "text-sm truncate",
                         unlocked ? styles.buttons.text.muted : (isDark ? "text-stone-600" : "text-stone-400")
                       )}>
-                        {unlocked ? pack.description : `Нужно пройти ${pack.unlockRequirement} уровней`}
+                        {unlocked 
+                          ? pack.description 
+                          : levelModeProgress 
+                            ? `Пройди уровень ${pack.levelStart - 1}` 
+                            : `Нужно пройти ${pack.unlockRequirement} уровней`}
                       </p>
                       
                       {/* Прогресс */}

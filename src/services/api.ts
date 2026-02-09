@@ -1108,6 +1108,148 @@ export async function getBroadcastDetail(id: string): Promise<BroadcastItem> {
   return apiRequest<BroadcastItem>(`/broadcast/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
+// =========================
+// Level Mode (уровневый режим — player API)
+// =========================
+
+export interface LevelModeProgressLevel {
+  levelNumber: number;
+  stars: number;
+  bestTimeSeconds: number;
+  attempts: number;
+  firstCompletedAt: string;
+}
+
+export interface LevelModeProgressResponse {
+  maxUnlockedLevel: number;
+  maxCompletedLevel: number;
+  totalStars: number;
+  levelsCompleted: number;
+  perfectLevels: number;
+  levels: LevelModeProgressLevel[];
+}
+
+export interface LevelModeLevelWord {
+  bur: string;
+  rus: string;
+  wordId: string;
+}
+
+export interface LevelModeLevelResponse {
+  levelNumber: number;
+  words: LevelModeLevelWord[];
+  gridSize: number;
+  timeLimitSeconds: number;
+  maxStars: number;
+  currentStars: number | null;
+  bestTimeSeconds: number | null;
+  sessionId: string;
+  sessionExpiresAt: string;
+  isManual: boolean;
+}
+
+export interface LevelModeSubmitRequest {
+  timeSeconds: number;
+  sessionId: string;
+  foundWords: string[];
+  mistakes?: number;
+}
+
+export interface LevelModeSubmitResponse {
+  success: boolean;
+  earnedStars: number;
+  isNewStarRecord: boolean;
+  isNewTimeRecord: boolean;
+  previousBestTime: number | null;
+  timeSeconds: number;
+  nextLevelUnlocked: boolean;
+  wordsFound: number;
+  wordsTotal: number;
+  wordsFoundPercent: number;
+  validFoundWords: string[];
+  missedWords: string[];
+  invalidWords: string[] | null;
+  timeLimitSeconds: number;
+  previousBestStars: number | null;
+  attemptNumber: number;
+  xpGained: number;
+  totalXp: number;
+  userLevel: number;
+  leveledUp: boolean;
+  xpReason: string;
+}
+
+export async function getLevelModeProgress(): Promise<LevelModeProgressResponse> {
+  return apiRequest<LevelModeProgressResponse>('/level-mode/progress', { method: 'GET' });
+}
+
+export async function getLevelModeLevel(levelNumber: number): Promise<LevelModeLevelResponse> {
+  return apiRequest<LevelModeLevelResponse>(`/level-mode/levels/${levelNumber}`, { method: 'GET' });
+}
+
+export async function submitLevelModeLevel(
+  levelNumber: number,
+  body: LevelModeSubmitRequest
+): Promise<LevelModeSubmitResponse> {
+  return apiRequest<LevelModeSubmitResponse>(`/level-mode/levels/${levelNumber}/submit`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+// =========================
+// Admin: Level Mode (ручные уровни)
+// =========================
+
+export interface AdminLevel {
+  _id: string;
+  levelNumber: number;
+  words?: string[];     // массив _id из коллекции words (пустой = автогенерация)
+  gridSize?: number;    // 4-10, дефолт 6
+  timeLimitSeconds?: number; // >= 30, дефолт 120
+  wordCount?: number;   // 3-20, для автогенерации
+  maxDifficulty?: number; // 1-10, для автогенерации
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  // Populated слова (если сервер отдаёт)
+  populatedWords?: Array<{ _id: string; bur: string; ru: string }>;
+}
+
+export interface AdminLevelCreateRequest {
+  levelNumber: number;
+  words?: string[];
+  gridSize?: number;
+  timeLimitSeconds?: number;
+  wordCount?: number;
+  maxDifficulty?: number;
+  isActive?: boolean;
+}
+
+export type AdminLevelUpdateRequest = Omit<Partial<AdminLevelCreateRequest>, 'levelNumber'>;
+
+export async function getAdminLevels(): Promise<AdminLevel[]> {
+  return apiRequest<AdminLevel[]>('/level-mode/admin/levels', { method: 'GET' });
+}
+
+export async function createAdminLevel(data: AdminLevelCreateRequest): Promise<AdminLevel> {
+  return apiRequest<AdminLevel>('/level-mode/admin/levels', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateAdminLevel(levelNumber: number, data: AdminLevelUpdateRequest): Promise<AdminLevel> {
+  return apiRequest<AdminLevel>(`/level-mode/admin/levels/${levelNumber}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteAdminLevel(levelNumber: number): Promise<void> {
+  return apiRequest<void>(`/level-mode/admin/levels/${levelNumber}`, { method: 'DELETE' });
+}
+
 // API экспорт
 export const api = {
   telegramAuth,
@@ -1159,6 +1301,17 @@ export const api = {
   previewBroadcast,
   getBroadcastList,
   getBroadcastDetail,
+
+  // Level Mode (player)
+  getLevelModeProgress,
+  getLevelModeLevel,
+  submitLevelModeLevel,
+
+  // Admin: Level Mode
+  getAdminLevels,
+  createAdminLevel,
+  updateAdminLevel,
+  deleteAdminLevel,
 
   // Универсальные методы для других запросов
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),

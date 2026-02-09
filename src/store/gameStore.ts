@@ -107,6 +107,7 @@ const defaultGameState: GameState = {
   selectedEndlessLevel: null,
   selectedWordId: null,
   gameMode: 'campaign',
+  adminEditLevelNumber: null,
   settings: defaultSettings,
   stats: defaultStats,
   levelProgress: {},
@@ -269,6 +270,17 @@ export const useGameStore = () => {
       selectedEndlessLevel: level,
       gameMode: 'endless',
       currentScreen: 'game' 
+    }));
+  }, []);
+
+  // Навигация к редактору уровня (админ)
+  // levelNumber = null → создание нового уровня
+  const navigateToLevelEditor = useCallback((levelNumber: number | null) => {
+    setState(prev => ({
+      ...prev,
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      adminEditLevelNumber: levelNumber,
+      currentScreen: 'adminLevelEditor' as Screen,
     }));
   }, []);
 
@@ -573,6 +585,7 @@ export const useGameStore = () => {
     setGameMode,
     selectLevelPack,
     selectEndlessLevel,
+    navigateToLevelEditor,
     isPackUnlocked,
     getPackProgress,
     completeEndlessLevel,

@@ -74,6 +74,7 @@ export interface GameState {
   selectedEndlessLevel: number | null; // выбранный уровень в бесконечном режиме
   selectedWordId: string | null; // выбранное слово для детальной страницы
   gameMode: GameMode; // текущий режим игры
+  adminEditLevelNumber: number | null; // номер уровня для редактора (null = создание нового)
   settings: GameSettings;
   stats: PlayerStats;
   levelProgress: Record<string, LevelProgress>;
@@ -97,7 +98,8 @@ export type Screen =
   | 'broadcast' // Рассылка сообщений
   | 'contribute' // Үгын Дархан - Словарная мастерская
   | 'onboarding' // Онбординг для новых пользователей
-  | 'howto'; // Обучение "Как играть"
+  | 'howto' // Обучение "Как играть"
+  | 'adminLevelEditor'; // Редактор уровней (админ)
 
 // === Режимы игры ===
 export type GameMode = 'campaign' | 'endless';
