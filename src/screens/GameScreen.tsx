@@ -19,7 +19,7 @@ import {
 import { cn, StarsDisplay } from '../components/ui';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
-import { generateSnakeLevel, generateCampaignLevel, findWordByPath, isPalindromeWord, type PlacedWord } from '../gameEngine';
+import { generateServerLevel, generateCampaignLevel, findWordByPath, isPalindromeWord, type PlacedWord } from '../gameEngine';
 import type { Coord, CellStatus, WordData } from '../types';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
@@ -424,9 +424,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         }))
         .filter(w => w.bur.length >= 2);
 
-      // exactFill = false: слова подобраны сервером, не нужен тяжёлый подбор
+      // Используем быстрый серверный генератор (без тяжёлого межсловного бэктрекинга)
       const result = data.gridSize
-        ? generateSnakeLevel(data.gridSize, words, false)
+        ? generateServerLevel(data.gridSize, words)
         : generateCampaignLevel(words);
 
       setGridLetters(result.grid);
@@ -522,10 +522,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         }))
         .filter(w => w.bur.length >= 2);
 
-      // exactFill = false: слова уже подобраны сервером, не надо
-      // запускать тяжёлый backtracking-подбор комбинаций
+      // Используем быстрый серверный генератор (без тяжёлого межсловного бэктрекинга)
       const result = data.gridSize
-        ? generateSnakeLevel(data.gridSize, words, false)
+        ? generateServerLevel(data.gridSize, words)
         : generateCampaignLevel(words);
 
       setGridLetters(result.grid);

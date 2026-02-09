@@ -533,6 +533,145 @@ export const generateCampaignLevel = (words: WordData[]): GameState => {
   return { grid, placedWords, size: gridSize };
 };
 
+// ============================================================================
+// БЫСТРЫЙ ГЕНЕРАТОР ДЛЯ СЕРВЕРНЫХ РЕЖИМОВ (Daily, Level Mode)
+// ============================================================================
+
+/**
+ * Генерирует уровень для серверных режимов (Филлворд дня, уровневый режим).
+ *
+ * Ключевое отличие от generateSnakeLevel / generateCampaignLevel:
+ * — НЕ использует placeAllWordsBacktracking (NP-hard межсловный бэктрекинг)
+ * — Каждое слово размещается ОТДЕЛЬНО через DFS (без отката между словами)
+ * — Если не удалось — мгновенный fallback на гамильтонову змейку O(n)
+ *
+ * Гарантированное время: O(attempts × words × gridSize² × 4^maxWordLen)
+ * На практике — десятки миллисекунд даже на больших сетках.
+ *
+ * @param gridSize - размер сетки (из API)
+ * @param serverWords - список слов от сервера
+ */
+export const generateServerLevel = (
+  gridSize: number,
+  serverWords: WordData[]
+): GameState => {
+  const ALPHABET = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯӨҮҺ";
+  const corners: Corner[] = ['tl', 'tr', 'bl', 'br'];
+  const axes: SnakeAxis[] = ['row', 'col'];
+
+  // Нормализуем слова
+  const normalizedWords: WordData[] = (serverWords ?? [])
+    .map(w => ({
+      bur: normalizeBurForGrid(w?.bur ?? ''),
+      ru: String(w?.ru ?? '').trim(),
+    }))
+    .filter(w => w.bur.length >= 2);
+
+  if (normalizedWords.length === 0) {
+    return { grid: [[]], placedWords: [], size: gridSize || 1 };
+  }
+
+  // Сортируем: длинные слова первыми (им труднее найти путь)
+  const sortedWords = [...normalizedWords].sort((a, b) => b.bur.length - a.bur.length);
+
+  const allCells: Coord[] = [];
+  for (let r = 0; r < gridSize; r++) {
+    for (let c = 0; c < gridSize; c++) {
+      allCells.push({ r, c });
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Фаза 1: Красивые «завитушки» — индивидуальный DFS для каждого слова
+  // Без межсловного бэктрекинга: если слово не разместилось, пробуем заново
+  // ────────────────────────────────────────────────────────────
+  const MAX_PRETTY_ATTEMPTS = 3;
+
+  for (let attempt = 0; attempt < MAX_PRETTY_ATTEMPTS; attempt++) {
+    const grid: string[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(''));
+    const placedWords: PlacedWord[] = [];
+    let allPlaced = true;
+
+    for (const wordObj of sortedWords) {
+      const word = wordObj.bur.toUpperCase();
+      // Перемешанные стартовые позиции
+      const shuffledCells = [...allCells].sort(() => Math.random() - 0.5);
+      let placed = false;
+
+      for (const { r, c } of shuffledCells) {
+        if (grid[r][c] !== '') continue;
+
+        const path: Coord[] = [];
+        const usedInPath = new Set<string>();
+
+        if (placeWordDFS(grid, word, 0, r, c, path, usedInPath)) {
+          placedWords.push({ word: wordObj, path: [...path] });
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) {
+        allPlaced = false;
+        break;
+      }
+    }
+
+    if (allPlaced) {
+      // Заполняем пустые клетки шумом
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
+          if (grid[r][c] === '') {
+            grid[r][c] = ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+          }
+        }
+      }
+      // Перемешиваем порядок слов в UI
+      const shuffledPlaced = [...placedWords].sort(() => Math.random() - 0.5);
+      return { grid, placedWords: shuffledPlaced, size: gridSize };
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Фаза 2 (fallback): Гамильтонова змейка — гарантированно O(n)
+  // Слова кладутся вдоль зигзагообразного пути по всей сетке
+  // ────────────────────────────────────────────────────────────
+  console.warn(
+    `[generateServerLevel] DFS не смог разместить все слова за ${MAX_PRETTY_ATTEMPTS} попыток. ` +
+    `Используем гамильтонову змейку. Слова: ${normalizedWords.map(w => `${w.bur}(${w.bur.length})`).join(', ')}, ` +
+    `сетка: ${gridSize}×${gridSize} = ${gridSize * gridSize} клеток`
+  );
+
+  const grid: string[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(''));
+  const placedWords: PlacedWord[] = [];
+  const chosenCorner = corners[Math.floor(Math.random() * corners.length)];
+  const chosenAxis = axes[Math.floor(Math.random() * axes.length)];
+  const cells = generateSnakeCellsFromCorner(gridSize, chosenCorner, chosenAxis);
+
+  let cursor = 0;
+  for (const w of normalizedWords) {
+    const word = w.bur;
+    if (cursor + word.length > cells.length) break;
+    const path = cells.slice(cursor, cursor + word.length);
+    for (let i = 0; i < word.length; i++) {
+      grid[path[i].r][path[i].c] = word[i];
+    }
+    placedWords.push({ word: w, path });
+    cursor += word.length;
+  }
+
+  // Шум в пустоты
+  for (let r = 0; r < gridSize; r++) {
+    for (let c = 0; c < gridSize; c++) {
+      if (grid[r][c] === '') {
+        grid[r][c] = ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+      }
+    }
+  }
+
+  return { grid, placedWords, size: gridSize };
+};
+
 /**
  * Генерация с шумом (fallback)
  */
