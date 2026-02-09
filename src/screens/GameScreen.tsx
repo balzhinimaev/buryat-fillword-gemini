@@ -522,14 +522,24 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         }))
         .filter(w => w.bur.length >= 2);
 
-      // Используем быстрый серверный генератор (без тяжёлого межсловного бэктрекинга)
-      const result = data.gridSize
-        ? generateServerLevel(data.gridSize, words)
-        : generateCampaignLevel(words);
-
-      setGridLetters(result.grid);
-      setGridSize(result.size);
-      setPlacedWords(result.placedWords);
+      // Если сервер прислал статичную сетку — используем напрямую (без генерации)
+      if (data.grid && data.wordPlacements && data.grid.length > 0) {
+        const staticPlaced: PlacedWord[] = data.wordPlacements.map(wp => ({
+          word: { bur: wp.bur.toUpperCase(), ru: wp.rus },
+          path: wp.path,
+        }));
+        setGridLetters(data.grid);
+        setGridSize(data.gridSize);
+        setPlacedWords(staticPlaced);
+      } else {
+        // Фоллбэк: генерируем сетку на клиенте
+        const result = data.gridSize
+          ? generateServerLevel(data.gridSize, words)
+          : generateCampaignLevel(words);
+        setGridLetters(result.grid);
+        setGridSize(result.size);
+        setPlacedWords(result.placedWords);
+      }
     } catch (e) {
       setDailyError(errorToMessage(e));
     } finally {

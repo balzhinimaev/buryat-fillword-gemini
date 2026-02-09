@@ -1260,6 +1260,13 @@ export interface DailyWordWord {
   wordId: string;
 }
 
+export interface DailyWordPlacement {
+  wordId: string;
+  bur: string;
+  rus: string;
+  path: Array<{ r: number; c: number }>;
+}
+
 export interface DailyWordTodayResponse {
   date: string;
   words: DailyWordWord[];
@@ -1270,6 +1277,10 @@ export interface DailyWordTodayResponse {
   bestTimeSeconds: number | null;
   sessionId: string;
   sessionExpiresAt: string;
+  /** Статичная сетка, нарисованная админом (если есть) */
+  grid?: string[][];
+  /** Пути слов на сетке (если есть) */
+  wordPlacements?: DailyWordPlacement[];
 }
 
 export interface DailyWordSubmitRequest {
@@ -1335,6 +1346,11 @@ export interface DailyWordItem {
   updatedAt: string;
 }
 
+export interface DailyWordAdminPlacement {
+  wordId: string;
+  path: Array<{ r: number; c: number }>;
+}
+
 export interface DailyWordDetailResponse {
   _id: string;
   date: string;
@@ -1344,6 +1360,10 @@ export interface DailyWordDetailResponse {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Статичная сетка, нарисованная админом */
+  grid?: string[][];
+  /** Пути слов */
+  wordPlacements?: DailyWordAdminPlacement[];
 }
 
 export interface DailyWordCreateRequest {
@@ -1352,6 +1372,10 @@ export interface DailyWordCreateRequest {
   gridSize: number;
   timeLimitSeconds: number;
   isActive?: boolean;
+  /** Статичная сетка */
+  grid?: string[][];
+  /** Пути слов */
+  wordPlacements?: DailyWordAdminPlacement[];
 }
 
 export interface DailyWordUpdateRequest {
@@ -1359,6 +1383,10 @@ export interface DailyWordUpdateRequest {
   gridSize?: number;
   timeLimitSeconds?: number;
   isActive?: boolean;
+  /** Статичная сетка */
+  grid?: string[][];
+  /** Пути слов */
+  wordPlacements?: DailyWordAdminPlacement[];
 }
 
 export async function getDailyWordList(): Promise<DailyWordItem[]> {

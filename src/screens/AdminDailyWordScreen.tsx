@@ -11,7 +11,6 @@ import {
   Loader2,
   AlertTriangle,
   CheckCircle2,
-  // Settings2,
   Grid3X3,
   Clock,
   BookOpen,
@@ -23,6 +22,9 @@ import {
   GripVertical,
   CalendarDays,
   CalendarPlus,
+  Paintbrush,
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -35,9 +37,14 @@ import {
   type DailyWordDetailResponse,
   type DailyWordCreateRequest,
   type DailyWordUpdateRequest,
+  type DailyWordAdminPlacement,
   type ApiWord,
   type ApiWordsResponse,
 } from '../services/api';
+
+// ─── Цвета для слов на сетке ─────────────────────────────────
+const WORD_COLORS = ['#3b82f6','#10b981','#8b5cf6','#ec4899','#06b6d4','#f59e0b','#ef4444','#6366f1','#14b8a6','#f97316'];
+const NOISE_ALPHABET = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯӨҮҺ';
 
 interface AdminDailyWordScreenProps {
   store: GameStore;
@@ -233,6 +240,12 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showWordSearch, setShowWordSearch] = useState(false);
 
+  // ─── Grid editor state ─────────────────────────────────────────
+  const [editorGrid, setEditorGrid] = useState<string[][]>([]);
+  const [placements, setPlacements] = useState<Map<string, { r: number; c: number }[]>>(new Map());
+  const [drawingWordId, setDrawingWordId] = useState<string | null>(null);
+  const [drawingPath, setDrawingPath] = useState<{ r: number; c: number }[]>([]);
+
   // ─── Word search state ──────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ApiWord[]>([]);
@@ -255,6 +268,15 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
     setToast({ message, type });
   }, []);
 
+  // ─── Init empty grid for new daily word ────────────────────────
+  useEffect(() => {
+    if (isNew && editorGrid.length === 0) {
+      const gs = typeof gridSize === 'number' && gridSize >= 4 ? gridSize : 6;
+      setEditorGrid(Array.from({ length: gs }, () => Array(gs).fill('')));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ─── Load existing daily word ──────────────────────────────────
   useEffect(() => {
     if (isNew || !editDate) return;
@@ -274,6 +296,17 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
           setSelectedWords(
             data.words.map((w) => ({ _id: w._id, bur: w.bur, ru: w.ru }))
           );
+        }
+        // Загружаем сетку и размещения из сервера
+        if (data.grid && data.grid.length > 0) {
+          setEditorGrid(data.grid);
+        } else {
+          setEditorGrid(Array.from({ length: data.gridSize }, () => Array(data.gridSize).fill('')));
+        }
+        if (data.wordPlacements && data.wordPlacements.length > 0) {
+          const m = new Map<string, { r: number; c: number }[]>();
+          for (const wp of data.wordPlacements) m.set(wp.wordId, wp.path);
+          setPlacements(m);
         }
       } catch (err) {
         if (isMounted) showToast('Не удалось загрузить филлворд', 'error');
@@ -345,31 +378,167 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
   }, []);
 
   const removeWord = useCallback((id: string) => {
-    setSelectedWords((prev) => prev.filter((w) => w._id !== id));
+    // Убираем размещение слова с сетки
+    const path = placements.get(id);
+    if (path) {
+      setEditorGrid(g => {
+        const ng = g.map(r => [...r]);
+        for (const { r, c } of path) ng[r][c] = '';
+        return ng;
+      });
+      setPlacements(prev => { const n = new Map(prev); n.delete(id); return n; });
+    }
+    if (drawingWordId === id) {
+      setEditorGrid(g => {
+        const ng = g.map(r => [...r]);
+        for (const { r, c } of drawingPath) ng[r][c] = '';
+        return ng;
+      });
+      setDrawingWordId(null);
+      setDrawingPath([]);
+    }
+    setSelectedWords(prev => prev.filter(w => w._id !== id));
+  }, [placements, drawingWordId, drawingPath]);
+
+  // ─── Grid editor logic ──────────────────────────────────────────
+  const totalLetters = useMemo(
+    () => selectedWords.reduce((s, w) => s + w.bur.length, 0),
+    [selectedWords]
+  );
+  const effectiveGridSize = editorGrid.length;
+  const canShowEditor = effectiveGridSize >= 4 && selectedWords.length > 0;
+  const allWordsPlaced = selectedWords.length > 0 && selectedWords.every(w => placements.has(w._id));
+  const gridIsFull = editorGrid.length > 0 && editorGrid.every(row => row.every(cell => cell !== ''));
+
+  const getWordColor = useCallback((wordId: string): string => {
+    const idx = selectedWords.findIndex(w => w._id === wordId);
+    return WORD_COLORS[(idx >= 0 ? idx : 0) % WORD_COLORS.length];
+  }, [selectedWords]);
+
+  const getCellOwner = useCallback((r: number, c: number): string | null => {
+    for (const [wid, path] of placements) {
+      if (path.some(p => p.r === r && p.c === c)) return wid;
+    }
+    if (drawingPath.some(p => p.r === r && p.c === c)) return drawingWordId;
+    return null;
+  }, [placements, drawingPath, drawingWordId]);
+
+  const handleGridSizeChange = useCallback((v: number | '') => {
+    setGridSize(v);
+    if (typeof v === 'number' && v >= 4 && v <= 10) {
+      setEditorGrid(Array.from({ length: v }, () => Array(v).fill('')));
+      setPlacements(new Map());
+      setDrawingWordId(null);
+      setDrawingPath([]);
+    }
   }, []);
+
+  const cancelCurrentDrawing = useCallback(() => {
+    if (!drawingWordId) return;
+    setEditorGrid(g => {
+      const ng = g.map(r => [...r]);
+      for (const { r, c } of drawingPath) ng[r][c] = '';
+      return ng;
+    });
+    setDrawingWordId(null);
+    setDrawingPath([]);
+  }, [drawingWordId, drawingPath]);
+
+  const handleSelectWordForDrawing = useCallback((wordId: string) => {
+    if (drawingWordId === wordId) { cancelCurrentDrawing(); return; }
+    if (drawingWordId) cancelCurrentDrawing();
+    // Если слово уже размещено — снимаем
+    if (placements.has(wordId)) {
+      const path = placements.get(wordId)!;
+      setEditorGrid(g => {
+        const ng = g.map(r => [...r]);
+        for (const { r, c } of path) ng[r][c] = '';
+        return ng;
+      });
+      setPlacements(prev => { const n = new Map(prev); n.delete(wordId); return n; });
+    }
+    setDrawingWordId(wordId);
+    setDrawingPath([]);
+  }, [drawingWordId, placements, cancelCurrentDrawing]);
+
+  const handleCellClick = useCallback((r: number, c: number) => {
+    if (!drawingWordId) return;
+    const word = selectedWords.find(w => w._id === drawingWordId);
+    if (!word) return;
+    const wordText = word.bur.toUpperCase();
+
+    // Клик на последнюю клетку = откат
+    if (drawingPath.length > 0) {
+      const last = drawingPath[drawingPath.length - 1];
+      if (last.r === r && last.c === c) {
+        setDrawingPath(prev => prev.slice(0, -1));
+        setEditorGrid(g => { const ng = g.map(row => [...row]); ng[r][c] = ''; return ng; });
+        return;
+      }
+    }
+    // Проверка: клетка занята другим словом?
+    const owner = getCellOwner(r, c);
+    if (owner && owner !== drawingWordId) return;
+    // Проверка смежности
+    if (drawingPath.length > 0) {
+      const last = drawingPath[drawingPath.length - 1];
+      if (Math.abs(last.r - r) + Math.abs(last.c - c) !== 1) return;
+    }
+    // Уже в пути?
+    if (drawingPath.some(p => p.r === r && p.c === c)) return;
+    // Длина слова
+    if (drawingPath.length >= wordText.length) return;
+
+    const newPath = [...drawingPath, { r, c }];
+    setDrawingPath(newPath);
+    setEditorGrid(g => {
+      const ng = g.map(row => [...row]);
+      ng[r][c] = wordText[newPath.length - 1];
+      return ng;
+    });
+
+    // Авто-завершение при полной длине
+    if (newPath.length === wordText.length) {
+      setPlacements(prev => new Map(prev).set(drawingWordId, newPath));
+      setDrawingWordId(null);
+      setDrawingPath([]);
+    }
+  }, [drawingWordId, drawingPath, selectedWords, getCellOwner]);
+
+  const handleFillNoise = useCallback(() => {
+    setEditorGrid(g => {
+      const ng = g.map(r => [...r]);
+      for (let r = 0; r < ng.length; r++)
+        for (let c = 0; c < ng[r].length; c++)
+          if (ng[r][c] === '') ng[r][c] = NOISE_ALPHABET[Math.floor(Math.random() * NOISE_ALPHABET.length)];
+      return ng;
+    });
+  }, []);
+
+  const handleClearGrid = useCallback(() => {
+    const gs = editorGrid.length;
+    if (!gs) return;
+    setEditorGrid(Array.from({ length: gs }, () => Array(gs).fill('')));
+    setPlacements(new Map());
+    setDrawingWordId(null);
+    setDrawingPath([]);
+  }, [editorGrid.length]);
 
   // ─── Save ─────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
-    if (!date) {
-      showToast('Укажите дату (YYYY-MM-DD)', 'error');
-      return;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      showToast('Формат даты: YYYY-MM-DD', 'error');
-      return;
-    }
-    if (selectedWords.length === 0) {
-      showToast('Добавьте хотя бы одно слово', 'error');
-      return;
-    }
-    if (gridSize === '' || gridSize < 4 || gridSize > 10) {
-      showToast('Размер сетки: от 4 до 10', 'error');
-      return;
-    }
-    if (timeLimitSeconds === '' || timeLimitSeconds < 1) {
-      showToast('Укажите лимит времени', 'error');
-      return;
-    }
+    if (!date) { showToast('Укажите дату (YYYY-MM-DD)', 'error'); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { showToast('Формат даты: YYYY-MM-DD', 'error'); return; }
+    if (selectedWords.length === 0) { showToast('Добавьте хотя бы одно слово', 'error'); return; }
+    if (gridSize === '' || gridSize < 4 || gridSize > 10) { showToast('Размер сетки: от 4 до 10', 'error'); return; }
+    if (timeLimitSeconds === '' || timeLimitSeconds < 1) { showToast('Укажите лимит времени', 'error'); return; }
+    // Валидация сетки: все слова размещены и нет пустых клеток
+    if (!allWordsPlaced) { showToast('Разместите все слова на сетке', 'error'); return; }
+    if (!gridIsFull) { showToast('Заполните пустые клетки шумом', 'error'); return; }
+
+    // Собираем данные сетки
+    const wpData: DailyWordAdminPlacement[] = Array.from(placements.entries()).map(
+      ([wordId, path]) => ({ wordId, path })
+    );
 
     setSaving(true);
     try {
@@ -379,6 +548,8 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
           gridSize: gridSize as number,
           timeLimitSeconds: timeLimitSeconds as number,
           isActive,
+          grid: editorGrid,
+          wordPlacements: wpData,
         };
         await api.updateDailyWord(existingItem.date, update);
         showToast(`Филлворд на ${existingItem.date} обновлён`, 'success');
@@ -389,6 +560,8 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
           gridSize: gridSize as number,
           timeLimitSeconds: timeLimitSeconds as number,
           isActive,
+          grid: editorGrid,
+          wordPlacements: wpData,
         };
         const created = await api.createDailyWord(create);
         setExistingItem(created as unknown as DailyWordDetailResponse);
@@ -401,7 +574,7 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
     } finally {
       setSaving(false);
     }
-  }, [date, gridSize, timeLimitSeconds, isActive, selectedWords, existingItem, showToast]);
+  }, [date, gridSize, timeLimitSeconds, isActive, selectedWords, existingItem, showToast, allWordsPlaced, gridIsFull, placements, editorGrid]);
 
   // ─── Delete ──────────────────────────────────────────────────
   const handleDelete = useCallback(async () => {
@@ -662,12 +835,12 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
           label="Размер сетки"
           icon={<Grid3X3 size={14} className={isDark ? 'text-orange-400' : 'text-orange-600'} />}
           value={gridSize}
-          onChange={setGridSize}
+          onChange={handleGridSizeChange}
           min={4}
           max={10}
           placeholder="6"
           isDark={isDark}
-          hint="4-10, по умолчанию 6"
+          hint="4-10, смена размера сбрасывает сетку"
         />
 
         {/* ═══ Time Limit ═══ */}
@@ -758,20 +931,188 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
           )}>
             <BookOpen size={16} className={isDark ? 'text-amber-400 shrink-0 mt-0.5' : 'text-amber-600 shrink-0 mt-0.5'} />
             <p className={cn('text-xs', isDark ? 'text-amber-300/70' : 'text-amber-700')}>
-              Все игроки в этот день увидят одинаковый набор слов. Один филлворд — одна дата.
+              Нарисуйте сетку ниже — она будет одинаковой для всех игроков.
             </p>
           </div>
         </div>
+
+        {/* ═══ Grid Editor ═══ */}
+        {canShowEditor && (
+          <section className="space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <label className={cn('flex items-center gap-2 text-sm font-medium', isDark ? 'text-white/70' : 'text-stone-600')}>
+                <Paintbrush size={14} className={isDark ? 'text-orange-400' : 'text-orange-600'} />
+                Рисовалка сетки
+              </label>
+              <span className={cn(
+                'text-xs font-medium',
+                totalLetters > effectiveGridSize * effectiveGridSize ? 'text-red-500' : isDark ? 'text-white/40' : 'text-stone-500'
+              )}>
+                {totalLetters} букв / {effectiveGridSize * effectiveGridSize} клеток
+              </span>
+            </div>
+
+            {/* Word palette */}
+            <div className="flex flex-wrap gap-1.5">
+              {selectedWords.map((w, idx) => {
+                const color = WORD_COLORS[idx % WORD_COLORS.length];
+                const isDrawingThis = drawingWordId === w._id;
+                const isPlaced = placements.has(w._id);
+                return (
+                  <button
+                    key={w._id}
+                    onClick={() => handleSelectWordForDrawing(w._id)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border-2 transition-all',
+                      isDrawingThis ? 'scale-105 shadow-lg' : isPlaced ? 'opacity-75' : ''
+                    )}
+                    style={{
+                      borderColor: color,
+                      backgroundColor: isDrawingThis ? `${color}44` : isPlaced ? `${color}18` : `${color}22`,
+                      color: isDark ? '#e5e5e5' : '#1f1f1f',
+                    }}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span className="font-bold">{w.bur}</span>
+                    {isPlaced && <CheckCircle2 size={11} style={{ color }} />}
+                    {isDrawingThis && (
+                      <span style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)' }}>
+                        ({drawingPath.length}/{w.bur.length})
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Drawing hint */}
+            {drawingWordId && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={cn('text-xs px-3 py-2 rounded-lg', isDark ? 'bg-amber-500/10 text-amber-300' : 'bg-amber-50 text-amber-700')}
+              >
+                Рисуйте «{selectedWords.find(w => w._id === drawingWordId)?.bur}» — нажимайте на соседние клетки.
+                Нажмите на последнюю клетку для отмены шага.
+              </motion.div>
+            )}
+
+            {/* Interactive grid */}
+            <div
+              className="grid gap-0.5 mx-auto select-none"
+              style={{
+                gridTemplateColumns: `repeat(${effectiveGridSize}, 1fr)`,
+                maxWidth: `${Math.min(effectiveGridSize * 52, 380)}px`,
+              }}
+            >
+              {editorGrid.map((row, r) =>
+                row.map((cell, c) => {
+                  const isInDrawing = drawingPath.some(p => p.r === r && p.c === c);
+                  const placedOwner = !isInDrawing
+                    ? (() => { for (const [wid, path] of placements) { if (path.some(p => p.r === r && p.c === c)) return wid; } return null; })()
+                    : null;
+                  const color = isInDrawing && drawingWordId
+                    ? getWordColor(drawingWordId)
+                    : placedOwner
+                      ? getWordColor(placedOwner)
+                      : null;
+
+                  // Подсветка соседних клеток для рисования
+                  const isAdjacentHint = !cell && drawingWordId && (
+                    drawingPath.length === 0
+                    || (drawingPath.length > 0 && (() => {
+                        const last = drawingPath[drawingPath.length - 1];
+                        return Math.abs(last.r - r) + Math.abs(last.c - c) === 1;
+                      })())
+                  );
+
+                  return (
+                    <button
+                      key={`${r}-${c}`}
+                      onClick={() => handleCellClick(r, c)}
+                      className={cn(
+                        'aspect-square flex items-center justify-center rounded-md border text-xs sm:text-sm font-bold transition-all',
+                        isDark ? 'border-white/10' : 'border-stone-200',
+                        isAdjacentHint ? (isDark ? 'border-amber-400/40' : 'border-amber-400/50') : '',
+                      )}
+                      style={{
+                        backgroundColor: color
+                          ? `${color}${isInDrawing ? '40' : '25'}`
+                          : cell
+                            ? (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)')
+                            : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)'),
+                        borderColor: color ? `${color}55` : undefined,
+                        color: isDark ? '#e5e5e5' : '#292524',
+                        fontSize: effectiveGridSize >= 8 ? '10px' : undefined,
+                      }}
+                    >
+                      {cell}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Status line */}
+            <div className={cn('text-center text-xs', isDark ? 'text-white/40' : 'text-stone-500')}>
+              {placements.size} / {selectedWords.length} слов размещено
+              {allWordsPlaced && !gridIsFull && ' · заполните шумом ↓'}
+              {allWordsPlaced && gridIsFull && ' · сетка готова ✓'}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={handleFillNoise}
+                disabled={gridIsFull}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                  gridIsFull
+                    ? isDark ? 'bg-white/5 text-white/20' : 'bg-stone-100 text-stone-300'
+                    : isDark ? 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                )}
+              >
+                <Sparkles size={14} />
+                Заполнить шумом
+              </button>
+              <button
+                onClick={handleClearGrid}
+                className={cn(
+                  'flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                  isDark ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25' : 'bg-red-50 text-red-600 hover:bg-red-100'
+                )}
+              >
+                <RotateCcw size={14} />
+                Сброс
+              </button>
+            </div>
+
+            {/* Helper text */}
+            {!drawingWordId && placements.size === 0 && (
+              <div className={cn(
+                'p-3 rounded-xl border flex items-start gap-2',
+                isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'
+              )}>
+                <Paintbrush size={16} className={cn('shrink-0 mt-0.5', isDark ? 'text-blue-400' : 'text-blue-600')} />
+                <p className={cn('text-xs', isDark ? 'text-blue-300/70' : 'text-blue-700')}>
+                  Нажмите на слово, затем рисуйте путь по клеткам. Каждая клетка — соседняя
+                  (↑↓←→). Сетка сохраняется статичной для всех игроков.
+                </p>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* ═══ Save Button ═══ */}
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={handleSave}
-          disabled={saving || !date || selectedWords.length === 0}
+          disabled={saving || !date || selectedWords.length === 0 || !allWordsPlaced || !gridIsFull}
           className={cn(
             'w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200 shadow-lg',
-            saving || !date || selectedWords.length === 0
+            saving || !date || selectedWords.length === 0 || !allWordsPlaced || !gridIsFull
               ? isDark ? 'bg-white/10 text-white/30' : 'bg-stone-200 text-stone-400'
               : isDark
                 ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-orange-500/25 hover:shadow-orange-500/40'
