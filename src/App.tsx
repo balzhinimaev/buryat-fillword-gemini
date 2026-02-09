@@ -25,6 +25,7 @@ import WordContributionScreen from './screens/WordContributionScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
 import HowToPlayScreen from './screens/HowToPlayScreen';
 import AdminLevelEditorScreen from './screens/AdminLevelEditorScreen';
+import AdminDailyWordScreen from './screens/AdminDailyWordScreen';
 
 // Плавный fade переход
 const pageVariants = {
@@ -118,6 +119,8 @@ export default function App() {
         return <WordContributionScreen store={store} />;
       case 'adminLevelEditor':
         return <AdminLevelEditorScreen store={store} />;
+      case 'adminDailyWord':
+        return <AdminDailyWordScreen store={store} />;
       default:
         return <MainMenu store={store} />;
     }

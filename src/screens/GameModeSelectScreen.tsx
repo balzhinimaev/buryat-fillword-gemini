@@ -28,7 +28,7 @@ import { getMenuStyles } from '../theme/menuStyles';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
-import { api, type CampaignOverviewResponse, type LevelModeProgressResponse } from '../services/api';
+import { api, type CampaignOverviewResponse, type LevelModeProgressResponse, type DailyWordTodayResponse } from '../services/api';
 
 interface GameModeSelectScreenProps {
   store: GameStore;
@@ -106,45 +106,54 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
   const isChapter2Live = timeLeft.total <= 0;
   const pad = (n: number) => String(n).padStart(2, '0');
 
-  // ─── Филлворд дня ───
+  // ─── Филлворд дня (API) ───
+  const [dailyData, setDailyData] = useState<DailyWordTodayResponse | null>(null);
+  const [dailyNotFound, setDailyNotFound] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const data = await api.getDailyWordToday();
+        if (isMounted) setDailyData(data);
+      } catch (err) {
+        if (isMounted) {
+          // 404 = на сегодня нет филлворда
+          if ((err as { statusCode?: number })?.statusCode === 404) {
+            setDailyNotFound(true);
+          }
+        }
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
+
   const dailyPuzzle = useMemo(() => {
-    const now = new Date();
-    // Дата по Улан-Удэ (UTC+8): смещаем на 8 часов
-    const ulanUde = new Date(now.getTime() + 8 * 3600_000);
-    const dateStr = ulanUde.toISOString().slice(0, 10); // YYYY-MM-DD
-    const day = ulanUde.getUTCDate();
-    const month = ulanUde.getUTCMonth(); // 0-indexed
+    const dateStr = dailyData?.date ?? (() => {
+      const now = new Date();
+      const uu = new Date(now.getTime() + 8 * 3600_000);
+      return uu.toISOString().slice(0, 10);
+    })();
 
-    // Детерминированный уровень дня из даты (1–200)
-    let hash = 0;
-    for (let i = 0; i < dateStr.length; i++) {
-      hash = ((hash << 5) - hash + dateStr.charCodeAt(i)) | 0;
-    }
-    const levelNumber = (Math.abs(hash) % 200) + 1;
-
+    const [, m, d] = dateStr.split('-').map(Number);
     const monthNames = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
     const weekDays = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
-    const dayOfWeek = new Date(ulanUde.getUTCFullYear(), month, day).getDay();
+    const dt = new Date(dateStr + 'T00:00:00');
+    const dayOfWeek = dt.getDay();
 
     return {
-      level: levelNumber,
-      dateLabel: `${day} ${monthNames[month]}`,
+      dateLabel: `${d} ${monthNames[m - 1]}`,
       weekDay: weekDays[dayOfWeek],
       dateKey: dateStr,
     };
-  }, []);
+  }, [dailyData]);
 
-  // Проверяем, пройден ли филлворд дня (через localStorage)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [dailyCompleted, _setDailyCompleted] = useState(() => {
-    try {
-      return localStorage.getItem('dailyPuzzle_completed') === dailyPuzzle.dateKey;
-    } catch { return false; }
-  });
+  const dailyCompleted = dailyData?.currentStars != null;
+  const dailyStars = dailyData?.currentStars ?? null;
 
   const handleDailyPlay = useCallback(() => {
-    store.selectEndlessLevel(dailyPuzzle.level);
-  }, [store, dailyPuzzle.level]);
+    store.startDailyGame();
+  }, [store]);
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
@@ -340,10 +349,14 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
           transition={{ delay: 0.12 }}
         >
           <motion.button
-            whileHover={{ scale: 1.02, y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleDailyPlay}
-            className="relative w-full rounded-2xl overflow-hidden text-left group"
+            whileHover={!dailyNotFound ? { scale: 1.02, y: -2 } : {}}
+            whileTap={!dailyNotFound ? { scale: 0.98 } : {}}
+            onClick={!dailyNotFound ? handleDailyPlay : undefined}
+            disabled={dailyNotFound}
+            className={cn(
+              "relative w-full rounded-2xl overflow-hidden text-left group",
+              dailyNotFound && "opacity-60"
+            )}
           >
             {/* Фон — тёплый оранжево-янтарный */}
             <div className={cn(
@@ -382,12 +395,16 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <h2 className="font-bold text-base text-white">Филлворд дня</h2>
-                  {dailyCompleted ? (
+                  {dailyNotFound ? (
+                    <span className="px-1.5 py-px bg-white/15 rounded-full text-[10px] text-white/60">
+                      Скоро
+                    </span>
+                  ) : dailyCompleted ? (
                     <span className="px-1.5 py-px bg-white/20 rounded-full text-[10px] text-white/90 flex items-center gap-0.5">
                       <CheckCircle2 size={10} />
-                      Пройден
+                      {dailyStars !== null ? `${dailyStars}★` : 'Пройден'}
                     </span>
-                  ) : (
+                  ) : dailyData ? (
                     <motion.span
                       animate={{ scale: [1, 1.1, 1] }}
                       transition={{ duration: 1.5, repeat: Infinity }}
@@ -396,10 +413,14 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                       <Zap size={10} />
                       Новый!
                     </motion.span>
-                  )}
+                  ) : null}
                 </div>
                 <p className="text-xs text-white/70">
-                  Один паззл для всех — разгадай и сравни результат
+                  {dailyNotFound
+                    ? 'Филлворд дня ещё не готов, загляните позже'
+                    : dailyCompleted
+                      ? 'Улучши результат — переиграй!'
+                      : 'Один паззл для всех — разгадай и сравни результат'}
                 </p>
               </div>
 

@@ -23,7 +23,7 @@ import { generateSnakeLevel, generateCampaignLevel, findWordByPath, isPalindrome
 import type { Coord, CellStatus, WordData } from '../types';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
-import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, type LevelModeLevelResponse, type LevelModeSubmitResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
+import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, type LevelModeLevelResponse, type LevelModeSubmitResponse, type DailyWordTodayResponse, type DailyWordSubmitResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
 import { useAuth } from '../store/authStore';
 
 interface GameScreenProps {
@@ -281,9 +281,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   
   // Определяем режим игры
   const isEndlessMode = state.gameMode === 'endless';
+  const isDailyMode = state.gameMode === 'daily';
   const endlessLevel = state.selectedEndlessLevel || 1;
-  const campaignSlug = !isEndlessMode ? (state.selectedCategory || null) : null;
-  const isCampaignMode = !isEndlessMode;
+  const campaignSlug = (!isEndlessMode && !isDailyMode) ? (state.selectedCategory || null) : null;
+  const isCampaignMode = !isEndlessMode && !isDailyMode;
 
   // Campaign level data (server)
   const [campaignLevel, setCampaignLevel] = useState<CampaignLevelResponse | null>(null);
@@ -302,6 +303,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [levelModeSessionId, setLevelModeSessionId] = useState<string | null>(null);
   const [levelModeResult, setLevelModeResult] = useState<LevelModeSubmitResponse | null>(null);
   const [isLevelModeSubmitting, setIsLevelModeSubmitting] = useState(false);
+
+  // Daily Mode (филлворд дня — server-driven)
+  const [dailyData, setDailyData] = useState<DailyWordTodayResponse | null>(null);
+  const [dailyLoading, setDailyLoading] = useState(false);
+  const [dailyError, setDailyError] = useState<string | null>(null);
+  const [dailySessionId, setDailySessionId] = useState<string | null>(null);
+  const [dailyResult, setDailyResult] = useState<DailyWordSubmitResponse | null>(null);
+  const [isDailySubmitting, setIsDailySubmitting] = useState(false);
 
   const submitInFlightRef = useRef(false);
 
@@ -477,9 +486,63 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     }
   }, [campaignSlug, campaignLevel]);
 
+  // Инициализация филлворда дня (server-driven)
+  const initDailyGame = useCallback(async () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    setDailyLoading(true);
+    setDailyError(null);
+    setDailyData(null);
+    setDailySessionId(null);
+    setDailyResult(null);
+    setIsDailySubmitting(false);
+    submitInFlightRef.current = false;
+
+    setFoundWordIds(new Set());
+    setFoundCellsRegistry(new Map());
+    setShowWinModal(false);
+    setSelectedPath([]);
+    setTime(0);
+    setScore(0);
+    setCombo(0);
+    setMistakes(0);
+    lastFoundTimeRef.current = Date.now();
+    lastFailedAttemptRef.current = null;
+
+    try {
+      const data = await api.getDailyWordToday();
+      setDailyData(data);
+      setDailySessionId(data.sessionId);
+
+      // Маппим слова: API отдаёт поле "rus", наш WordData — "ru"
+      const words: WordData[] = (data.words ?? [])
+        .map(w => ({
+          bur: String(w.bur ?? '').trim().toUpperCase(),
+          ru: String(w.rus ?? '').trim(),
+        }))
+        .filter(w => w.bur.length >= 2);
+
+      const result = data.gridSize
+        ? generateSnakeLevel(data.gridSize, words)
+        : generateCampaignLevel(words);
+
+      setGridLetters(result.grid);
+      setGridSize(result.size);
+      setPlacedWords(result.placedWords);
+    } catch (e) {
+      setDailyError(errorToMessage(e));
+    } finally {
+      setDailyLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isEndlessMode) void initLevelModeGame();
   }, [isEndlessMode, initLevelModeGame]);
+
+  useEffect(() => {
+    if (isDailyMode) void initDailyGame();
+  }, [isDailyMode, initDailyGame]);
 
   useEffect(() => {
     if (isCampaignMode && campaignLevel && campaignSlug) void initCampaignGame();
@@ -505,6 +568,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   useEffect(() => {
     const canRunTimer = !showWinModal && (
       (isEndlessMode && !!levelModeSessionId && !levelModeLoading && !isLevelModeSubmitting) ||
+      (isDailyMode && !!dailySessionId && !dailyLoading && !isDailySubmitting) ||
       (isCampaignMode && !!campaignSessionId && !isCampaignStarting && !isCampaignSubmitting)
     );
 
@@ -516,7 +580,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [showWinModal, isEndlessMode, levelModeSessionId, levelModeLoading, isLevelModeSubmitting, isCampaignMode, campaignSessionId, isCampaignStarting, isCampaignSubmitting]);
+  }, [showWinModal, isEndlessMode, isDailyMode, levelModeSessionId, levelModeLoading, isLevelModeSubmitting, dailySessionId, dailyLoading, isDailySubmitting, isCampaignMode, campaignSessionId, isCampaignStarting, isCampaignSubmitting]);
 
   // Форматирование времени
   const formatTime = (seconds: number) => {
@@ -558,6 +622,34 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     const foundWordsArray = placedWords
       .filter(pw => finalFoundWords.has(pw.word.bur))
       .map(pw => pw.word.bur.toUpperCase());
+
+    if (isDailyMode) {
+      // Отправляем результат на сервер (Daily Word API)
+      if (!dailySessionId) {
+        showToast('Нет сессии филлворда дня');
+        return;
+      }
+      if (submitInFlightRef.current) return;
+      submitInFlightRef.current = true;
+      setIsDailySubmitting(true);
+
+      try {
+        const result = await api.submitDailyWord({
+          sessionId: dailySessionId,
+          timeSeconds: Math.max(1, time),
+          foundWords: foundWordsArray,
+          mistakes: mistakes > 0 ? mistakes : undefined,
+        });
+        setDailyResult(result);
+        setTimeout(() => setShowWinModal(true), 500);
+      } catch (e) {
+        showToast(errorToMessage(e));
+        submitInFlightRef.current = false;
+      } finally {
+        setIsDailySubmitting(false);
+      }
+      return;
+    }
 
     if (isEndlessMode) {
       // Отправляем результат на сервер (Level Mode API)
@@ -670,7 +762,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       if (time < limit) return;
       void finishGame(foundWordIds, 'timeout');
     }
-  }, [isCampaignMode, isEndlessMode, campaignLevel?.timeLimitSeconds, levelModeData?.timeLimitSeconds, time, showWinModal, campaignSessionId, levelModeSessionId, finishGame, foundWordIds]);
+
+    // Daily Mode timeout
+    if (isDailyMode) {
+      const limit = dailyData?.timeLimitSeconds;
+      if (!limit || limit <= 0) return;
+      if (!dailySessionId) return;
+      if (time < limit) return;
+      void finishGame(foundWordIds, 'timeout');
+    }
+  }, [isCampaignMode, isEndlessMode, isDailyMode, campaignLevel?.timeLimitSeconds, levelModeData?.timeLimitSeconds, dailyData?.timeLimitSeconds, time, showWinModal, campaignSessionId, levelModeSessionId, dailySessionId, finishGame, foundWordIds]);
 
   const handlePointerUp = useCallback(() => {
     setIsSelecting(false);
@@ -977,8 +1078,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     };
   }, []);
 
-  // Серверный результат (campaign или level-mode)
-  const serverResult = isEndlessMode ? levelModeResult : campaignResult;
+  // Серверный результат (campaign, level-mode или daily)
+  const serverResult = isDailyMode ? dailyResult : isEndlessMode ? levelModeResult : campaignResult;
   const serverStars = typeof (serverResult as { earnedStars?: number })?.earnedStars === 'number'
     ? (serverResult as { earnedStars?: number }).earnedStars!
     : null;
@@ -993,9 +1094,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     const stars = serverStars ?? (foundWordIds.size === placedWords.length ? 3 : 
           foundWordIds.size >= placedWords.length * 0.7 ? 2 : 1);
     
-    const levelInfo = isEndlessMode 
-      ? `🎮 Уровень ${endlessLevel} ${currentPack?.emoji || ''}` 
-      : `📚 ${campaignLevel?.name ?? campaignSlug ?? ''}`;
+    const levelInfo = isDailyMode
+      ? `📅 Филлворд дня ${dailyData?.date ?? ''}`
+      : isEndlessMode 
+        ? `🎮 Уровень ${endlessLevel} ${currentPack?.emoji || ''}` 
+        : `📚 ${campaignLevel?.name ?? campaignSlug ?? ''}`;
     
     const text = `🎮 Бурятский Филлворд
 ${levelInfo}
@@ -1146,6 +1249,48 @@ ${levelInfo}
       </div>
     );
   }
+
+  // Daily Mode: загрузка / ошибка
+  if (isDailyMode && dailyLoading) {
+    return (
+      <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
+        <p className={styles.categoryTitle.text}>Загрузка филлворда дня…</p>
+      </div>
+    );
+  }
+
+  if (isDailyMode && dailyError) {
+    return (
+      <div className={cn("min-h-[100dvh] flex items-center justify-center p-6 text-center", styles.page.background)}>
+        <div>
+          <p className={cn("mb-2", styles.categoryTitle.text)}>Филлворд дня</p>
+          <p className={cn("text-sm opacity-70 mb-4", styles.categoryTitle.text)}>{dailyError}</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => void initDailyGame()}
+              className={cn("px-4 py-2 rounded-xl transition-colors", styles.headerButton.background, styles.headerButton.backgroundHover, styles.headerButton.text)}
+            >
+              Повторить
+            </button>
+            <button
+              onClick={goBack}
+              className={cn("px-4 py-2 rounded-xl transition-colors", styles.headerButton.background, styles.headerButton.backgroundHover, styles.headerButton.text)}
+            >
+              Назад
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isDailyMode && !dailyData) {
+    return (
+      <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
+        <p className={styles.categoryTitle.text}>Ошибка загрузки филлворда дня</p>
+      </div>
+    );
+  }
   
   // Функция навигации "назад" — возвращает на предыдущий экран
   const handleBack = () => {
@@ -1153,13 +1298,17 @@ ${levelInfo}
   };
   
   // Заголовок для текущего уровня
-  const levelTitle = isEndlessMode 
-    ? `Уровень ${endlessLevel}` 
-    : (campaignLevel?.name ?? campaignSlug ?? '');
+  const levelTitle = isDailyMode
+    ? 'Филлворд дня'
+    : isEndlessMode 
+      ? `Уровень ${endlessLevel}` 
+      : (campaignLevel?.name ?? campaignSlug ?? '');
   
-  const levelEmoji = isEndlessMode 
-    ? currentPack?.emoji || '🎮' 
-    : '📚';
+  const levelEmoji = isDailyMode
+    ? '📅'
+    : isEndlessMode 
+      ? currentPack?.emoji || '🎮' 
+      : '📚';
 
   return (
     <div className={cn(
@@ -1210,7 +1359,7 @@ ${levelInfo}
                 void initCampaignGame();
               }
             }}
-            disabled={isEndlessMode ? (levelModeLoading || isLevelModeSubmitting) : (isCampaignStarting || isCampaignSubmitting)}
+            disabled={isDailyMode ? (dailyLoading || isDailySubmitting) : isEndlessMode ? (levelModeLoading || isLevelModeSubmitting) : (isCampaignStarting || isCampaignSubmitting)}
             className={cn(
               "p-2 rounded-xl active:rotate-180 transition-all duration-300",
               styles.headerButton.background,
@@ -1236,7 +1385,9 @@ ${levelInfo}
                   ? Math.max(0, campaignLevel.timeLimitSeconds - time)
                   : isEndlessMode && typeof levelModeData?.timeLimitSeconds === 'number' && levelModeData.timeLimitSeconds > 0
                     ? Math.max(0, levelModeData.timeLimitSeconds - time)
-                    : time
+                    : isDailyMode && typeof dailyData?.timeLimitSeconds === 'number' && dailyData.timeLimitSeconds > 0
+                      ? Math.max(0, dailyData.timeLimitSeconds - time)
+                      : time
               )}
             </span>
           </div>
@@ -1278,7 +1429,9 @@ ${levelInfo}
             ? (typeof campaignLevel?.timeLimitSeconds === 'number' && campaignLevel.timeLimitSeconds > 0 ? campaignLevel.timeLimitSeconds : 0)
             : isEndlessMode
               ? (typeof levelModeData?.timeLimitSeconds === 'number' && levelModeData.timeLimitSeconds > 0 ? levelModeData.timeLimitSeconds : 0)
-              : 0;
+              : isDailyMode
+                ? (typeof dailyData?.timeLimitSeconds === 'number' && dailyData.timeLimitSeconds > 0 ? dailyData.timeLimitSeconds : 0)
+                : 0;
           if (limit <= 0) return null;
           const remaining = Math.max(0, limit - time);
           const pct = (remaining / limit) * 100;
@@ -1587,8 +1740,19 @@ ${levelInfo}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.45 }}
                   >
-                    {/* Кнопка следующего уровня */}
-                    {isEndlessMode ? (
+                    {/* Кнопка следующего уровня / назад для daily */}
+                    {isDailyMode ? (
+                      <button
+                        onClick={goBack}
+                        className={cn(
+                          "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                          `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
+                        )}
+                      >
+                        <span>К выбору режима</span>
+                        <ChevronRight size={18} />
+                      </button>
+                    ) : isEndlessMode ? (
                       (() => {
                         const nextLevel = endlessLevel + 1;
                         const canGoNext = levelModeResult?.nextLevelUnlocked === true;
@@ -1654,7 +1818,9 @@ ${levelInfo}
                     <div className="flex gap-2">
                       <button 
                         onClick={() => {
-                          if (isEndlessMode) {
+                          if (isDailyMode) {
+                            void initDailyGame();
+                          } else if (isEndlessMode) {
                             void initLevelModeGame();
                           } else {
                             void initCampaignGame();
@@ -1706,7 +1872,7 @@ ${levelInfo}
                         styles.winModal.backLink.textHover
                       )}
                     >
-                      ← {isEndlessMode ? 'К списку уровней' : 'К категориям'}
+                      ← {isDailyMode ? 'К выбору режима' : isEndlessMode ? 'К списку уровней' : 'К категориям'}
                     </button>
                   </motion.div>
                 </motion.div>

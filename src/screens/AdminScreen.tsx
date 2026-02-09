@@ -23,6 +23,7 @@ import {
   Loader2,
   Megaphone,
   Layers,
+  CalendarDays,
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -630,6 +631,14 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
               onClick={() => store.navigateToLevelEditor(null)}
               isDark={isDark}
               color={isDark ? "bg-violet-500/30" : "bg-violet-100"}
+            />
+            <NavCard
+              icon={<CalendarDays size={18} className="text-white" />}
+              title="Филлворд дня"
+              subtitle="Ежедневные паззлы для игроков"
+              onClick={() => store.navigateToDailyWordEditor(null)}
+              isDark={isDark}
+              color={isDark ? "bg-orange-500/30" : "bg-orange-100"}
             />
             <NavCard
               icon={<Megaphone size={18} className="text-white" />}

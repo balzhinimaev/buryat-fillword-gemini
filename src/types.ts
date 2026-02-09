@@ -75,6 +75,7 @@ export interface GameState {
   selectedWordId: string | null; // выбранное слово для детальной страницы
   gameMode: GameMode; // текущий режим игры
   adminEditLevelNumber: number | null; // номер уровня для редактора (null = создание нового)
+  adminEditDailyDate: string | null; // дата для редактора филлворда дня (null = создание нового, 'YYYY-MM-DD' = редактирование)
   settings: GameSettings;
   stats: PlayerStats;
   levelProgress: Record<string, LevelProgress>;
@@ -99,10 +100,11 @@ export type Screen =
   | 'contribute' // Үгын Дархан - Словарная мастерская
   | 'onboarding' // Онбординг для новых пользователей
   | 'howto' // Обучение "Как играть"
-  | 'adminLevelEditor'; // Редактор уровней (админ)
+  | 'adminLevelEditor' // Редактор уровней (админ)
+  | 'adminDailyWord'; // Редактор филлвордов дня (админ)
 
 // === Режимы игры ===
-export type GameMode = 'campaign' | 'endless';
+export type GameMode = 'campaign' | 'endless' | 'daily';
 
 // Пакеты уровней для бесконечного режима
 export interface LevelPack {

@@ -108,6 +108,7 @@ const defaultGameState: GameState = {
   selectedWordId: null,
   gameMode: 'campaign',
   adminEditLevelNumber: null,
+  adminEditDailyDate: null,
   settings: defaultSettings,
   stats: defaultStats,
   levelProgress: {},
@@ -273,6 +274,16 @@ export const useGameStore = () => {
     }));
   }, []);
 
+  // Запуск филлворда дня
+  const startDailyGame = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      gameMode: 'daily',
+      currentScreen: 'game',
+    }));
+  }, []);
+
   // Навигация к редактору уровня (админ)
   // levelNumber = null → создание нового уровня
   const navigateToLevelEditor = useCallback((levelNumber: number | null) => {
@@ -281,6 +292,17 @@ export const useGameStore = () => {
       screenHistory: [...prev.screenHistory, prev.currentScreen],
       adminEditLevelNumber: levelNumber,
       currentScreen: 'adminLevelEditor' as Screen,
+    }));
+  }, []);
+
+  // Навигация к редактору филлворда дня (админ)
+  // date = null → создание нового, 'YYYY-MM-DD' → редактирование
+  const navigateToDailyWordEditor = useCallback((date: string | null) => {
+    setState(prev => ({
+      ...prev,
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      adminEditDailyDate: date,
+      currentScreen: 'adminDailyWord' as Screen,
     }));
   }, []);
 
@@ -585,7 +607,9 @@ export const useGameStore = () => {
     setGameMode,
     selectLevelPack,
     selectEndlessLevel,
+    startDailyGame,
     navigateToLevelEditor,
+    navigateToDailyWordEditor,
     isPackUnlocked,
     getPackProgress,
     completeEndlessLevel,

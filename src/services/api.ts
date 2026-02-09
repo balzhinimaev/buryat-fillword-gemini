@@ -1250,6 +1250,143 @@ export async function deleteAdminLevel(levelNumber: number): Promise<void> {
   return apiRequest<void>(`/level-mode/admin/levels/${levelNumber}`, { method: 'DELETE' });
 }
 
+// =========================
+// Daily Word (player — Филлворд дня)
+// =========================
+
+export interface DailyWordWord {
+  bur: string;
+  rus: string;
+  wordId: string;
+}
+
+export interface DailyWordTodayResponse {
+  date: string;
+  words: DailyWordWord[];
+  gridSize: number;
+  timeLimitSeconds: number;
+  maxStars: number;
+  currentStars: number | null;
+  bestTimeSeconds: number | null;
+  sessionId: string;
+  sessionExpiresAt: string;
+}
+
+export interface DailyWordSubmitRequest {
+  sessionId: string;
+  timeSeconds: number;
+  foundWords: string[];
+  mistakes?: number;
+}
+
+export interface DailyWordSubmitResponse {
+  success: boolean;
+  date: string;
+  earnedStars: number;
+  isNewStarRecord: boolean;
+  isNewTimeRecord: boolean;
+  previousBestTime: number | null;
+  timeSeconds: number;
+  wordsFound: number;
+  wordsTotal: number;
+  wordsFoundPercent: number;
+  validFoundWords: string[];
+  missedWords: string[] | null;
+  invalidWords: string[] | null;
+  timeLimitSeconds: number;
+  previousBestStars: number | null;
+  attemptNumber: number;
+  xpGained: number;
+  totalXp: number;
+  userLevel: number;
+  leveledUp: boolean;
+  xpReason?: string;
+}
+
+export async function getDailyWordToday(): Promise<DailyWordTodayResponse> {
+  return apiRequest<DailyWordTodayResponse>('/daily-word/today', { method: 'GET' });
+}
+
+export async function submitDailyWord(body: DailyWordSubmitRequest): Promise<DailyWordSubmitResponse> {
+  return apiRequest<DailyWordSubmitResponse>('/daily-word/today/submit', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+// =========================
+// Admin: Daily Word (Филлворд дня)
+// =========================
+
+export interface DailyWordPopulatedWord {
+  _id: string;
+  bur: string;
+  ru: string;
+}
+
+export interface DailyWordItem {
+  _id: string;
+  date: string; // YYYY-MM-DD
+  words: string[] | DailyWordPopulatedWord[];
+  gridSize: number;
+  timeLimitSeconds: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DailyWordDetailResponse {
+  _id: string;
+  date: string;
+  words: DailyWordPopulatedWord[];
+  gridSize: number;
+  timeLimitSeconds: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DailyWordCreateRequest {
+  date: string; // YYYY-MM-DD
+  words: string[]; // word IDs
+  gridSize: number;
+  timeLimitSeconds: number;
+  isActive?: boolean;
+}
+
+export interface DailyWordUpdateRequest {
+  words?: string[];
+  gridSize?: number;
+  timeLimitSeconds?: number;
+  isActive?: boolean;
+}
+
+export async function getDailyWordList(): Promise<DailyWordItem[]> {
+  return apiRequest<DailyWordItem[]>('/daily-word/admin/list', { method: 'GET' });
+}
+
+export async function getDailyWordByDate(date: string): Promise<DailyWordDetailResponse> {
+  return apiRequest<DailyWordDetailResponse>(`/daily-word/admin/${encodeURIComponent(date)}`, { method: 'GET' });
+}
+
+export async function createDailyWord(data: DailyWordCreateRequest): Promise<DailyWordItem> {
+  return apiRequest<DailyWordItem>('/daily-word/admin', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateDailyWord(date: string, data: DailyWordUpdateRequest): Promise<DailyWordItem> {
+  return apiRequest<DailyWordItem>(`/daily-word/admin/${encodeURIComponent(date)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteDailyWord(date: string): Promise<void> {
+  return apiRequest<void>(`/daily-word/admin/${encodeURIComponent(date)}`, { method: 'DELETE' });
+}
+
 // API экспорт
 export const api = {
   telegramAuth,
@@ -1312,6 +1449,17 @@ export const api = {
   createAdminLevel,
   updateAdminLevel,
   deleteAdminLevel,
+
+  // Daily Word (player)
+  getDailyWordToday,
+  submitDailyWord,
+
+  // Admin: Daily Word
+  getDailyWordList,
+  getDailyWordByDate,
+  createDailyWord,
+  updateDailyWord,
+  deleteDailyWord,
 
   // Универсальные методы для других запросов
   get: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'GET' }),
