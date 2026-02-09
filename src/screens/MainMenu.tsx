@@ -1,6 +1,6 @@
 // src/screens/MainMenu.tsx
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, 
   Settings, 
@@ -160,6 +160,17 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const isAdmin = authState.user?.role === 'admin';
   const [totalVerifiedWords, setTotalVerifiedWords] = useState<number | null>(null);
   const [showStatsTooltip, setShowStatsTooltip] = useState(false);
+  const [showDonateBtn, setShowDonateBtn] = useState(true);
+
+  // Скрываем кнопку 💸 когда прокручено дальше шапки (~250px)
+  const handleScroll = useCallback(() => {
+    setShowDonateBtn(window.scrollY < 150);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
 
   // Обновляем данные пользователя при монтировании компонента
   useEffect(() => {
@@ -209,6 +220,63 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           }} 
         />
       </div>
+
+      {/* Плавающие кнопки — fixed, исчезают при скролле ниже шапки */}
+      <AnimatePresence>
+        {showDonateBtn && (
+          <div className="fixed top-4 right-4 z-50 flex flex-col items-center gap-2">
+            {/* Поддержать проект */}
+            <motion.button
+              onClick={() => navigate('support')}
+              className="cursor-pointer"
+              initial={{ opacity: 0, scale: 0, rotate: -30 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, scale: 0, rotate: 30 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <motion.span
+                className="text-3xl block drop-shadow-lg select-none"
+                animate={{
+                  y: [0, -4, 0],
+                  rotate: [0, -6, 6, -3, 0],
+                }}
+                transition={{
+                  y: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+                  rotate: { duration: 3, repeat: Infinity, ease: 'easeInOut' },
+                }}
+              >
+                💸
+              </motion.span>
+            </motion.button>
+
+            {/* Телеграм-канал */}
+            <motion.button
+              onClick={() => openLink('https://t.me/bur_live')}
+              className="cursor-pointer"
+              initial={{ opacity: 0, scale: 0, rotate: 30 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, scale: 0, rotate: -30 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12, delay: 0.1 }}
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <motion.span
+                className="text-[1.65rem] block drop-shadow-lg select-none"
+                animate={{
+                  y: [0, -3, 0],
+                }}
+                transition={{
+                  y: { duration: 2.5, repeat: Infinity, ease: 'easeInOut', delay: 0.3 },
+                }}
+              >
+                📰
+              </motion.span>
+            </motion.button>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Header */}
       <FillwordHeader styles={styles} isDark={isDark} />
@@ -510,6 +578,30 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             >
               →
             </motion.div>
+          </motion.button>
+
+          {/* Поддержать проект */}
+          <motion.button
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('support')}
+            className={cn(
+              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
+              styles.buttons.card.background,
+              styles.buttons.card.border,
+              "hover:border-rose-500/50"
+            )}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.52 }}
+          >
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform bg-rose-500/15">
+              <Heart size={22} className="text-rose-500" />
+            </div>
+            <div className="text-left flex-1">
+              <div className={cn("font-semibold", styles.buttons.text.primary)}>Поддержать проект</div>
+              <div className={cn("text-sm", styles.buttons.text.muted)}>На развитие приложения</div>
+            </div>
           </motion.button>
 
           {/* Вопросы и ответы */}

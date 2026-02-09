@@ -101,7 +101,8 @@ export type Screen =
   | 'onboarding' // Онбординг для новых пользователей
   | 'howto' // Обучение "Как играть"
   | 'adminLevelEditor' // Редактор уровней (админ)
-  | 'adminDailyWord'; // Редактор филлвордов дня (админ)
+  | 'adminDailyWord' // Редактор филлвордов дня (админ)
+  | 'support'; // Поддержать проект
 
 // === Режимы игры ===
 export type GameMode = 'campaign' | 'endless' | 'daily';
