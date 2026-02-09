@@ -1,6 +1,6 @@
 // src/screens/GameModeSelectScreen.tsx
-import React, { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, 
   BookOpen, 
@@ -12,7 +12,14 @@ import {
   Settings,
   Trophy,
   Crown,
-  Medal
+  Medal,
+  Clock,
+  Sparkles,
+  Flame,
+  CheckCircle2,
+  CalendarDays,
+  Play,
+  Zap
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -72,6 +79,72 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
     }
     return Math.min(100, (state.stats.totalStars / 36) * 100);
   }, [campaignOverview, state.stats.totalStars]);
+
+  // ─── Countdown до «Второй главы» ───
+  // 11 февраля 20:00 по Улан-Удэ (UTC+8)
+  const CHAPTER2_DATE = useMemo(() => new Date('2026-02-11T20:00:00+08:00'), []);
+
+  const calcTimeLeft = useCallback(() => {
+    const diff = CHAPTER2_DATE.getTime() - Date.now();
+    if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0, total: 0 };
+    return {
+      days: Math.floor(diff / 86_400_000),
+      hours: Math.floor((diff / 3_600_000) % 24),
+      minutes: Math.floor((diff / 60_000) % 60),
+      seconds: Math.floor((diff / 1_000) % 60),
+      total: diff,
+    };
+  }, [CHAPTER2_DATE]);
+
+  const [timeLeft, setTimeLeft] = useState(calcTimeLeft);
+
+  useEffect(() => {
+    const id = setInterval(() => setTimeLeft(calcTimeLeft()), 1000);
+    return () => clearInterval(id);
+  }, [calcTimeLeft]);
+
+  const isChapter2Live = timeLeft.total <= 0;
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  // ─── Филлворд дня ───
+  const dailyPuzzle = useMemo(() => {
+    const now = new Date();
+    // Дата по Улан-Удэ (UTC+8): смещаем на 8 часов
+    const ulanUde = new Date(now.getTime() + 8 * 3600_000);
+    const dateStr = ulanUde.toISOString().slice(0, 10); // YYYY-MM-DD
+    const day = ulanUde.getUTCDate();
+    const month = ulanUde.getUTCMonth(); // 0-indexed
+
+    // Детерминированный уровень дня из даты (1–200)
+    let hash = 0;
+    for (let i = 0; i < dateStr.length; i++) {
+      hash = ((hash << 5) - hash + dateStr.charCodeAt(i)) | 0;
+    }
+    const levelNumber = (Math.abs(hash) % 200) + 1;
+
+    const monthNames = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const weekDays = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+    const dayOfWeek = new Date(ulanUde.getUTCFullYear(), month, day).getDay();
+
+    return {
+      level: levelNumber,
+      dateLabel: `${day} ${monthNames[month]}`,
+      weekDay: weekDays[dayOfWeek],
+      dateKey: dateStr,
+    };
+  }, []);
+
+  // Проверяем, пройден ли филлворд дня (через localStorage)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [dailyCompleted, _setDailyCompleted] = useState(() => {
+    try {
+      return localStorage.getItem('dailyPuzzle_completed') === dailyPuzzle.dateKey;
+    } catch { return false; }
+  });
+
+  const handleDailyPlay = useCallback(() => {
+    store.selectEndlessLevel(dailyPuzzle.level);
+  }, [store, dailyPuzzle.level]);
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
@@ -155,51 +228,251 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
       {/* Main content */}
       <main className="flex-1 px-5 pb-6 relative z-10 space-y-6">
         
-        {/* Режим Кампания */}
+        {/* ═══════════════ Вторая глава — Countdown ═══════════════ */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
+          <div className="relative w-full rounded-2xl overflow-hidden">
+            {/* Фон */}
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700" />
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+            {/* Шиммер */}
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent"
+              animate={{ x: ['-100%', '200%'] }}
+              transition={{ duration: 4, repeat: Infinity, repeatDelay: 3, ease: 'easeInOut' }}
+            />
+            {/* Декоративные круги */}
+            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/[0.05] blur-2xl" />
+            <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-purple-400/10 blur-2xl" />
+            {/* Декоративные звёзды */}
+            <Sparkles className="absolute top-3 right-3 text-white/15" size={28} />
+            <Flame className="absolute bottom-3 right-10 text-orange-300/10" size={22} />
+
+            <div className="relative z-10 p-5">
+              {/* Заголовок */}
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="font-bold text-xl text-white">Вторая глава</h2>
+                <motion.span
+                  animate={{ opacity: [1, 0.6, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="px-2 py-0.5 bg-orange-400/20 border border-orange-400/30 rounded-full text-[11px] font-semibold text-orange-200"
+                >
+                  СКОРО
+                </motion.span>
+              </div>
+              <p className="text-sm text-white/70 mb-4">
+                Новые слова, сложные уровни и настоящий вызов для носителей языка
+              </p>
+
+              {/* Countdown */}
+              {!isChapter2Live ? (
+                <div className="flex items-center gap-2">
+                  {([
+                    { value: timeLeft.days, label: 'дн' },
+                    { value: timeLeft.hours, label: 'ч' },
+                    { value: timeLeft.minutes, label: 'мин' },
+                    { value: timeLeft.seconds, label: 'сек' },
+                  ] as const).map((unit, i) => (
+                    <React.Fragment key={unit.label}>
+                      {i > 0 && (
+                        <motion.span
+                          animate={{ opacity: [1, 0.3, 1] }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                          className="text-white/40 font-bold text-lg -mx-0.5 select-none"
+                        >
+                          :
+                        </motion.span>
+                      )}
+                      <div className="flex-1 flex flex-col items-center">
+                        <div className={cn(
+                          "w-full py-2 rounded-xl text-center font-mono font-bold text-2xl text-white",
+                          "bg-white/10 backdrop-blur-sm border border-white/10",
+                          "shadow-lg shadow-black/10"
+                        )}>
+                          <AnimatePresence mode="popLayout">
+                            <motion.span
+                              key={unit.value}
+                              initial={{ y: -16, opacity: 0 }}
+                              animate={{ y: 0, opacity: 1 }}
+                              exit={{ y: 16, opacity: 0 }}
+                              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+                              className="inline-block"
+                            >
+                              {pad(unit.value)}
+                            </motion.span>
+                          </AnimatePresence>
+                        </div>
+                        <span className="text-[10px] text-white/50 mt-1 uppercase tracking-wider">
+                          {unit.label}
+                        </span>
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </div>
+              ) : (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full py-3 rounded-xl bg-white/20 backdrop-blur text-white font-bold text-center"
+                >
+                  Начать Вторую главу
+                </motion.button>
+              )}
+
+              {/* Дата запуска — улан-удэнское время (UTC+8) */}
+              <div className="flex items-center justify-center gap-1.5 mt-3">
+                <Clock size={12} className="text-white/40" />
+                <span className="text-[11px] text-white/40">
+                  Запуск: 11 февраля 2026 в 20:00 по Улан-Удэ
+                </span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ═══════════════ Филлворд дня ═══════════════ */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+        >
+          <motion.button
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleDailyPlay}
+            className="relative w-full rounded-2xl overflow-hidden text-left group"
+          >
+            {/* Фон — тёплый оранжево-янтарный */}
+            <div className={cn(
+              "absolute inset-0",
+              isDark
+                ? "bg-gradient-to-r from-amber-700/80 via-orange-600/80 to-rose-600/70"
+                : "bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500"
+            )} />
+            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent" />
+
+            {/* Шиммер */}
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+              animate={{ x: ['-100%', '200%'] }}
+              transition={{ duration: 3, repeat: Infinity, repeatDelay: 5, ease: 'easeInOut' }}
+            />
+
+            {/* Декор */}
+            <CalendarDays className="absolute top-3 right-3 text-white/10" size={48} />
+
+            <div className="relative z-10 p-4 flex items-center gap-3.5">
+              {/* Дата-блок */}
+              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex flex-col items-center justify-center shadow-inner shrink-0">
+                <span className="text-[10px] font-semibold text-white/70 uppercase leading-none">
+                  {dailyPuzzle.weekDay.slice(0, 2)}
+                </span>
+                <span className="text-xl font-black text-white leading-tight">
+                  {dailyPuzzle.dateLabel.split(' ')[0]}
+                </span>
+                <span className="text-[9px] font-medium text-white/60 uppercase leading-none">
+                  {dailyPuzzle.dateLabel.split(' ')[1]}
+                </span>
+              </div>
+
+              {/* Инфо */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h2 className="font-bold text-base text-white">Филлворд дня</h2>
+                  {dailyCompleted ? (
+                    <span className="px-1.5 py-px bg-white/20 rounded-full text-[10px] text-white/90 flex items-center gap-0.5">
+                      <CheckCircle2 size={10} />
+                      Пройден
+                    </span>
+                  ) : (
+                    <motion.span
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      className="px-1.5 py-px bg-white/20 rounded-full text-[10px] font-semibold text-yellow-100 flex items-center gap-0.5"
+                    >
+                      <Zap size={10} />
+                      Новый!
+                    </motion.span>
+                  )}
+                </div>
+                <p className="text-xs text-white/70">
+                  Один паззл для всех — разгадай и сравни результат
+                </p>
+              </div>
+
+              {/* Кнопка-play */}
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-110",
+                "bg-white/20 backdrop-blur-sm"
+              )}>
+                <Play size={18} className="text-white ml-0.5" fill="white" />
+              </div>
+            </div>
+          </motion.button>
+        </motion.div>
+
+        {/* ═══════════════ Первая глава (Обучение) ═══════════════ */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => navigate('levels')}
-            className="relative w-full p-5 rounded-2xl overflow-hidden group text-left"
+            className="relative w-full p-4 rounded-2xl overflow-hidden group text-left"
           >
-            {/* Фон градиент */}
-            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 transition-all duration-300" />
-            <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" />
+            {/* Фон — более приглушённый, «пройденный» */}
+            <div className={cn(
+              "absolute inset-0 transition-all duration-300",
+              isDark
+                ? "bg-gradient-to-r from-emerald-800/60 via-teal-800/60 to-cyan-800/60"
+                : "bg-gradient-to-r from-emerald-500/80 via-teal-500/80 to-cyan-500/80"
+            )} />
+            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
             
-            {/* Декоративные элементы */}
-            <GraduationCap className="absolute top-3 right-3 text-white/20" size={32} />
+            {/* Декоративный элемент */}
+            <GraduationCap className="absolute top-2.5 right-2.5 text-white/15" size={28} />
+            {campaignProgressPercent >= 100 && (
+              <CheckCircle2 className="absolute bottom-2.5 right-2.5 text-white/15" size={22} />
+            )}
             
-            <div className="relative z-10 flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-inner">
-                <BookOpen size={32} className="text-white" />
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center shadow-inner shrink-0">
+                <BookOpen size={24} className="text-white" />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h2 className="font-bold text-xl text-white">Кампания</h2>
-                  <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs text-white/90">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h2 className="font-bold text-base text-white">Первая глава</h2>
+                  <span className="px-1.5 py-px bg-white/15 rounded-full text-[10px] text-white/80">
                     Обучение
                   </span>
                 </div>
-                <p className="text-sm text-white/80 mb-2">
-                  Изучай слова по категориям: животные, еда, числа и другие темы
+                <p className="text-xs text-white/65 mb-1.5">
+                  Базовые темы: животные, еда, числа и другое
                 </p>
-                <div className="flex items-center justify-between gap-3 text-xs text-white/70">
-                  <div className="flex items-center gap-2">
-                    <Star size={14} className="fill-current" />
-                    <span>{campaignStarsText} ⭐</span>
+                <div className="flex items-center gap-3 text-[11px] text-white/60">
+                  <div className="flex items-center gap-1">
+                    <Star size={12} className="fill-current" />
+                    <span>{campaignStarsText}</span>
                   </div>
-                  <span className="text-white/60">
-                    {campaignProgressPercent.toFixed(2)}%
-                  </span>
+                  <div className={cn(
+                    "flex-1 h-1 rounded-full overflow-hidden max-w-[120px]",
+                    "bg-white/10"
+                  )}>
+                    <div
+                      className="h-full rounded-full bg-white/40"
+                      style={{ width: `${Math.min(100, campaignProgressPercent)}%` }}
+                    />
+                  </div>
+                  <span>{campaignProgressPercent.toFixed(0)}%</span>
                 </div>
               </div>
-              <ChevronRight size={24} className="text-white/60" />
+              <ChevronRight size={20} className="text-white/40 shrink-0" />
             </div>
           </motion.button>
         </motion.div>
