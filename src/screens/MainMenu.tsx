@@ -1,5 +1,5 @@
 // src/screens/MainMenu.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Play, 
@@ -20,6 +20,7 @@ import { getMenuStyles } from '../theme/menuStyles';
 import { cn } from '../components/ui';
 import { useTelegram } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
+import { getWordsStats } from '../services/api';
 
 interface MainMenuProps {
   store: GameStore;
@@ -157,6 +158,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const { openLink } = useTelegram();
   const { state: authState, refreshUser } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
+  const [totalVerifiedWords, setTotalVerifiedWords] = useState<number | null>(null);
+  const [showStatsTooltip, setShowStatsTooltip] = useState(false);
 
   // Обновляем данные пользователя при монтировании компонента
   useEffect(() => {
@@ -164,6 +167,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
       refreshUser();
     }
   }, [authState.isAuthenticated, refreshUser]);
+
+  // Загружаем актуальное количество верифицированных слов из API
+  useEffect(() => {
+    getWordsStats()
+      .then((data) => setTotalVerifiedWords(data.verified))
+      .catch(() => {});
+  }, []);
 
   // Streak — берём из бэка или fallback на локальное
   const currentStreak = authState.user?.streak?.current ?? stats.currentStreak;
@@ -307,24 +317,62 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 
           {/* Статистика и Рекорды */}
           <div className="grid grid-cols-2 gap-3">
-            <motion.button
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate('stats')}
-              className={cn(
-                "p-4 rounded-2xl border transition-all group",
-                styles.buttons.card.background,
-                styles.buttons.card.border,
-                styles.buttons.card.borderHover
+            <div className="relative">
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowStatsTooltip(true);
+                  setTimeout(() => setShowStatsTooltip(false), 2500);
+                }}
+                className={cn(
+                  "w-full p-4 rounded-2xl border transition-all cursor-not-allowed relative overflow-hidden",
+                  styles.buttons.card.background,
+                  styles.buttons.card.border,
+                )}
+              >
+                <div className="relative opacity-40 grayscale">
+                  <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center mb-2", styles.buttons.iconColors.stats.bg)}>
+                    <BarChart3 size={22} className={styles.buttons.iconColors.stats.icon} />
+                  </div>
+                  <div className="text-left">
+                    <div className={cn("font-semibold", styles.buttons.text.primary)}>Статистика</div>
+                  </div>
+                </div>
+
+                {/* Бейдж "Скоро" */}
+                <div className={cn(
+                  "absolute bottom-3 right-3 z-20 px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide",
+                  isDark
+                    ? "bg-zinc-700 text-zinc-400"
+                    : "bg-zinc-200 text-zinc-500"
+                )}>
+                  Скоро
+                </div>
+              </motion.button>
+
+              {/* Тултип "В разработке" */}
+              {showStatsTooltip && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  className={cn(
+                    "absolute -top-11 left-1/2 -translate-x-1/2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap z-50 shadow-xl",
+                    isDark
+                      ? "bg-zinc-700 text-zinc-100 border border-zinc-600"
+                      : "bg-zinc-800 text-white"
+                  )}
+                >
+                  В разработке
+                  {/* Стрелочка тултипа */}
+                  <div className={cn(
+                    "absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45",
+                    isDark ? "bg-zinc-700 border-r border-b border-zinc-600" : "bg-zinc-800"
+                  )} />
+                </motion.div>
               )}
-            >
-              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform", styles.buttons.iconColors.stats.bg)}>
-                <BarChart3 size={22} className={styles.buttons.iconColors.stats.icon} />
-              </div>
-              <div className="text-left">
-                <div className={cn("font-semibold", styles.buttons.text.primary)}>Статистика</div>
-              </div>
-            </motion.button>
+            </div>
 
             <motion.button
               whileHover={{ scale: 1.02, y: -2 }}
@@ -363,7 +411,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             </div>
             <div className="text-left flex-1">
               <div className={cn("font-semibold", styles.buttons.text.primary)}>Словарь</div>
-              <div className={cn("text-sm", styles.buttons.text.muted)}>{stats.learnedWords.length} из {getAllWordsCount()} слов</div>
+              <div className={cn("text-sm", styles.buttons.text.muted)}>{stats.learnedWords.length} из {totalVerifiedWords ?? '...'} слов</div>
             </div>
           </motion.button>
 
@@ -524,9 +572,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 };
 
 // Helpers
-function getAllWordsCount(): number {
-  return 95;
-}
 
 function getDaysWord(count: number): string {
   const lastDigit = count % 10;
