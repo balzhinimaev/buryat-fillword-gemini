@@ -424,9 +424,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         }))
         .filter(w => w.bur.length >= 2);
 
-      // Используем сервер-provided gridSize или generateCampaignLevel для точного расчёта
+      // exactFill = false: слова подобраны сервером, не нужен тяжёлый подбор
       const result = data.gridSize
-        ? generateSnakeLevel(data.gridSize, words)
+        ? generateSnakeLevel(data.gridSize, words, false)
         : generateCampaignLevel(words);
 
       setGridLetters(result.grid);
@@ -522,8 +522,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         }))
         .filter(w => w.bur.length >= 2);
 
+      // exactFill = false: слова уже подобраны сервером, не надо
+      // запускать тяжёлый backtracking-подбор комбинаций
       const result = data.gridSize
-        ? generateSnakeLevel(data.gridSize, words)
+        ? generateSnakeLevel(data.gridSize, words, false)
         : generateCampaignLevel(words);
 
       setGridLetters(result.grid);
