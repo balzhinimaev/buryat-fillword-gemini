@@ -1744,6 +1744,51 @@ ${levelInfo}
                     </div>
                   </motion.div>
                   
+                  {/* Список найденных / пропущенных слов (только daily) */}
+                  {isDailyMode && dailyResult && (dailyResult.validFoundWords?.length || dailyResult.missedWords?.length) && (
+                    <motion.div
+                      className="relative z-10 px-5 pb-2"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                    >
+                      <div className={cn(
+                        "rounded-xl border overflow-hidden text-xs",
+                        styles.winModal.statCard.background,
+                        styles.winModal.statCard.border
+                      )}>
+                        {/* Найденные слова */}
+                        {dailyResult.validFoundWords?.length > 0 && (
+                          <div className="px-3 pt-2 pb-1">
+                            <div className={cn("text-[10px] uppercase tracking-wider mb-1 font-semibold", styles.winModal.statCard.label)}>
+                              Найдено ✓
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                              {dailyResult.validFoundWords.map((w, i) => (
+                                <span key={i} className={cn("tabular-nums", styles.winModal.statCard.valueWords)}>
+                                  {w.bur} <span className={cn("opacity-60", styles.winModal.statCard.label)}>— {w.rus}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Пропущенные слова — только русский */}
+                        {dailyResult.missedWords && dailyResult.missedWords.length > 0 && (
+                          <div className={cn("px-3 pb-2", dailyResult.validFoundWords?.length ? "pt-1" : "pt-2")}>
+                            <div className={cn("text-[10px] uppercase tracking-wider mb-1 font-semibold opacity-60", styles.winModal.statCard.label)}>
+                              Не найдено ✗
+                            </div>
+                            <div className={cn("flex flex-wrap gap-x-3 gap-y-0.5 opacity-70", styles.winModal.statCard.valueDefault)}>
+                              {dailyResult.missedWords.map((w, i) => (
+                                <span key={i}>{w.rus}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+
                   {/* Кнопки */}
                   <motion.div 
                     className="relative z-10 px-5 pb-5 space-y-2"

@@ -1290,6 +1290,11 @@ export interface DailyWordSubmitRequest {
   mistakes?: number;
 }
 
+export interface DailyWordSubmitWordInfo {
+  bur: string;
+  rus: string;
+}
+
 export interface DailyWordSubmitResponse {
   success: boolean;
   date: string;
@@ -1301,8 +1306,8 @@ export interface DailyWordSubmitResponse {
   wordsFound: number;
   wordsTotal: number;
   wordsFoundPercent: number;
-  validFoundWords: string[];
-  missedWords: string[] | null;
+  validFoundWords: DailyWordSubmitWordInfo[];
+  missedWords: DailyWordSubmitWordInfo[] | null;
   invalidWords: string[] | null;
   timeLimitSeconds: number;
   previousBestStars: number | null;
