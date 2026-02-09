@@ -1271,6 +1271,49 @@ ${levelInfo}
           </div>
           <span className={cn("text-sm font-bold", styles.progress.text)}>{foundWordIds.size}/{placedWords.length}</span>
         </div>
+
+        {/* Timer Progress */}
+        {(() => {
+          const limit = isCampaignMode
+            ? (typeof campaignLevel?.timeLimitSeconds === 'number' && campaignLevel.timeLimitSeconds > 0 ? campaignLevel.timeLimitSeconds : 0)
+            : isEndlessMode
+              ? (typeof levelModeData?.timeLimitSeconds === 'number' && levelModeData.timeLimitSeconds > 0 ? levelModeData.timeLimitSeconds : 0)
+              : 0;
+          if (limit <= 0) return null;
+          const remaining = Math.max(0, limit - time);
+          const pct = (remaining / limit) * 100;
+          const fillClass = pct > 50
+            ? styles.timerProgress.fill
+            : pct > 25
+              ? styles.timerProgress.fillWarning
+              : styles.timerProgress.fillDanger;
+          const textClass = pct > 50
+            ? styles.timerProgress.text
+            : pct > 25
+              ? styles.timerProgress.textWarning
+              : styles.timerProgress.textDanger;
+          return (
+            <div className="mt-1.5 flex items-center gap-3">
+              <div className={cn("flex-1 h-2 rounded-full overflow-hidden", styles.timerProgress.track)}>
+                <div 
+                  className={cn(
+                    "h-full transition-[width] duration-1000 ease-linear",
+                    fillClass,
+                    pct <= 25 && "animate-pulse"
+                  )}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <span className={cn(
+                "text-xs font-bold font-mono min-w-[40px] text-right",
+                textClass,
+                pct <= 25 && "animate-pulse"
+              )}>
+                {formatTime(remaining)}
+              </span>
+            </div>
+          );
+        })()}
       </header>
 
       {/* Grid */}
@@ -1338,7 +1381,7 @@ ${levelInfo}
               ))}
             </div>
 
-            {(isCampaignStarting || isCampaignSubmitting || isLevelModeSubmitting) && (
+            {isCampaignStarting && (
               <div className={cn(
                 "absolute inset-0 rounded-2xl flex items-center justify-center",
                 "bg-black/30 backdrop-blur-sm"
@@ -1347,7 +1390,7 @@ ${levelInfo}
                   "px-4 py-2 rounded-xl text-sm font-semibold",
                   "bg-white/10 text-white"
                 )}>
-                  {(isCampaignSubmitting || isLevelModeSubmitting) ? 'Отправляем результат…' : 'Готовим уровень…'}
+                  Готовим уровень…
                 </div>
               </div>
             )}
@@ -1431,260 +1474,244 @@ ${levelInfo}
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }}
-            className={cn("absolute inset-0 z-50 flex items-center justify-center p-4", styles.winModal.overlay)}
+            className={cn("absolute inset-0 z-50 flex flex-col", styles.winModal.overlay)}
           >
-            <motion.div 
-              initial={{ scale: 0.8, y: 20 }} 
-              animate={{ scale: 1, y: 0 }}
-              transition={{ type: "spring", duration: 0.5 }}
-              className={cn(
-                "rounded-3xl p-6 text-center w-full max-w-sm shadow-2xl relative overflow-hidden",
-                styles.winModal.cardGradient,
-                styles.winModal.cardBorder
-              )}
-            >
-              {/* Декоративный фон */}
-              <div className="absolute inset-0 opacity-30">
-                <div className={cn("absolute top-0 left-1/4 w-32 h-32 rounded-full blur-3xl", styles.winModal.decorOrb1)} />
-                <div className={cn("absolute bottom-0 right-1/4 w-24 h-24 rounded-full blur-3xl", styles.winModal.decorOrb2)} />
-              </div>
-              
-              <div className="relative z-10">
-                {/* Иконка с анимацией */}
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <div className="min-h-full flex items-center justify-center p-4 py-6">
                 <motion.div 
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", delay: 0.2, duration: 0.6 }}
+                  initial={{ scale: 0.9, y: 30 }} 
+                  animate={{ scale: 1, y: 0 }}
+                  transition={{ type: "spring", duration: 0.5, bounce: 0.2 }}
                   className={cn(
-                    "w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5 shadow-lg",
-                    styles.winModal.trophyGradient,
-                    styles.winModal.trophyShadow
+                    "rounded-2xl w-full max-w-sm shadow-2xl relative overflow-hidden",
+                    styles.winModal.cardGradient,
+                    styles.winModal.cardBorder
                   )}
                 >
-                  <Trophy size={44} className={cn("drop-shadow-md", styles.winModal.trophyIcon)} />
-                </motion.div>
-                
-                {/* Заголовок */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <Sparkles size={20} className={styles.winModal.titleIcon} />
-                    <h2 className={cn("text-3xl font-bold", styles.winModal.titleGradient)}>
-                      Бэрхэ!
-                    </h2>
-                    <Sparkles size={20} className={styles.winModal.titleIcon} />
+                  {/* Декоративный фон */}
+                  <div className="absolute inset-0 opacity-20 pointer-events-none">
+                    <div className={cn("absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl", styles.winModal.decorOrb1)} />
+                    <div className={cn("absolute -bottom-10 -right-10 w-32 h-32 rounded-full blur-3xl", styles.winModal.decorOrb2)} />
                   </div>
-                  <p className={cn("mb-4", styles.winModal.subtitle)}>
-                    Поздравляем! Вы отлично справились 🎉
-                  </p>
-                </motion.div>
-                
-                {/* Звёзды */}
-                <motion.div 
-                  className="flex justify-center mb-5"
-                  initial={{ opacity: 0, scale: 0.5 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <StarsDisplay stars={calculateStars()} size={36} />
-                </motion.div>
-                
-                {/* Статистика */}
-                <motion.div 
-                  className="grid grid-cols-2 gap-2 mb-5"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  <div className={cn(
-                    "rounded-xl p-3 border",
-                    styles.winModal.statCard.background,
-                    styles.winModal.statCard.border
-                  )}>
-                    <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>
-                      ⏱️ Время{serverTimeSeconds !== null ? ' (сервер)' : ''}
-                    </div>
-                    <div className={cn("text-lg font-bold", styles.winModal.statCard.valueDefault)}>
-                      {formatTime(serverTimeSeconds ?? time)}
-                    </div>
-                  </div>
-                  <div className={cn(
-                    "rounded-xl p-3 border",
-                    styles.winModal.statCard.background,
-                    styles.winModal.statCard.border
-                  )}>
-                    <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>🏆 Очки</div>
-                    <div className={cn("text-lg font-bold", styles.winModal.statCard.valueScore)}>{score}</div>
-                  </div>
-                  <div className={cn(
-                    "rounded-xl p-3 border",
-                    styles.winModal.statCard.background,
-                    styles.winModal.statCard.border
-                  )}>
-                    <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>📖 Слов найдено</div>
-                    <div className={cn("text-lg font-bold", styles.winModal.statCard.valueWords)}>{foundWordIds.size}/{placedWords.length}</div>
-                  </div>
-                  <div className={cn(
-                    "rounded-xl p-3 border",
-                    styles.winModal.statCard.background,
-                    styles.winModal.statCard.border
-                  )}>
-                    <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>🔥 Макс. комбо</div>
-                    <div className={cn("text-lg font-bold", styles.winModal.statCard.valueCombo)}>×{combo}</div>
+                  
+                  {/* Компактный хедер с трофеем и заголовком в одну линию */}
+                  <div className="relative z-10 px-5 pt-5 pb-3">
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.15 }}
+                      className="flex items-center gap-3"
+                    >
+                      <motion.div 
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: "spring", delay: 0.2, duration: 0.5 }}
+                        className={cn(
+                          "w-12 h-12 rounded-xl flex items-center justify-center shadow-lg shrink-0",
+                          styles.winModal.trophyGradient,
+                          styles.winModal.trophyShadow
+                        )}
+                      >
+                        <Trophy size={24} className={cn("drop-shadow-md", styles.winModal.trophyIcon)} />
+                      </motion.div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h2 className={cn("text-2xl font-bold", styles.winModal.titleGradient)}>
+                            Бэрхэ!
+                          </h2>
+                          <Sparkles size={16} className={styles.winModal.titleIcon} />
+                        </div>
+                        <p className={cn("text-sm truncate", styles.winModal.subtitle)}>
+                          Отлично справились!
+                        </p>
+                      </div>
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.3 }}
+                      >
+                        <StarsDisplay stars={calculateStars()} size={24} />
+                      </motion.div>
+                    </motion.div>
                   </div>
 
-                  {serverXpGained !== null && (
+                  {/* Статистика — горизонтальная полоска */}
+                  <motion.div 
+                    className="relative z-10 px-5 pb-3"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35 }}
+                  >
                     <div className={cn(
-                      "rounded-xl p-3 border",
+                      "flex items-center justify-between rounded-xl px-3 py-2.5 border",
                       styles.winModal.statCard.background,
                       styles.winModal.statCard.border
                     )}>
-                      <div className={cn("text-xs mb-0.5", styles.winModal.statCard.label)}>✨ XP</div>
-                      <div className={cn("text-lg font-bold", styles.winModal.statCard.valueDefault)}>
-                        +{serverXpGained}
+                      <div className="flex flex-col items-center flex-1">
+                        <span className={cn("text-[10px] uppercase tracking-wider", styles.winModal.statCard.label)}>Время</span>
+                        <span className={cn("text-base font-bold tabular-nums", styles.winModal.statCard.valueDefault)}>
+                          {formatTime(serverTimeSeconds ?? time)}
+                        </span>
                       </div>
+                      <div className={cn("w-px h-7 opacity-20", isDark ? "bg-white" : "bg-black")} />
+                      <div className="flex flex-col items-center flex-1">
+                        <span className={cn("text-[10px] uppercase tracking-wider", styles.winModal.statCard.label)}>Очки</span>
+                        <span className={cn("text-base font-bold tabular-nums", styles.winModal.statCard.valueScore)}>{score}</span>
+                      </div>
+                      <div className={cn("w-px h-7 opacity-20", isDark ? "bg-white" : "bg-black")} />
+                      <div className="flex flex-col items-center flex-1">
+                        <span className={cn("text-[10px] uppercase tracking-wider", styles.winModal.statCard.label)}>Слова</span>
+                        <span className={cn("text-base font-bold tabular-nums", styles.winModal.statCard.valueWords)}>{foundWordIds.size}/{placedWords.length}</span>
+                      </div>
+                      <div className={cn("w-px h-7 opacity-20", isDark ? "bg-white" : "bg-black")} />
+                      <div className="flex flex-col items-center flex-1">
+                        <span className={cn("text-[10px] uppercase tracking-wider", styles.winModal.statCard.label)}>Комбо</span>
+                        <span className={cn("text-base font-bold tabular-nums", styles.winModal.statCard.valueCombo)}>x{combo}</span>
+                      </div>
+                      {serverXpGained !== null && (
+                        <>
+                          <div className={cn("w-px h-7 opacity-20", isDark ? "bg-white" : "bg-black")} />
+                          <div className="flex flex-col items-center flex-1">
+                            <span className={cn("text-[10px] uppercase tracking-wider", styles.winModal.statCard.label)}>XP</span>
+                            <span className={cn("text-base font-bold tabular-nums", styles.winModal.statCard.valueDefault)}>+{serverXpGained}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  )}
-                </motion.div>
-                
-                {/* Кнопки */}
-                <motion.div 
-                  className="space-y-2"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  {/* Кнопка следующего уровня */}
-                  {isEndlessMode ? (
-                    // Уровневый режим — переход к следующему уровню
-                    (() => {
-                      const nextLevel = endlessLevel + 1;
-                      // Сервер сообщает, разблокирован ли следующий уровень
-                      const canGoNext = levelModeResult?.nextLevelUnlocked === true;
-                      
-                      return (
-                        <button 
-                          onClick={() => canGoNext && selectEndlessLevel(nextLevel)}
-                          disabled={!canGoNext}
-                          className={cn(
-                            "w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
-                            canGoNext 
-                              ? `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
-                              : styles.winModal.nextLevelButton.disabled
-                          )}
-                        >
-                          {canGoNext ? (
-                            <>
-                              <span>Уровень {nextLevel}</span>
+                  </motion.div>
+                  
+                  {/* Кнопки */}
+                  <motion.div 
+                    className="relative z-10 px-5 pb-5 space-y-2"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.45 }}
+                  >
+                    {/* Кнопка следующего уровня */}
+                    {isEndlessMode ? (
+                      (() => {
+                        const nextLevel = endlessLevel + 1;
+                        const canGoNext = levelModeResult?.nextLevelUnlocked === true;
+                        
+                        return (
+                          <button 
+                            onClick={() => canGoNext && selectEndlessLevel(nextLevel)}
+                            disabled={!canGoNext}
+                            className={cn(
+                              "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                              canGoNext 
+                                ? `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
+                                : styles.winModal.nextLevelButton.disabled
+                            )}
+                          >
+                            {canGoNext ? (
+                              <>
+                                <span>Уровень {nextLevel}</span>
+                                <ChevronRight size={18} />
+                              </>
+                            ) : (
+                              <>
+                                <Lock size={16} />
+                                <span>Нужно найти больше слов</span>
+                              </>
+                            )}
+                          </button>
+                        );
+                      })()
+                    ) : (
+                      (() => {
+                        const nextSlug = campaignResult?.unlockedLevelSlugs?.[0];
+                        if (nextSlug) {
+                          return (
+                            <button
+                              onClick={() => store.selectCategory(nextSlug)}
+                              className={cn(
+                                "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                                `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
+                              )}
+                            >
+                              <span>Следующий уровень</span>
                               <ChevronRight size={18} />
-                            </>
-                          ) : (
-                            <>
-                              <Lock size={16} />
-                              <span>Нужно найти больше слов</span>
-                            </>
-                          )}
-                        </button>
-                      );
-                    })()
-                  ) : (
-                    // Кампания (server): если сервер сообщил, что открылся новый уровень — предлагаем перейти
-                    (() => {
-                      const nextSlug = campaignResult?.unlockedLevelSlugs?.[0];
-                      if (nextSlug) {
+                            </button>
+                          );
+                        }
+
                         return (
                           <button
-                            onClick={() => store.selectCategory(nextSlug)}
+                            onClick={() => navigate('levels')}
                             className={cn(
-                              "w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                              "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
                               `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
                             )}
                           >
-                            <span>Новый уровень</span>
-                            <span className="text-white/80 text-sm">({nextSlug})</span>
+                            <span>К списку уровней</span>
                             <ChevronRight size={18} />
                           </button>
                         );
-                      }
-
-                      return (
-                        <button
-                          onClick={() => navigate('levels')}
-                          className={cn(
-                            "w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
-                            `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
-                          )}
-                        >
-                          <span>К списку уровней</span>
-                          <ChevronRight size={18} />
-                        </button>
-                      );
-                    })()
-                  )}
-                  
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => {
-                        if (isEndlessMode) {
-                          void initLevelModeGame();
-                        } else {
-                          void initCampaignGame();
-                        }
-                      }}
-                      className={cn(
-                        "flex-1 py-3 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2",
-                        styles.winModal.secondaryButton.background,
-                        styles.winModal.secondaryButton.backgroundHover,
-                        styles.winModal.secondaryButton.text
-                      )}
-                    >
-                      <RotateCcw size={16} />
-                      Ещё раз
-                    </button>
-                    <button 
-                      onClick={shareResult}
-                      className={cn(
-                        "flex-1 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
-                        styles.winModal.secondaryButton.background,
-                        styles.winModal.secondaryButton.backgroundHover,
-                        styles.winModal.secondaryButton.text
-                      )}
-                    >
-                      <Share2 size={16} />
-                      Поделиться
-                    </button>
-                  </div>
-                  
-                  {/* Admin: кнопка редактирования уровня */}
-                  {isAdmin && isEndlessMode && (
-                    <button
-                      onClick={() => navigateToLevelEditor(endlessLevel)}
-                      className={cn(
-                        "w-full py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors",
-                        "bg-violet-500/20 hover:bg-violet-500/30 text-violet-400"
-                      )}
-                    >
-                      <Settings2 size={16} />
-                      Настроить уровень
-                    </button>
-                  )}
-
-                  <button 
-                    onClick={handleBack}
-                    className={cn(
-                      "w-full py-3 font-medium transition-colors",
-                      styles.winModal.backLink.text,
-                      styles.winModal.backLink.textHover
+                      })()
                     )}
-                  >
-                    ← {isEndlessMode ? 'К списку уровней' : 'К категориям'}
-                  </button>
+                    
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => {
+                          if (isEndlessMode) {
+                            void initLevelModeGame();
+                          } else {
+                            void initCampaignGame();
+                          }
+                        }}
+                        className={cn(
+                          "flex-1 py-2.5 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 text-sm",
+                          styles.winModal.secondaryButton.background,
+                          styles.winModal.secondaryButton.backgroundHover,
+                          styles.winModal.secondaryButton.text
+                        )}
+                      >
+                        <RotateCcw size={15} />
+                        Ещё раз
+                      </button>
+                      <button 
+                        onClick={shareResult}
+                        className={cn(
+                          "flex-1 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200 text-sm",
+                          styles.winModal.secondaryButton.background,
+                          styles.winModal.secondaryButton.backgroundHover,
+                          styles.winModal.secondaryButton.text
+                        )}
+                      >
+                        <Share2 size={15} />
+                        Поделиться
+                      </button>
+                    </div>
+                    
+                    {/* Admin: кнопка редактирования уровня */}
+                    {isAdmin && isEndlessMode && (
+                      <button
+                        onClick={() => navigateToLevelEditor(endlessLevel)}
+                        className={cn(
+                          "w-full py-2 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors text-sm",
+                          "bg-violet-500/20 hover:bg-violet-500/30 text-violet-400"
+                        )}
+                      >
+                        <Settings2 size={14} />
+                        Настроить уровень
+                      </button>
+                    )}
+
+                    <button 
+                      onClick={handleBack}
+                      className={cn(
+                        "w-full py-2 text-sm font-medium transition-colors",
+                        styles.winModal.backLink.text,
+                        styles.winModal.backLink.textHover
+                      )}
+                    >
+                      ← {isEndlessMode ? 'К списку уровней' : 'К категориям'}
+                    </button>
+                  </motion.div>
                 </motion.div>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

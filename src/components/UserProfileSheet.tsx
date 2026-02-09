@@ -17,6 +17,7 @@ interface UserProfileSheetProps {
 // XP type labels
 const XP_TYPE_LABELS: Record<string, { label: string; emoji: string }> = {
   campaign_level_complete: { label: 'Прохождение уровней', emoji: '🎮' },
+  level_mode_complete: { label: 'Уровневый режим', emoji: '🏅' },
   campaign_star_record: { label: 'Рекорд звёзд', emoji: '⭐' },
   campaign_time_record: { label: 'Рекорд времени', emoji: '⏱️' },
   word_added: { label: 'Добавление слов', emoji: '📝' },
@@ -427,6 +428,23 @@ const HistoryItem: React.FC<HistoryItemProps> = ({ item, isDark, theme }) => {
     const isFirst = meta.isFirstComplete as boolean | undefined;
 
     title = levelName ? `${levelName}` : info.label;
+    if (stars != null) chips.push(<span key="s" className="text-amber-500">{starsText(stars)}</span>);
+    if (timeSeconds != null) chips.push(<span key="t">{formatTime(timeSeconds)}</span>);
+    if (isFirst) chips.push(
+      <span key="f" className={cn(
+        'px-1 py-px rounded font-medium',
+        isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-600',
+      )}>
+        первое
+      </span>
+    );
+  } else if (item.type === 'level_mode_complete' && meta) {
+    const levelNumber = meta.levelNumber as number | undefined;
+    const stars = meta.stars as number | undefined;
+    const timeSeconds = meta.timeSeconds as number | undefined;
+    const isFirst = meta.isFirstComplete as boolean | undefined;
+
+    title = levelNumber != null ? `Уровень ${levelNumber}` : info.label;
     if (stars != null) chips.push(<span key="s" className="text-amber-500">{starsText(stars)}</span>);
     if (timeSeconds != null) chips.push(<span key="t">{formatTime(timeSeconds)}</span>);
     if (isFirst) chips.push(

@@ -53,11 +53,22 @@ export interface GameThemeStyles {
     text: string;
   };
   
-  // Прогресс-бар
+  // Прогресс-бар (слова)
   progress: {
     track: string;
     fill: string;
     text: string;
+  };
+  
+  // Прогресс-бар таймера
+  timerProgress: {
+    track: string;
+    fill: string;           // > 50% времени
+    fillWarning: string;    // 25–50% времени
+    fillDanger: string;     // < 25% времени
+    text: string;
+    textWarning: string;
+    textDanger: string;
   };
   
   // Сетка (грид)
@@ -211,6 +222,16 @@ const steppeGameStyles: GameThemeStyles = {
     text: 'text-amber-400',
   },
   
+  timerProgress: {
+    track: 'bg-stone-700/50',
+    fill: 'bg-gradient-to-r from-emerald-500 to-green-400',
+    fillWarning: 'bg-gradient-to-r from-yellow-500 to-amber-400',
+    fillDanger: 'bg-gradient-to-r from-red-500 to-rose-400',
+    text: 'text-emerald-400',
+    textWarning: 'text-yellow-400',
+    textDanger: 'text-red-400',
+  },
+  
   grid: {
     background: 'bg-stone-800/80 backdrop-blur-sm',
     gap: 'gap-1.5',
@@ -345,6 +366,16 @@ const lightGameStyles: GameThemeStyles = {
     track: 'bg-stone-200',
     fill: 'bg-gradient-to-r from-amber-500 via-orange-500 to-red-500',
     text: 'text-amber-600',
+  },
+  
+  timerProgress: {
+    track: 'bg-stone-200',
+    fill: 'bg-gradient-to-r from-emerald-500 to-green-400',
+    fillWarning: 'bg-gradient-to-r from-yellow-500 to-amber-400',
+    fillDanger: 'bg-gradient-to-r from-red-500 to-rose-400',
+    text: 'text-emerald-600',
+    textWarning: 'text-yellow-600',
+    textDanger: 'text-red-600',
   },
   
   grid: {
@@ -482,7 +513,17 @@ const darkGameStyles: GameThemeStyles = {
     fill: 'bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500',
     text: 'text-cyan-400',
   },
-  
+
+  timerProgress: {
+    track: 'bg-slate-700/50',
+    fill: 'bg-gradient-to-r from-emerald-500 to-green-400',
+    fillWarning: 'bg-gradient-to-r from-yellow-500 to-amber-400',
+    fillDanger: 'bg-gradient-to-r from-red-500 to-rose-400',
+    text: 'text-emerald-400',
+    textWarning: 'text-yellow-400',
+    textDanger: 'text-red-400',
+  },
+
   grid: {
     background: 'bg-slate-800/80 backdrop-blur-sm',
     gap: 'gap-1.5',

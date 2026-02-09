@@ -177,8 +177,17 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
   }, [type, period, fetchLeaderboard]);
 
   const currentUserId = authState.user?._id;
-  const entries = data?.entries ?? [];
-  const currentUser = data?.currentUser ?? null;
+  const HIDDEN_USERNAMES = new Set(['frntdev']);
+  const isHiddenUser = (username?: string | null) => {
+    if (!username) return false;
+    return HIDDEN_USERNAMES.has(username.replace(/^@/, ''));
+  };
+  const entries = (data?.entries ?? []).filter(e => !isHiddenUser(e.telegramUsername));
+  const currentUser = (() => {
+    const u = data?.currentUser ?? null;
+    if (u && isHiddenUser(u.telegramUsername)) return null;
+    return u;
+  })();
 
   // Подпись значения
   const getValueSuffix = () => {
