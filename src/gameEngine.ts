@@ -56,7 +56,8 @@ const isValid = (r: number, c: number, size: number) =>
   r >= 0 && r < size && c >= 0 && c < size;
 
 // DFS для размещения одного слова змейкой (с backtracking внутри слова)
-// Добавили bias на "завитушки": чаще поворачиваем, чем идём прямо.
+// turnBias управляет вероятностью поворота: 0 = всегда прямо, 1 = всегда поворот.
+// Рандомизация turnBias для разных слов даёт более разнообразные формы путей.
 const placeWordDFS = (
   grid: string[][],
   word: string,
@@ -65,7 +66,8 @@ const placeWordDFS = (
   c: number,
   path: Coord[],
   usedInPath: Set<string>,
-  prevDir: { dr: number; dc: number } | null = null
+  prevDir: { dr: number; dc: number } | null = null,
+  turnBias: number = 0.7
 ): boolean => {
   // Слово полностью размещено
   if (pos === word.length) return true;
@@ -94,7 +96,7 @@ const placeWordDFS = (
 
     const isSame = (a: { dr: number; dc: number }, b: { dr: number; dc: number }) => a.dr === b.dr && a.dc === b.dc;
     const turns = dirs.filter(d => !isSame(d, straight) && !isSame(d, backDir)).sort(() => Math.random() - 0.5);
-    const preferTurn = Math.random() < 0.7;
+    const preferTurn = Math.random() < turnBias;
 
     // Строим порядок попыток: повороты, затем прямой ход, затем "назад" (последним)
     const ordered: { dr: number; dc: number }[] = [];
@@ -111,7 +113,7 @@ const placeWordDFS = (
 
   // Пробуем продолжить в каждом направлении
   for (const { dr, dc } of shuffledDirs) {
-    if (placeWordDFS(grid, word, pos + 1, r + dr, c + dc, path, usedInPath, { dr, dc })) {
+    if (placeWordDFS(grid, word, pos + 1, r + dr, c + dc, path, usedInPath, { dr, dc }, turnBias)) {
       return true;
     }
   }
@@ -500,14 +502,18 @@ export const generateCampaignLevel = (words: WordData[]): GameState => {
     return { grid, placedWords: shuffledPlaced, size: gridSize };
   }
 
-  // Фолбек: если внезапно не получилось — делаем гарантированное заполнение змейкой,
-  // но тоже не всегда одной и той же.
+  // Фолбек: случайный гамильтонов путь (Варнсдорф) вместо предсказуемого зигзага.
+  // Если Варнсдорф не смог — откат на зигзаг.
+  const randomPath = generateRandomHamiltonianPath(gridSize);
+  const cells = randomPath ?? (() => {
+    const axes: SnakeAxis[] = ['row', 'col'];
+    const chosenCorner = corners[Math.floor(Math.random() * corners.length)];
+    const chosenAxis = axes[Math.floor(Math.random() * axes.length)];
+    return generateSnakeCellsFromCorner(gridSize, chosenCorner, chosenAxis);
+  })();
+
   const grid: string[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(''));
   const placedWords: PlacedWord[] = [];
-  const axes: SnakeAxis[] = ['row', 'col'];
-  const chosenCorner = corners[Math.floor(Math.random() * corners.length)];
-  const chosenAxis = axes[Math.floor(Math.random() * axes.length)];
-  const cells = generateSnakeCellsFromCorner(gridSize, chosenCorner, chosenAxis);
 
   let cursor = 0;
   for (const w of normalizedWords) {
@@ -531,6 +537,75 @@ export const generateCampaignLevel = (words: WordData[]): GameState => {
   }
 
   return { grid, placedWords, size: gridSize };
+};
+
+// ============================================================================
+// СЛУЧАЙНЫЙ ГАМИЛЬТОНОВ ПУТЬ (Алгоритм Варнсдорфа)
+// ============================================================================
+
+/**
+ * Одна попытка построить гамильтонов путь из случайной клетки,
+ * используя жадную эвристику Варнсдорфа: на каждом шаге идём
+ * в соседа с наименьшим числом свободных ходов (break ties randomly).
+ *
+ * Результат: массив Coord, покрывающий все gridSize² клеток, или null.
+ */
+const tryHamiltonianPath = (gridSize: number): Coord[] | null => {
+  const totalCells = gridSize * gridSize;
+  const visited: boolean[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
+  const path: Coord[] = [];
+
+  // Случайная стартовая клетка
+  const startR = Math.floor(Math.random() * gridSize);
+  const startC = Math.floor(Math.random() * gridSize);
+
+  let r = startR, c = startC;
+  visited[r][c] = true;
+  path.push({ r, c });
+
+  while (path.length < totalCells) {
+    // Собираем свободных соседей с их «степенью» (число доступных ходов из них)
+    const neighbors: { r: number; c: number; deg: number }[] = [];
+    for (const { dr, dc } of DIRECTIONS) {
+      const nr = r + dr;
+      const nc = c + dc;
+      if (!isValid(nr, nc, gridSize) || visited[nr][nc]) continue;
+
+      let deg = 0;
+      for (const { dr: dr2, dc: dc2 } of DIRECTIONS) {
+        const nnr = nr + dr2;
+        const nnc = nc + dc2;
+        if (isValid(nnr, nnc, gridSize) && !visited[nnr][nnc]) deg++;
+      }
+      neighbors.push({ r: nr, c: nc, deg });
+    }
+
+    if (neighbors.length === 0) return null; // тупик — неудача
+
+    // Варнсдорф: выбираем соседа с минимальной степенью, при равенстве — случайно
+    neighbors.sort((a, b) => a.deg - b.deg || (Math.random() - 0.5));
+    const next = neighbors[0];
+
+    r = next.r;
+    c = next.c;
+    visited[r][c] = true;
+    path.push({ r, c });
+  }
+
+  return path;
+};
+
+/**
+ * Генерация случайного гамильтонова пути на сетке NxN.
+ * Делает несколько попыток (Варнсдорф без backtracking быстрый, но иногда
+ * заходит в тупик на маленьких сетках). Возвращает null если все попытки провалились.
+ */
+const generateRandomHamiltonianPath = (gridSize: number, maxAttempts: number = 20): Coord[] | null => {
+  for (let i = 0; i < maxAttempts; i++) {
+    const result = tryHamiltonianPath(gridSize);
+    if (result) return result;
+  }
+  return null;
 };
 
 // ============================================================================
@@ -583,9 +658,13 @@ export const generateServerLevel = (
 
   // ────────────────────────────────────────────────────────────
   // Фаза 1: Красивые «завитушки» — индивидуальный DFS для каждого слова
-  // Без межсловного бэктрекинга: если слово не разместилось, пробуем заново
+  // Без межсловного бэктрекинга: если слово не разместилось, пробуем заново.
+  //
+  // Каждому слову назначается случайный turnBias (0.4–0.85),
+  // чтобы формы путей были разнообразнее: одни слова закручиваются,
+  // другие идут более прямолинейно.
   // ────────────────────────────────────────────────────────────
-  const MAX_PRETTY_ATTEMPTS = 3;
+  const MAX_PRETTY_ATTEMPTS = 6;
 
   for (let attempt = 0; attempt < MAX_PRETTY_ATTEMPTS; attempt++) {
     const grid: string[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(''));
@@ -594,6 +673,8 @@ export const generateServerLevel = (
 
     for (const wordObj of sortedWords) {
       const word = wordObj.bur.toUpperCase();
+      // Случайный turnBias для этого слова: от 0.4 (прямолинейный) до 0.85 (закрученный)
+      const wordTurnBias = 0.4 + Math.random() * 0.45;
       // Перемешанные стартовые позиции
       const shuffledCells = [...allCells].sort(() => Math.random() - 0.5);
       let placed = false;
@@ -604,7 +685,7 @@ export const generateServerLevel = (
         const path: Coord[] = [];
         const usedInPath = new Set<string>();
 
-        if (placeWordDFS(grid, word, 0, r, c, path, usedInPath)) {
+        if (placeWordDFS(grid, word, 0, r, c, path, usedInPath, null, wordTurnBias)) {
           placedWords.push({ word: wordObj, path: [...path] });
           placed = true;
           break;
@@ -633,23 +714,34 @@ export const generateServerLevel = (
   }
 
   // ────────────────────────────────────────────────────────────
-  // Фаза 2 (fallback): Гамильтонова змейка — гарантированно O(n)
-  // Слова кладутся вдоль зигзагообразного пути по всей сетке
+  // Фаза 2 (fallback): Случайный гамильтонов путь (алгоритм Варнсдорфа)
+  // Вместо предсказуемого зигзага — каждый раз уникальная случайная траектория.
+  // Слова кладутся последовательно, но сам путь непредсказуем.
   // ────────────────────────────────────────────────────────────
   console.warn(
     `[generateServerLevel] DFS не смог разместить все слова за ${MAX_PRETTY_ATTEMPTS} попыток. ` +
-    `Используем гамильтонову змейку. Слова: ${normalizedWords.map(w => `${w.bur}(${w.bur.length})`).join(', ')}, ` +
+    `Используем случайный гамильтонов путь. Слова: ${normalizedWords.map(w => `${w.bur}(${w.bur.length})`).join(', ')}, ` +
     `сетка: ${gridSize}×${gridSize} = ${gridSize * gridSize} клеток`
+  );
+
+  // Пробуем случайный гамильтонов путь
+  const randomPath = generateRandomHamiltonianPath(gridSize);
+
+  // Если Варнсдорф не справился (очень маленькая сетка) — откат на зигзаг
+  const cells = randomPath ?? generateSnakeCellsFromCorner(
+    gridSize,
+    corners[Math.floor(Math.random() * corners.length)],
+    axes[Math.floor(Math.random() * axes.length)]
   );
 
   const grid: string[][] = Array.from({ length: gridSize }, () => Array(gridSize).fill(''));
   const placedWords: PlacedWord[] = [];
-  const chosenCorner = corners[Math.floor(Math.random() * corners.length)];
-  const chosenAxis = axes[Math.floor(Math.random() * axes.length)];
-  const cells = generateSnakeCellsFromCorner(gridSize, chosenCorner, chosenAxis);
+
+  // Перемешиваем порядок слов чтобы разные слова начинались в разных местах пути
+  const shuffledWords = [...normalizedWords].sort(() => Math.random() - 0.5);
 
   let cursor = 0;
-  for (const w of normalizedWords) {
+  for (const w of shuffledWords) {
     const word = w.bur;
     if (cursor + word.length > cells.length) break;
     const path = cells.slice(cursor, cursor + word.length);
