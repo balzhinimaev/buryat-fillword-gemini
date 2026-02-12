@@ -251,9 +251,9 @@ export const StatsView: React.FC<StatsViewProps> = ({
           <div className="flex items-center justify-center py-6">
             <Loader2 size={24} className={cn("animate-spin", theme.text.muted)} />
           </div>
-        ) : leaderboard.length > 0 ? (
+        ) : leaderboard.filter(k => k.role !== 'admin').length > 0 ? (
           <div className="space-y-3">
-            {leaderboard.map((keeper, index) => (
+            {leaderboard.filter(k => k.role !== 'admin').map((keeper, index) => (
               <div 
                 key={keeper._id}
                 className={cn(
@@ -302,14 +302,6 @@ export const StatsView: React.FC<StatsViewProps> = ({
                     <p className={cn("font-medium truncate", theme.text.primary)}>
                       {keeper.name}
                     </p>
-                    {keeper.role === 'admin' && (
-                      <span className={cn(
-                        "text-xs px-1.5 py-0.5 rounded",
-                        isDark ? "bg-violet-500/20 text-violet-400" : "bg-violet-100 text-violet-600"
-                      )}>
-                        admin
-                      </span>
-                    )}
                   </div>
                   <div className={cn("flex items-center gap-3 text-xs mt-0.5", theme.text.muted)}>
                     <span className="flex items-center gap-1">
