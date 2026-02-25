@@ -1,0 +1,7 @@
+services:
+  frontend:
+    container_name: buryat-fillword-frontend
+    image: ${REGISTRY_IMAGE}
+    restart: unless-stopped
+    ports:
+      - "4173:4173"

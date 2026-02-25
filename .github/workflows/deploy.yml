@@ -55,6 +55,11 @@ jobs:
 
             cd "$DEPLOY_PATH"
 
+            if [ ! -f "docker-compose.yml" ] && [ ! -f "compose.yaml" ] && [ ! -f "docker-compose.yaml" ]; then
+              echo "No docker compose file found in $DEPLOY_PATH"
+              exit 1
+            fi
+
             # Login is required if GHCR package is private.
             if [ -n "$GHCR_USER" ] && [ -n "$GHCR_TOKEN" ]; then
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
