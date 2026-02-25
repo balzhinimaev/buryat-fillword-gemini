@@ -1,5 +1,5 @@
 // API сервис для работы с бэкендом
-const API_URL = import.meta.env.VITE_API_URL || 'https://anoname.ru/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://burlive.ru/api';
 
 // Событие для уведомления о необходимости переавторизации
 export const AUTH_REQUIRED_EVENT = 'auth:required';

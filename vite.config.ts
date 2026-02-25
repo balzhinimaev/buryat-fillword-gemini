@@ -6,15 +6,15 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    allowedHosts: ['anoname.ru', 'dev.anoname.ru'],
+    allowedHosts: ['burlive.ru', 'www.burlive.ru'],
     hmr: {
-      host: 'anoname.ru',
+      host: 'burlive.ru',
       protocol: 'wss',
       clientPort: 443,
       path: '/__vite_hmr',
     }
   },
   preview: {
-    allowedHosts: ['anoname.ru'],
+    allowedHosts: ['burlive.ru', 'www.burlive.ru'],
   },
 })
