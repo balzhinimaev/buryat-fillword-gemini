@@ -913,6 +913,13 @@ export async function submitCampaignLevel(
   });
 }
 
+export async function trackCampaignModuleOpened(moduleId: string, source?: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/campaign/module/${encodeURIComponent(moduleId)}/open`, {
+    method: 'POST',
+    body: JSON.stringify(source ? { source } : {}),
+  });
+}
+
 // =========================
 // Campaign Admin (chapters + lessons)
 // =========================
@@ -1642,6 +1649,7 @@ export const api = {
   getCampaignLevel,
   startCampaignLevel,
   submitCampaignLevel,
+  trackCampaignModuleOpened,
 
   // Campaign Admin
   getCampaignAdminChapters,

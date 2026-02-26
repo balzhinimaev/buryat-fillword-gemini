@@ -103,12 +103,14 @@ describe('LevelsScreen thematic modules shelf', () => {
     };
 
     vi.spyOn(api, 'getCampaignOverview').mockResolvedValue(overview);
+    const trackSpy = vi.spyOn(api, 'trackCampaignModuleOpened').mockResolvedValue({ ok: true });
 
     render(<LevelsScreen store={store as any} />);
 
     const moduleTitle = await screen.findByText('Сагаан һара / Сагаалган');
     fireEvent.click(moduleTitle);
 
+    expect(trackSpy).toHaveBeenCalledWith('chapter-1', 'levels_screen');
     expect(store.selectCategory).toHaveBeenCalledWith('open-level');
   });
 });

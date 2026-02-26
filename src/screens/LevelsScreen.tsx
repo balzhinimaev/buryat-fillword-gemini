@@ -269,6 +269,9 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                       difficulty={moduleDifficulty}
                       onClick={() => {
                         if (!entryLevel) return;
+                        if (module.id) {
+                          void api.trackCampaignModuleOpened(module.id, 'levels_screen').catch(() => undefined);
+                        }
                         selectCategory(entryLevel.slug);
                       }}
                     />
