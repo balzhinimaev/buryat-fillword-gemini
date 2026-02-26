@@ -35,7 +35,7 @@ interface GameModeSelectScreenProps {
 }
 
 export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ store }) => {
-  const { navigate, goBack, selectLevelPack, isPackUnlocked, getPackProgress, selectCategory, setCampaignResumeSlug, state } = store;
+  const { navigate, goBack, selectLevelPack, isPackUnlocked, getPackProgress, selectCategory, setCampaignResumeSlug, setCampaignLandingView, state } = store;
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
   
@@ -79,6 +79,8 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
     }
     return Math.min(100, (state.stats.totalStars / 36) * 100);
   }, [campaignOverview, state.stats.totalStars]);
+
+  const thematicModulesCount = campaignOverview?.modules?.length ?? 0;
 
   const resumeLevelSlug = state.campaignResumeSlug;
 
@@ -505,6 +507,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 handleResumeFirstLevel();
                 return;
               }
+              setCampaignLandingView('chapters');
               navigate('levels');
             }}
             className="relative w-full p-4 rounded-2xl overflow-hidden group text-left"
@@ -532,7 +535,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 <div className="flex items-center gap-2 mb-0.5">
                   <h2 className="font-bold text-base text-white">Первая глава</h2>
                   <span className="px-1.5 py-px bg-white/15 rounded-full text-[10px] text-white/80">
-                    Обучение
+                    Базовый курс
                   </span>
                 </div>
                 <p className="text-xs text-white/65 mb-1.5">
@@ -559,6 +562,52 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
             </div>
           </motion.button>
         </motion.div>
+
+        {/* Тематические модули — отдельная глава */}
+        {thematicModulesCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18 }}
+          >
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                setCampaignLandingView('modules');
+                navigate('levels');
+              }}
+              className="relative w-full p-4 rounded-2xl overflow-hidden group text-left"
+            >
+              <div className={cn(
+                "absolute inset-0 transition-all duration-300",
+                isDark
+                  ? "bg-gradient-to-r from-fuchsia-800/65 via-violet-800/65 to-indigo-800/65"
+                  : "bg-gradient-to-r from-fuchsia-500/85 via-violet-500/85 to-indigo-500/85"
+              )} />
+              <Sparkles className="absolute top-2.5 right-2.5 text-white/20" size={26} />
+
+              <div className="relative z-10 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center shadow-inner shrink-0">
+                  <Sparkles size={22} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h2 className="font-bold text-base text-white">Тематические модули</h2>
+                    <span className="px-1.5 py-px bg-white/15 rounded-full text-[10px] text-white/85">
+                      Отдельная глава
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/70 mb-1.5">
+                    Выбери модуль и открой его уроки-сетки
+                  </p>
+                  <div className="text-[11px] text-white/65">{thematicModulesCount} модулей</div>
+                </div>
+                <ChevronRight size={20} className="text-white/40 shrink-0" />
+              </div>
+            </motion.button>
+          </motion.div>
+        )}
 
         {/* Разделитель */}
         <div className="flex items-center gap-4 px-2">

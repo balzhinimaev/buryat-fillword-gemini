@@ -108,6 +108,7 @@ const defaultGameState: GameState = {
   selectedWordId: null,
   gameMode: 'campaign',
   campaignResumeSlug: null,
+  campaignLandingView: null,
   adminEditLevelNumber: null,
   adminEditDailyDate: null,
   settings: defaultSettings,
@@ -257,6 +258,10 @@ export const useGameStore = () => {
   // Сохранение slug уровня для сценария "resume-first-flow"
   const setCampaignResumeSlug = useCallback((slug: string | null) => {
     setState(prev => ({ ...prev, campaignResumeSlug: slug }));
+  }, []);
+
+  const setCampaignLandingView = useCallback((view: 'chapters' | 'modules' | null) => {
+    setState(prev => ({ ...prev, campaignLandingView: view }));
   }, []);
 
   // Выбор пакета уровней
@@ -612,6 +617,7 @@ export const useGameStore = () => {
     selectCategory,
     setGameMode,
     setCampaignResumeSlug,
+    setCampaignLandingView,
     selectLevelPack,
     selectEndlessLevel,
     startDailyGame,

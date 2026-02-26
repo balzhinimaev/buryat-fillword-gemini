@@ -16,7 +16,7 @@ interface LevelsScreenProps {
 export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   const { state, goBack, selectCategory, getLevelProgress } = store;
   const { theme } = useTheme();
-  const [showModulesChapter, setShowModulesChapter] = useState(false);
+  const [showModulesChapter, setShowModulesChapter] = useState(state.campaignLandingView === 'modules');
 
   useBackButton(() => {
     if (showModulesChapter) {
@@ -76,6 +76,10 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     void loadOverview();
   }, [loadOverview]);
 
+  useEffect(() => {
+    setShowModulesChapter(state.campaignLandingView === 'modules');
+  }, [state.campaignLandingView]);
+
   const difficultySections = useMemo(() => {
     const cats = overview?.categories ?? [];
     return [...cats].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -114,7 +118,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
       {/* Sticky Header при скролле */}
       <StickyHeader 
-        title={showModulesChapter ? 'Тематические модули' : 'Кампания'} 
+        title={showModulesChapter ? 'Тематические модули' : 'Первая глава'} 
         onBack={() => {
           if (showModulesChapter) {
             setShowModulesChapter(false);
@@ -167,7 +171,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
             >
               <ArrowLeft size={24} className={theme.header.text} />
             </motion.button>
-            <h1 className="text-xl font-bold flex-1">{showModulesChapter ? 'Тематические модули' : 'Кампания'}</h1>
+            <h1 className="text-xl font-bold flex-1">{showModulesChapter ? 'Тематические модули' : 'Первая глава'}</h1>
             <Layers size={24} />
           </div>
           

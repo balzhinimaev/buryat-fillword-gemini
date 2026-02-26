@@ -75,6 +75,7 @@ export interface GameState {
   selectedWordId: string | null; // выбранное слово для детальной страницы
   gameMode: GameMode; // текущий режим игры
   campaignResumeSlug: string | null; // slug уровня для сценария resume-first-flow
+  campaignLandingView: 'chapters' | 'modules' | null; // какой раздел открыть в экране первой главы
   adminEditLevelNumber: number | null; // номер уровня для редактора (null = создание нового)
   adminEditDailyDate: string | null; // дата для редактора филлворда дня (null = создание нового, 'YYYY-MM-DD' = редактирование)
   settings: GameSettings;
