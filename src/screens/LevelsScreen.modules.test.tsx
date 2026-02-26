@@ -4,9 +4,10 @@ import LevelsScreen from './LevelsScreen';
 import { api, type CampaignOverviewResponse } from '../services/api';
 
 const makeStore = () => ({
-  state: { stats: { totalStars: 0 } },
+  state: { stats: { totalStars: 0 }, campaignLandingView: null },
   goBack: vi.fn(),
   selectCategory: vi.fn(),
+  setCampaignLandingView: vi.fn(),
   getLevelProgress: vi.fn(() => undefined),
 });
 

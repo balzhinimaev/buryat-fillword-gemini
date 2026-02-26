@@ -14,17 +14,21 @@ interface LevelsScreenProps {
 }
 
 export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
-  const { state, goBack, selectCategory, getLevelProgress } = store;
+  const { state, goBack, selectCategory, getLevelProgress, setCampaignLandingView } = store;
   const { theme } = useTheme();
   const [showModulesChapter, setShowModulesChapter] = useState(state.campaignLandingView === 'modules');
 
-  useBackButton(() => {
+  const handleBack = useCallback(() => {
     if (showModulesChapter) {
       setShowModulesChapter(false);
+      setCampaignLandingView('chapters');
       return;
     }
+    setCampaignLandingView(null);
     goBack();
-  });
+  }, [goBack, setCampaignLandingView, showModulesChapter]);
+
+  useBackButton(handleBack);
 
   const [overview, setOverview] = useState<CampaignOverviewResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -119,13 +123,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
       {/* Sticky Header при скролле */}
       <StickyHeader 
         title={showModulesChapter ? 'Тематические модули' : 'Первая глава'} 
-        onBack={() => {
-          if (showModulesChapter) {
-            setShowModulesChapter(false);
-            return;
-          }
-          goBack();
-        }}
+        onBack={handleBack}
         rightElement={
           <div className="flex items-center gap-3">
             <button
@@ -160,13 +158,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                if (showModulesChapter) {
-                  setShowModulesChapter(false);
-                  return;
-                }
-                goBack();
-              }}
+              onClick={handleBack}
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
             >
               <ArrowLeft size={24} className={theme.header.text} />
@@ -248,7 +240,10 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
               stars={moduleSections.reduce((sum, m) => sum + (m.earnedStars ?? 0), 0)}
               isLocked={false}
               difficulty="medium"
-              onClick={() => setShowModulesChapter(true)}
+              onClick={() => {
+                setCampaignLandingView('modules');
+                setShowModulesChapter(true);
+              }}
             />
           </div>
         )}
@@ -316,6 +311,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                         if (module.id) {
                           void api.trackCampaignModuleOpened(module.id, 'levels_screen').catch(() => undefined);
                         }
+                        setCampaignLandingView(null);
                         selectCategory(entryLevel.slug);
                       }}
                     />
@@ -397,7 +393,10 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                         stars={stars}
                         isLocked={!unlocked}
                         difficulty={uiDifficulty}
-                        onClick={() => selectCategory(lvl.slug)}
+                        onClick={() => {
+                          setCampaignLandingView(null);
+                          selectCategory(lvl.slug);
+                        }}
                       />
 
                       {/* Плашки-детали (плюшки) */}
