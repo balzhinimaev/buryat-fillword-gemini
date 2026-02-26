@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import LevelsScreen from './LevelsScreen';
 import { api, type CampaignOverviewResponse } from '../services/api';
 
-const makeStore = () => ({
-  state: { stats: { totalStars: 0 }, campaignLandingView: null },
+const makeStore = (campaignLandingView: 'chapters' | 'modules' | null = null) => ({
+  state: { stats: { totalStars: 0 }, campaignLandingView },
   goBack: vi.fn(),
   selectCategory: vi.fn(),
   setCampaignLandingView: vi.fn(),
@@ -18,7 +18,7 @@ afterEach(() => {
 
 describe('LevelsScreen thematic modules shelf', () => {
   it('renders modules shelf and NEW badge for eligible non-started module', async () => {
-    const store = makeStore();
+    const store = makeStore('modules');
 
     const overview: CampaignOverviewResponse = {
       categories: [],
@@ -55,17 +55,12 @@ describe('LevelsScreen thematic modules shelf', () => {
 
     render(<LevelsScreen store={store as any} />);
 
-    const chapterCard = await screen.findByText('Тематические модули');
-    expect(chapterCard).toBeInTheDocument();
-
-    fireEvent.click(chapterCard);
-
     expect(await screen.findByText('Сагаан һара / Сагаалган')).toBeInTheDocument();
     expect(screen.getByText('Новый')).toBeInTheDocument();
   });
 
   it('opens first unlocked level when module card is clicked', async () => {
-    const store = makeStore();
+    const store = makeStore('modules');
 
     const overview: CampaignOverviewResponse = {
       categories: [],
@@ -111,9 +106,6 @@ describe('LevelsScreen thematic modules shelf', () => {
     const trackSpy = vi.spyOn(api, 'trackCampaignModuleOpened').mockResolvedValue({ ok: true });
 
     render(<LevelsScreen store={store as any} />);
-
-    const chapterCard = await screen.findByText('Тематические модули');
-    fireEvent.click(chapterCard);
 
     const moduleTitle = await screen.findByText('Сагаан һара / Сагаалган');
     fireEvent.click(moduleTitle);

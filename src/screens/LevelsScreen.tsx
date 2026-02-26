@@ -224,29 +224,6 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
           </div>
         )}
 
-        {moduleSections.length > 0 && !showModulesChapter && (
-          <div className="mb-6 space-y-3">
-            <div className="flex items-center justify-between mb-1">
-              <div className={cn('inline-flex items-center gap-2 px-3 py-1 rounded-full', theme.categoryCard.bg, theme.categoryCard.border, 'border')}>
-                <Sparkles size={14} className={theme.text.accent} />
-                <span className={cn('font-semibold text-sm', theme.text.primary)}>Отдельная глава</span>
-              </div>
-            </div>
-
-            <CategoryCard
-              emoji="🧩"
-              name="Тематические модули"
-              description={`${moduleSections.length} модулей · уроки с отдельными сетками`}
-              stars={moduleSections.reduce((sum, m) => sum + (m.earnedStars ?? 0), 0)}
-              isLocked={false}
-              difficulty="medium"
-              onClick={() => {
-                setCampaignLandingView('modules');
-                setShowModulesChapter(true);
-              }}
-            />
-          </div>
-        )}
 
         {showModulesChapter && moduleSections.length > 0 && (
           <div className="mb-6">
