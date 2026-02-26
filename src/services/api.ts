@@ -817,8 +817,21 @@ export interface CampaignOverviewCategory extends ExtensibleRecord {
   earnedStars?: number;
 }
 
+export interface CampaignOverviewModule extends ExtensibleRecord {
+  id: string;
+  title?: string;
+  titleBur?: string;
+  order?: number;
+  requiredStars?: number;
+  isUnlocked?: boolean;
+  levels: CampaignOverviewLevel[];
+  totalStars?: number;
+  earnedStars?: number;
+}
+
 export interface CampaignOverviewResponse extends ExtensibleRecord {
   categories: CampaignOverviewCategory[];
+  modules?: CampaignOverviewModule[];
   totalStars?: number;
   earnedStars?: number;
   progressPercent?: number;
