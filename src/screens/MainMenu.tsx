@@ -1,5 +1,5 @@
 // src/screens/MainMenu.tsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, 
@@ -12,7 +12,10 @@ import {
   Sparkles,
   Star,
   HelpCircle,
-  Heart
+  Heart,
+  Target,
+  CheckCircle2,
+  ArrowRight
 } from 'lucide-react';
 import type { GameStore } from '../store/gameStore';
 import { useTheme } from '../theme/ThemeContext';
@@ -20,11 +23,13 @@ import { getMenuStyles } from '../theme/menuStyles';
 import { cn } from '../components/ui';
 import { useTelegram } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
-import { getWordsStats } from '../services/api';
+import { api, getWordsStats } from '../services/api';
 
 interface MainMenuProps {
   store: GameStore;
 }
+
+const STREAK_REWARD_MILESTONES = [3, 7, 14, 30] as const;
 
 // Декоративный элемент - традиционный орнамент
 const Ornament: React.FC<{ className?: string }> = ({ className }) => (
@@ -151,7 +156,7 @@ const AppTitle: React.FC<{ styles: ReturnType<typeof getMenuStyles> }> = ({ styl
 );
 
 export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
-  const { state, navigate, xpProgress, xpToNextLevel } = store;
+  const { state, navigate, selectCategory, setCampaignLandingView, xpProgress, xpToNextLevel } = store;
   const { stats } = state;
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
@@ -200,6 +205,52 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 
   // Звёзды кампании — берём из бэка или локальное
   const displayTotalStars = authState.user?.campaignStats?.totalStars ?? stats.totalStars;
+
+  const todayKey = useMemo(() => dateToLocalKey(new Date()), []);
+  const lastActiveRaw = authState.user?.streak?.lastActiveDate ?? stats.lastPlayedDate;
+  const lastActiveKey = useMemo(() => parseDateToLocalKey(lastActiveRaw), [lastActiveRaw]);
+  const dailyGoalCompleted = Boolean(lastActiveKey && lastActiveKey === todayKey);
+
+  const nextRewardMilestone = useMemo(
+    () => STREAK_REWARD_MILESTONES.find((milestone) => milestone > currentStreak) ?? null,
+    [currentStreak],
+  );
+
+  const nextRewardHint = useMemo(() => {
+    if (currentStreak <= 0) return 'Начни серию: 1 уровень сегодня';
+    if (!nextRewardMilestone) return 'Ты на максимальной награде за серию';
+    const daysLeft = nextRewardMilestone - currentStreak;
+    return `До бонуса ${daysLeft} ${getDaysWord(daysLeft)}`;
+  }, [currentStreak, nextRewardMilestone]);
+
+  const handleStartCampaignFromWidget = useCallback(async () => {
+    if (!state.settings.hasSeenHowTo) {
+      navigate('howto');
+      return;
+    }
+
+    try {
+      const overview = await api.getCampaignOverview();
+      const firstUnlockedLevel = overview.categories
+        ?.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .flatMap((category) => [...(category.levels ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
+        .find((level) => level.isUnlocked === true)
+        ?? overview.categories
+          ?.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .flatMap((category) => [...(category.levels ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))[0];
+
+      if (firstUnlockedLevel?.slug) {
+        setCampaignLandingView(null);
+        selectCategory(firstUnlockedLevel.slug);
+        return;
+      }
+    } catch {
+      // fallback ниже
+    }
+
+    setCampaignLandingView('chapters');
+    navigate('levels');
+  }, [navigate, selectCategory, setCampaignLandingView, state.settings.hasSeenHowTo]);
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
@@ -351,6 +402,71 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           </div>
         </div>
       </motion.div>
+
+      {/* Daily goal + streak widgets */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.36 }}
+        className="mx-5 mb-5 grid grid-cols-1 gap-3"
+      >
+        <div className={cn(
+          'rounded-2xl border p-4',
+          styles.buttons.card.background,
+          styles.buttons.card.border
+        )}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className={cn('text-xs mb-1', styles.buttons.text.muted)}>Цель дня</div>
+              <div className={cn('font-semibold', styles.buttons.text.primary)}>Пройди 1 уровень сегодня</div>
+            </div>
+            <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', dailyGoalCompleted ? 'bg-emerald-500/20' : 'bg-amber-500/20')}>
+              {dailyGoalCompleted ? (
+                <CheckCircle2 size={18} className="text-emerald-400" />
+              ) : (
+                <Target size={18} className="text-amber-400" />
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className={cn('text-xs', styles.buttons.text.muted)}>
+              {dailyGoalCompleted ? '1/1 выполнено' : '0/1 сегодня'}
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleStartCampaignFromWidget()}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-black/5 hover:bg-black/10 text-stone-700'
+              )}
+            >
+              К уровню
+              <ArrowRight size={13} />
+            </button>
+          </div>
+        </div>
+
+        <div className={cn(
+          'rounded-2xl border p-4',
+          styles.buttons.card.background,
+          styles.buttons.card.border
+        )}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className={cn('text-xs mb-1', styles.buttons.text.muted)}>Серия</div>
+              <div className={cn('font-semibold', styles.buttons.text.primary)}>
+                {currentStreak} {getDaysWord(currentStreak)} подряд
+              </div>
+            </div>
+            <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', styles.statsCard.streakIcon)}>
+              <Flame size={18} className="text-white" />
+            </div>
+          </div>
+
+          <div className={cn('mt-3 text-xs', styles.buttons.text.muted)}>{nextRewardHint}</div>
+        </div>
+      </motion.section>
 
       {/* Menu buttons */}
       <main className="flex-1 px-5 pb-6 relative z-10">
@@ -664,6 +780,31 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 };
 
 // Helpers
+
+function dateToLocalKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateToLocalKey(value?: string | null): string | null {
+  if (!value) return null;
+
+  const raw = value.trim();
+  const yyyyMmDd = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (yyyyMmDd) {
+    const y = Number(yyyyMmDd[1]);
+    const m = Number(yyyyMmDd[2]);
+    const d = Number(yyyyMmDd[3]);
+    return dateToLocalKey(new Date(y, m - 1, d));
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return dateToLocalKey(parsed);
+}
 
 function getDaysWord(count: number): string {
   const lastDigit = count % 10;
