@@ -74,6 +74,7 @@ export interface GameState {
   selectedEndlessLevel: number | null; // выбранный уровень в бесконечном режиме
   selectedWordId: string | null; // выбранное слово для детальной страницы
   gameMode: GameMode; // текущий режим игры
+  campaignResumeSlug: string | null; // slug уровня для сценария resume-first-flow
   adminEditLevelNumber: number | null; // номер уровня для редактора (null = создание нового)
   adminEditDailyDate: string | null; // дата для редактора филлворда дня (null = создание нового, 'YYYY-MM-DD' = редактирование)
   settings: GameSettings;

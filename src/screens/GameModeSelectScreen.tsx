@@ -35,7 +35,7 @@ interface GameModeSelectScreenProps {
 }
 
 export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ store }) => {
-  const { navigate, goBack, selectLevelPack, isPackUnlocked, getPackProgress, state } = store;
+  const { navigate, goBack, selectLevelPack, isPackUnlocked, getPackProgress, selectCategory, setCampaignResumeSlug, state } = store;
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
   
@@ -79,6 +79,20 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
     }
     return Math.min(100, (state.stats.totalStars / 36) * 100);
   }, [campaignOverview, state.stats.totalStars]);
+
+  const resumeLevelSlug = state.campaignResumeSlug;
+
+  const resumeLevel = useMemo(() => {
+    if (!resumeLevelSlug || !campaignOverview?.categories) return null;
+    const allLevels = campaignOverview.categories.flatMap(category => category.levels ?? []);
+    return allLevels.find(level => level.slug === resumeLevelSlug) ?? null;
+  }, [resumeLevelSlug, campaignOverview]);
+
+  const handleResumeFirstLevel = useCallback(() => {
+    if (!resumeLevelSlug) return;
+    setCampaignResumeSlug(null);
+    selectCategory(resumeLevelSlug);
+  }, [resumeLevelSlug, selectCategory, setCampaignResumeSlug]);
 
   // ─── Countdown до «Второй главы» ───
   // 11 февраля 20:00 по Улан-Удэ (UTC+8)
@@ -236,7 +250,49 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
 
       {/* Main content */}
       <main className="flex-1 px-5 pb-6 relative z-10 space-y-6">
-        
+
+        {/* Resume-first-flow prompt */}
+        {resumeLevelSlug && (
+          <motion.button
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ scale: 1.01, y: -1 }}
+            whileTap={{ scale: 0.99 }}
+            onClick={handleResumeFirstLevel}
+            className="relative w-full p-4 rounded-2xl overflow-hidden text-left"
+          >
+            <div className={cn(
+              'absolute inset-0 transition-all duration-300',
+              isDark
+                ? 'bg-gradient-to-r from-amber-500/35 via-orange-500/35 to-rose-500/35'
+                : 'bg-gradient-to-r from-amber-400/70 via-orange-400/70 to-rose-400/70'
+            )} />
+            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" />
+            <Zap className="absolute top-3 right-3 text-white/30" size={20} />
+
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                <Play size={20} className="text-white ml-0.5" fill="white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h2 className="font-bold text-base text-white">Продолжить уровень</h2>
+                  <span className="px-1.5 py-px bg-white/20 rounded-full text-[10px] font-semibold text-white/90">
+                    Resume
+                  </span>
+                </div>
+                <p className="text-xs text-white/75 truncate">
+                  {resumeLevel?.name ?? 'Незавершённый стартовый уровень'}
+                </p>
+                <p className="text-[11px] text-white/60 mt-1">
+                  Ты уже начинал этот уровень — дожмём до первой победы 💪
+                </p>
+              </div>
+              <ChevronRight size={20} className="text-white/55 shrink-0" />
+            </div>
+          </motion.button>
+        )}
+
         {/* ═══════════════ Вторая глава — Countdown ═══════════════ */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -444,7 +500,13 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('levels')}
+            onClick={() => {
+              if (resumeLevelSlug) {
+                handleResumeFirstLevel();
+                return;
+              }
+              navigate('levels');
+            }}
             className="relative w-full p-4 rounded-2xl overflow-hidden group text-left"
           >
             {/* Фон — более приглушённый, «пройденный» */}
