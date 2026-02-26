@@ -242,8 +242,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
             <ToggleSwitchThemed
               enabled={settings.timerEnabled}
               onChange={(enabled) => updateSettings({ timerEnabled: enabled })}
-              label={settings.timerEnabled ? 'Режим на время' : 'Комфортный режим 45+'}
-              description={settings.timerEnabled ? 'Уровень завершится по таймеру' : 'Без ограничения по времени'}
+              label="Таймер"
+              description="Показывать время прохождения"
               isDark={isDark}
               theme={theme}
             />
