@@ -17,16 +17,23 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   const { state, goBack, selectCategory, getLevelProgress, setCampaignLandingView } = store;
   const { theme } = useTheme();
   const [showModulesChapter, setShowModulesChapter] = useState(state.campaignLandingView === 'modules');
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
 
   const handleBack = useCallback(() => {
+    if (showModulesChapter && selectedModuleId) {
+      setSelectedModuleId(null);
+      return;
+    }
+
     if (showModulesChapter) {
       setShowModulesChapter(false);
       setCampaignLandingView('chapters');
       return;
     }
+
     setCampaignLandingView(null);
     goBack();
-  }, [goBack, setCampaignLandingView, showModulesChapter]);
+  }, [goBack, selectedModuleId, setCampaignLandingView, showModulesChapter]);
 
   useBackButton(handleBack);
 
@@ -81,7 +88,11 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   }, [loadOverview]);
 
   useEffect(() => {
-    setShowModulesChapter(state.campaignLandingView === 'modules');
+    const goModules = state.campaignLandingView === 'modules';
+    setShowModulesChapter(goModules);
+    if (!goModules) {
+      setSelectedModuleId(null);
+    }
   }, [state.campaignLandingView]);
 
   const difficultySections = useMemo(() => {
@@ -103,8 +114,8 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     });
   }, []);
 
-  const getModuleEntryLevel = useCallback((module: CampaignOverviewModule): CampaignOverviewLevel | undefined => {
-    const levels = [...(module.levels ?? [])].sort((a, b) => {
+  const sortLevels = useCallback((levels: CampaignOverviewLevel[]) => {
+    return [...levels].sort((a, b) => {
       const reqA = a.requiredStars ?? 0;
       const reqB = b.requiredStars ?? 0;
       if (reqA !== reqB) return reqA - reqB;
@@ -113,16 +124,24 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
       if (orderA !== orderB) return orderA - orderB;
       return (a.slug ?? '').localeCompare(b.slug ?? '');
     });
+  }, []);
 
+  const getModuleEntryLevel = useCallback((module: CampaignOverviewModule): CampaignOverviewLevel | undefined => {
+    const levels = sortLevels(module.levels ?? []);
     const firstUnlocked = levels.find(level => level.isUnlocked === true);
     return firstUnlocked ?? levels[0];
-  }, []);
+  }, [sortLevels]);
+
+  const selectedModule = useMemo(() => {
+    if (!selectedModuleId) return null;
+    return moduleSections.find(module => module.id === selectedModuleId) ?? null;
+  }, [moduleSections, selectedModuleId]);
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
       {/* Sticky Header при скролле */}
       <StickyHeader 
-        title={showModulesChapter ? 'Тематические модули' : 'Первая глава'} 
+        title={showModulesChapter ? (selectedModule ? 'Уровни модуля' : 'Модули') : 'Первая глава'} 
         onBack={handleBack}
         rightElement={
           <div className="flex items-center gap-3">
@@ -163,7 +182,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
             >
               <ArrowLeft size={24} className={theme.header.text} />
             </motion.button>
-            <h1 className="text-xl font-bold flex-1">{showModulesChapter ? 'Тематические модули' : 'Первая глава'}</h1>
+            <h1 className="text-xl font-bold flex-1">{showModulesChapter ? (selectedModule ? 'Уровни модуля' : 'Модули') : 'Первая глава'}</h1>
             <Layers size={24} />
           </div>
           
@@ -227,90 +246,166 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
 
         {showModulesChapter && moduleSections.length > 0 && (
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className={cn('inline-flex items-center gap-2 px-3 py-1 rounded-full', theme.categoryCard.bg, theme.categoryCard.border, 'border')}>
-                <Sparkles size={14} className={theme.text.accent} />
-                <span className={cn('font-semibold text-sm', theme.text.primary)}>Уроки тематических модулей</span>
-              </div>
-              <div className={cn('text-xs', theme.text.muted)}>
-                {moduleSections.length} мод.
-              </div>
-            </div>
+            {!selectedModule ? (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <div className={cn('inline-flex items-center gap-2 px-3 py-1 rounded-full', theme.categoryCard.bg, theme.categoryCard.border, 'border')}>
+                    <Sparkles size={14} className={theme.text.accent} />
+                    <span className={cn('font-semibold text-sm', theme.text.primary)}>Спецмодули</span>
+                  </div>
+                  <div className={cn('text-xs', theme.text.muted)}>{moduleSections.length} шт.</div>
+                </div>
 
-            <div className="space-y-3">
-              {moduleSections.map((module, index) => {
-                const sortedLevels = [...(module.levels ?? [])].sort((a, b) => {
-                  const reqA = a.requiredStars ?? 0;
-                  const reqB = b.requiredStars ?? 0;
-                  if (reqA !== reqB) return reqA - reqB;
-                  const orderA = a.order ?? 0;
-                  const orderB = b.order ?? 0;
-                  if (orderA !== orderB) return orderA - orderB;
-                  return (a.slug ?? '').localeCompare(b.slug ?? '');
-                });
-                const entryLevel = getModuleEntryLevel(module);
-                const moduleLocked = module.isUnlocked === false || !entryLevel;
-                const moduleStars = module.earnedStars ?? sortedLevels.reduce((sum, lvl) => sum + (lvl.earnedStars ?? 0), 0);
-                const moduleTotalStars = module.totalStars ?? sortedLevels.reduce((sum, lvl) => sum + (lvl.maxStars ?? 3), 0);
-                const moduleIsNew = !moduleLocked && !moduleHasProgress(module);
-                const moduleDifficulty = mapDifficulty(entryLevel?.difficulty);
-                const moduleEmoji = entryLevel?.icon ?? '🌙';
-                const moduleDescription = sortedLevels.length > 0
-                  ? `${sortedLevels.length} уровней · старт: ${entryLevel?.name ?? sortedLevels[0]?.name ?? 'Уровень'}`
-                  : 'Тематический модуль';
+                <div className="space-y-3">
+                  {moduleSections.map((module, index) => {
+                    const sortedLevels = sortLevels(module.levels ?? []);
+                    const entryLevel = getModuleEntryLevel(module);
+                    const moduleLocked = module.isUnlocked === false || !entryLevel;
+                    const moduleStars = module.earnedStars ?? sortedLevels.reduce((sum, lvl) => sum + (lvl.earnedStars ?? 0), 0);
+                    const moduleTotalStars = module.totalStars ?? sortedLevels.reduce((sum, lvl) => sum + (lvl.maxStars ?? 3), 0);
+                    const moduleIsNew = !moduleLocked && !moduleHasProgress(module);
+                    const moduleDifficulty = mapDifficulty(entryLevel?.difficulty);
+                    const moduleEmoji = entryLevel?.icon ?? '🌙';
+                    const moduleDescription = sortedLevels.length > 0
+                      ? `${sortedLevels.length} уровней`
+                      : 'Модуль';
 
-                return (
-                  <motion.div
-                    key={module.id ?? `${module.title}-${index}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="space-y-1 relative"
-                  >
-                    {moduleIsNew && (
-                      <div className={cn(
-                        'absolute -top-1 right-2 z-20 px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide',
-                        'bg-emerald-500 text-white shadow'
-                      )}>
-                        Новый
-                      </div>
-                    )}
+                    return (
+                      <motion.div
+                        key={module.id ?? `${module.title}-${index}`}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="space-y-1 relative"
+                      >
+                        {moduleIsNew && (
+                          <div className={cn(
+                            'absolute -top-1 right-2 z-20 px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide',
+                            'bg-emerald-500 text-white shadow'
+                          )}>
+                            Новый
+                          </div>
+                        )}
 
-                    <CategoryCard
-                      emoji={moduleEmoji}
-                      name={module.title ?? module.titleBur ?? 'Тематический модуль'}
-                      description={moduleDescription}
-                      stars={moduleStars}
-                      isLocked={moduleLocked}
-                      difficulty={moduleDifficulty}
-                      onClick={() => {
-                        if (!entryLevel) return;
-                        if (module.id) {
-                          void api.trackCampaignModuleOpened(module.id, 'levels_screen').catch(() => undefined);
-                        }
-                        setCampaignLandingView(null);
-                        selectCategory(entryLevel.slug);
-                      }}
-                    />
+                        <CategoryCard
+                          emoji={moduleEmoji}
+                          name={module.title ?? module.titleBur ?? 'Модуль'}
+                          description={moduleDescription}
+                          stars={moduleStars}
+                          isLocked={moduleLocked}
+                          difficulty={moduleDifficulty}
+                          onClick={() => {
+                            if (!module.id || moduleLocked) return;
+                            void api.trackCampaignModuleOpened(module.id, 'levels_screen').catch(() => undefined);
+                            setSelectedModuleId(module.id);
+                          }}
+                        />
 
-                    <div className={cn('flex items-center justify-between px-2', theme.text.muted)}>
-                      <div className="flex items-center gap-2 text-[11px]">
-                        <span>⭐ {moduleStars}/{moduleTotalStars}</span>
-                        <span>•</span>
-                        <span>{sortedLevels.length} ур.</span>
-                      </div>
+                        <div className={cn('flex items-center justify-between px-2', theme.text.muted)}>
+                          <div className="flex items-center gap-2 text-[11px]">
+                            <span>⭐ {moduleStars}/{moduleTotalStars}</span>
+                            <span>•</span>
+                            <span>{sortedLevels.length} ур.</span>
+                          </div>
 
-                      {moduleLocked && typeof module.requiredStars === 'number' && (
-                        <div className="text-[11px] inline-flex items-center gap-1">
-                          <Lock size={12} />
-                          Нужно {module.requiredStars} ⭐
+                          {moduleLocked && typeof module.requiredStars === 'number' && (
+                            <div className="text-[11px] inline-flex items-center gap-1">
+                              <Lock size={12} />
+                              Нужно {module.requiredStars} ⭐
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModuleId(null)}
+                    className={cn('text-xs px-2 py-1 rounded-lg border', theme.categoryCard.bg, theme.categoryCard.border, theme.text.muted)}
+                  >
+                    ← К модулям
+                  </button>
+                  <div className={cn('text-xs', theme.text.muted)}>
+                    {sortLevels(selectedModule.levels ?? []).length} ур.
+                  </div>
+                </div>
+
+                <div className={cn('mb-3 text-sm font-semibold', theme.text.primary)}>
+                  {selectedModule.title ?? selectedModule.titleBur ?? 'Модуль'}
+                </div>
+
+                <div className="space-y-3">
+                  {sortLevels(selectedModule.levels ?? []).map((lvl, index) => {
+                    const unlocked = lvl.isUnlocked === true ||
+                      (lvl.isUnlocked !== false &&
+                        typeof overview?.earnedStars === 'number' &&
+                        overview.earnedStars >= (lvl.requiredStars ?? 0));
+
+                    const stars = lvl.earnedStars ?? getLevelProgress(lvl.slug)?.stars ?? 0;
+                    const icon = lvl.icon ?? '📚';
+                    const desc = lvl.description ?? 'Уровень модуля';
+                    const uiDifficulty = mapDifficulty(lvl.difficulty);
+
+                    return (
+                      <motion.div
+                        key={lvl.slug}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="space-y-1"
+                      >
+                        <CategoryCard
+                          emoji={icon}
+                          name={lvl.name ?? lvl.slug}
+                          description={desc}
+                          stars={stars}
+                          isLocked={!unlocked}
+                          difficulty={uiDifficulty}
+                          onClick={() => {
+                            setCampaignLandingView(null);
+                            selectCategory(lvl.slug);
+                          }}
+                        />
+
+                        <div className={cn('flex items-center justify-between px-2', theme.text.muted)}>
+                          <div className="flex items-center gap-2 text-[11px]">
+                            {typeof lvl.timeLimitSeconds === 'number' && (
+                              <span className="inline-flex items-center gap-1">
+                                <Clock size={12} />
+                                {formatTime(lvl.timeLimitSeconds)}
+                              </span>
+                            )}
+                            {typeof lvl.wordCount === 'number' && (
+                              <span className="inline-flex items-center gap-1">
+                                <Hash size={12} />
+                                {lvl.wordCount}
+                              </span>
+                            )}
+                            {typeof lvl.bestTimeSeconds === 'number' && (
+                              <span className="inline-flex items-center gap-1">
+                                ⭐ {formatTime(lvl.bestTimeSeconds)}
+                              </span>
+                            )}
+                          </div>
+
+                          {!unlocked && typeof lvl.requiredStars === 'number' && (
+                            <div className="text-[11px] inline-flex items-center gap-1">
+                              <Lock size={12} />
+                              Нужно {lvl.requiredStars} ⭐
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         )}
 

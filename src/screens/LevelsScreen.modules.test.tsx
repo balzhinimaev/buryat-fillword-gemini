@@ -59,7 +59,7 @@ describe('LevelsScreen thematic modules shelf', () => {
     expect(screen.getByText('Новый')).toBeInTheDocument();
   });
 
-  it('opens first unlocked level when module card is clicked', async () => {
+  it('opens module levels first and starts level only after level click', async () => {
     const store = makeStore('modules');
 
     const overview: CampaignOverviewResponse = {
@@ -111,6 +111,11 @@ describe('LevelsScreen thematic modules shelf', () => {
     fireEvent.click(moduleTitle);
 
     expect(trackSpy).toHaveBeenCalledWith('chapter-1', 'levels_screen');
+    expect(store.selectCategory).not.toHaveBeenCalled();
+
+    const levelTitle = await screen.findByText('Open');
+    fireEvent.click(levelTitle);
+
     expect(store.selectCategory).toHaveBeenCalledWith('open-level');
   });
 });

@@ -593,15 +593,15 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <h2 className="font-bold text-base text-white">Тематические модули</h2>
-                    <span className="px-1.5 py-px bg-white/15 rounded-full text-[10px] text-white/85">
-                      Отдельная глава
+                    <h2 className="font-bold text-base text-white">Спецмодули</h2>
+                    <span className="px-1.5 py-px bg-white/15 rounded-full text-[10px] text-white/85 whitespace-nowrap">
+                      Глава
                     </span>
                   </div>
                   <p className="text-xs text-white/70 mb-1.5">
-                    Выбери модуль и открой его уроки-сетки
+                    Праздники и спецтемы с отдельными уровнями
                   </p>
-                  <div className="text-[11px] text-white/65">{thematicModulesCount} модулей</div>
+                  <div className="text-[11px] text-white/65">{thematicModulesCount} мод.</div>
                 </div>
                 <ChevronRight size={20} className="text-white/40 shrink-0" />
               </div>
