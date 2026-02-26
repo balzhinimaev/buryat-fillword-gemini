@@ -8,6 +8,7 @@ import {
   AUTH_REQUIRED_EVENT, 
   type AuthResponse,
   getMe,
+  resolvePaywallEligibility,
   type MeResponse,
   type MeStreakInfo,
   type MeCampaignStats,
@@ -27,6 +28,7 @@ export interface User {
   photoUrl?: string;
   languageCode?: string;
   isPremium?: boolean;
+  paywallEligible?: boolean;
   role: string;
   trustScore: number;
 
@@ -125,6 +127,7 @@ const mapMeResponseToUser = (me: MeResponse, prevUser?: User | null): User => ({
   photoUrl: me.photoUrl,
   languageCode: me.languageCode,
   isPremium: me.isPremium,
+  paywallEligible: resolvePaywallEligibility(me),
   role: me.role,
   trustScore: me.trustScore,
   stats: {

@@ -90,6 +90,8 @@ export interface MeResponse {
   photoUrl?: string;
   languageCode?: string;
   isPremium?: boolean;
+  // Backend eligibility flag: paywall показываем только после первого value milestone
+  paywallEligible?: boolean;
 
   onboardingCompleted: boolean;
   onboardingStep?: string;
@@ -621,6 +623,16 @@ export async function getMe(): Promise<MeResponse> {
   return apiRequest<MeResponse>('/auth/me', { method: 'GET' });
 }
 
+// FE fallback (детерминированный): используем, если backend flag paywallEligible ещё не пришёл.
+export function resolvePaywallEligibility(me?: MeResponse | null): boolean {
+  if (!me) return false;
+  if (typeof me.paywallEligible === 'boolean') return me.paywallEligible;
+
+  const totalStars = me.campaignStats?.totalStars ?? 0;
+  const levelsCompleted = me.campaignStats?.levelsCompleted ?? 0;
+  return levelsCompleted > 0 || totalStars >= 3;
+}
+
 // Выход
 export async function logout(): Promise<void> {
   const tokens = getStoredTokens();
@@ -917,6 +929,16 @@ export async function trackCampaignModuleOpened(moduleId: string, source?: strin
   return apiRequest<{ ok: true }>(`/campaign/module/${encodeURIComponent(moduleId)}/open`, {
     method: 'POST',
     body: JSON.stringify(source ? { source } : {}),
+  });
+}
+
+export async function trackCampaignPaywallShown(payload?: {
+  context?: string;
+  source?: string;
+}): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>('/campaign/paywall/shown', {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {}),
   });
 }
 
@@ -1619,6 +1641,7 @@ export const api = {
   telegramAuth,
   refreshToken,
   getMe,
+  resolvePaywallEligibility,
   logout,
   getStoredTokens,
   clearStoredTokens,
@@ -1650,6 +1673,7 @@ export const api = {
   startCampaignLevel,
   submitCampaignLevel,
   trackCampaignModuleOpened,
+  trackCampaignPaywallShown,
 
   // Campaign Admin
   getCampaignAdminChapters,
