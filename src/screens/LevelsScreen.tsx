@@ -16,8 +16,15 @@ interface LevelsScreenProps {
 export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   const { state, goBack, selectCategory, getLevelProgress } = store;
   const { theme } = useTheme();
-  
-  useBackButton(() => goBack());
+  const [showModulesChapter, setShowModulesChapter] = useState(false);
+
+  useBackButton(() => {
+    if (showModulesChapter) {
+      setShowModulesChapter(false);
+      return;
+    }
+    goBack();
+  });
 
   const [overview, setOverview] = useState<CampaignOverviewResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -107,8 +114,14 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
       {/* Sticky Header при скролле */}
       <StickyHeader 
-        title="Кампания" 
-        onBack={() => goBack()}
+        title={showModulesChapter ? 'Тематические модули' : 'Кампания'} 
+        onBack={() => {
+          if (showModulesChapter) {
+            setShowModulesChapter(false);
+            return;
+          }
+          goBack();
+        }}
         rightElement={
           <div className="flex items-center gap-3">
             <button
@@ -143,12 +156,18 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => goBack()}
+              onClick={() => {
+                if (showModulesChapter) {
+                  setShowModulesChapter(false);
+                  return;
+                }
+                goBack();
+              }}
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
             >
               <ArrowLeft size={24} className={theme.header.text} />
             </motion.button>
-            <h1 className="text-xl font-bold flex-1">Кампания</h1>
+            <h1 className="text-xl font-bold flex-1">{showModulesChapter ? 'Тематические модули' : 'Кампания'}</h1>
             <Layers size={24} />
           </div>
           
@@ -209,12 +228,33 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
           </div>
         )}
 
-        {moduleSections.length > 0 && (
+        {moduleSections.length > 0 && !showModulesChapter && (
+          <div className="mb-6 space-y-3">
+            <div className="flex items-center justify-between mb-1">
+              <div className={cn('inline-flex items-center gap-2 px-3 py-1 rounded-full', theme.categoryCard.bg, theme.categoryCard.border, 'border')}>
+                <Sparkles size={14} className={theme.text.accent} />
+                <span className={cn('font-semibold text-sm', theme.text.primary)}>Отдельная глава</span>
+              </div>
+            </div>
+
+            <CategoryCard
+              emoji="🧩"
+              name="Тематические модули"
+              description={`${moduleSections.length} модулей · уроки с отдельными сетками`}
+              stars={moduleSections.reduce((sum, m) => sum + (m.earnedStars ?? 0), 0)}
+              isLocked={false}
+              difficulty="medium"
+              onClick={() => setShowModulesChapter(true)}
+            />
+          </div>
+        )}
+
+        {showModulesChapter && moduleSections.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <div className={cn('inline-flex items-center gap-2 px-3 py-1 rounded-full', theme.categoryCard.bg, theme.categoryCard.border, 'border')}>
                 <Sparkles size={14} className={theme.text.accent} />
-                <span className={cn('font-semibold text-sm', theme.text.primary)}>Тематические модули</span>
+                <span className={cn('font-semibold text-sm', theme.text.primary)}>Уроки тематических модулей</span>
               </div>
               <div className={cn('text-xs', theme.text.muted)}>
                 {moduleSections.length} мод.
@@ -297,7 +337,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
           </div>
         )}
 
-        {difficultySections.map((section) => {
+        {!showModulesChapter && difficultySections.map((section) => {
           const uiDifficulty = mapDifficulty(section.difficulty);
           const levels = [...(section.levels ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
           const sectionLocked = section.isUnlocked === false;

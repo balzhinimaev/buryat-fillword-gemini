@@ -54,7 +54,11 @@ describe('LevelsScreen thematic modules shelf', () => {
 
     render(<LevelsScreen store={store as any} />);
 
-    expect(await screen.findByText('Тематические модули')).toBeInTheDocument();
+    const chapterCard = await screen.findByText('Тематические модули');
+    expect(chapterCard).toBeInTheDocument();
+
+    fireEvent.click(chapterCard);
+
     expect(await screen.findByText('Сагаан һара / Сагаалган')).toBeInTheDocument();
     expect(screen.getByText('Новый')).toBeInTheDocument();
   });
@@ -106,6 +110,9 @@ describe('LevelsScreen thematic modules shelf', () => {
     const trackSpy = vi.spyOn(api, 'trackCampaignModuleOpened').mockResolvedValue({ ok: true });
 
     render(<LevelsScreen store={store as any} />);
+
+    const chapterCard = await screen.findByText('Тематические модули');
+    fireEvent.click(chapterCard);
 
     const moduleTitle = await screen.findByText('Сагаан һара / Сагаалган');
     fireEvent.click(moduleTitle);
