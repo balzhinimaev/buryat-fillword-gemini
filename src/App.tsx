@@ -1,11 +1,13 @@
 // src/App.tsx
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from './store/gameStore';
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
 import { getTheme } from './theme';
 import { TelegramThemeSync } from './components/TelegramThemeSync';
 import { useAuth } from './store/authStore';
+import { api } from './services/api';
+import { getResumeFirstLevelSlug } from './utils/campaignResume';
 
 // Screens
 import MainMenu from './screens/MainMenu';
@@ -45,15 +47,17 @@ const pageTransition = {
 export default function App() {
   const store = useGameStore();
   const { currentScreen, settings } = store.state;
+  const { loadSettingsFromApi, setCampaignResumeSlug, navigate } = store;
   const currentTheme = getTheme(settings.theme);
   const { state: authState } = useAuth();
+  const resumeFlowCheckedRef = useRef(false);
 
   // Загружаем настройки с сервера после авторизации
   useEffect(() => {
     if (authState.isAuthenticated && !authState.isLoading) {
-      store.loadSettingsFromApi();
+      loadSettingsFromApi();
     }
-  }, [authState.isAuthenticated, authState.isLoading]);
+  }, [authState.isAuthenticated, authState.isLoading, loadSettingsFromApi]);
 
   // Определяем нужно ли показывать онбординг
   const shouldShowOnboarding = useMemo(() => {
@@ -65,6 +69,53 @@ export default function App() {
     }
     return authState.isNewUser || !authState.onboardingCompleted;
   }, [authState.isAuthenticated, authState.isLoading, authState.isNewUser, authState.onboardingCompleted]);
+
+  // Если пользователь разлогинился — сбрасываем флаг проверки resume-flow
+  useEffect(() => {
+    if (!authState.isAuthenticated) {
+      resumeFlowCheckedRef.current = false;
+      setCampaignResumeSlug(null);
+    }
+  }, [authState.isAuthenticated, setCampaignResumeSlug]);
+
+  // Resume-first-flow:
+  // если первый уровень кампании уже стартовали, но не завершили —
+  // при следующем открытии приложения ведём пользователя сразу к prompt на экране выбора режима.
+  useEffect(() => {
+    if (!authState.isAuthenticated || authState.isLoading) return;
+    if (shouldShowOnboarding) return;
+    if (resumeFlowCheckedRef.current) return;
+
+    resumeFlowCheckedRef.current = true;
+    let isMounted = true;
+
+    (async () => {
+      try {
+        const overview = await api.getCampaignOverview();
+        if (!isMounted) return;
+
+        const resumeSlug = getResumeFirstLevelSlug(overview);
+        setCampaignResumeSlug(resumeSlug);
+
+        if (resumeSlug && currentScreen === 'menu') {
+          navigate('gameMode');
+        }
+      } catch {
+        // Silent fail: resume-flow не должен ломать запуск приложения
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    authState.isAuthenticated,
+    authState.isLoading,
+    shouldShowOnboarding,
+    currentScreen,
+    setCampaignResumeSlug,
+    navigate,
+  ]);
 
   // Определяем какой экран показывать
   const effectiveScreen = useMemo(() => {
