@@ -901,6 +901,180 @@ export async function submitCampaignLevel(
 }
 
 // =========================
+// Campaign Admin (chapters + lessons)
+// =========================
+
+export type CampaignContentStatus = 'draft' | 'scheduled' | 'published' | 'archived';
+
+export interface CampaignChapter {
+  id: string;
+  title: string;
+  titleBur?: string;
+  description?: string;
+  descriptionBur?: string;
+  order: number;
+  status: CampaignContentStatus;
+  isActive: boolean;
+  isArchived: boolean;
+  lessonsTotal?: number;
+  lessonsPublished?: number;
+  lessonsDraft?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CampaignParentChapterState {
+  id: string;
+  status: CampaignContentStatus;
+  isActive: boolean;
+  isArchived: boolean;
+}
+
+export interface CampaignAdminWord {
+  bur: string;
+  ru: string;
+  wordId?: string;
+}
+
+export interface CampaignAdminLevel {
+  id: string;
+  slug: string;
+  name: string;
+  nameBur: string;
+  difficulty: CampaignDifficulty;
+  order: number;
+  icon: string;
+  requiredStars: number;
+  wordCount: number;
+  maxStars: number;
+  timeLimitSeconds: number;
+  isActive: boolean;
+  status: CampaignContentStatus;
+  chapterId?: string;
+  parentChapterState?: CampaignParentChapterState | null;
+  description?: string;
+  descriptionBur?: string;
+  words?: CampaignAdminWord[];
+}
+
+export interface CampaignChapterCreateRequest {
+  title: string;
+  titleBur?: string;
+  description?: string;
+  descriptionBur?: string;
+  order: number;
+  status?: CampaignContentStatus;
+  isActive?: boolean;
+}
+
+export type CampaignChapterUpdateRequest = Partial<CampaignChapterCreateRequest>;
+
+export interface CampaignAdminLevelCreateRequest {
+  slug: string;
+  name: string;
+  nameBur: string;
+  difficulty: CampaignDifficulty;
+  order: number;
+  icon: string;
+  requiredStars: number;
+  words: CampaignAdminWord[];
+  timeLimitSeconds?: number;
+  isActive?: boolean;
+  chapterId?: string;
+  status?: CampaignContentStatus;
+  description?: string;
+  descriptionBur?: string;
+}
+
+export type CampaignAdminLevelUpdateRequest = Partial<Omit<CampaignAdminLevelCreateRequest, 'slug'>>;
+
+export interface CampaignAdminLevelsQuery {
+  chapterId?: string;
+  status?: CampaignContentStatus;
+  search?: string;
+}
+
+export async function getCampaignAdminChapters(): Promise<CampaignChapter[]> {
+  return apiRequest<CampaignChapter[]>('/campaign/admin/chapters', { method: 'GET' });
+}
+
+export async function getCampaignAdminChapter(chapterId: string): Promise<CampaignChapter> {
+  return apiRequest<CampaignChapter>(`/campaign/admin/chapter/${encodeURIComponent(chapterId)}`, { method: 'GET' });
+}
+
+export async function createCampaignAdminChapter(data: CampaignChapterCreateRequest): Promise<CampaignChapter> {
+  return apiRequest<CampaignChapter>('/campaign/admin/chapters', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateCampaignAdminChapter(
+  chapterId: string,
+  data: CampaignChapterUpdateRequest
+): Promise<CampaignChapter> {
+  return apiRequest<CampaignChapter>(`/campaign/admin/chapter/${encodeURIComponent(chapterId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateCampaignAdminChapterStatus(
+  chapterId: string,
+  status: CampaignContentStatus
+): Promise<CampaignChapter> {
+  return apiRequest<CampaignChapter>(`/campaign/admin/chapter/${encodeURIComponent(chapterId)}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function getCampaignAdminLevels(
+  query: CampaignAdminLevelsQuery = {}
+): Promise<CampaignAdminLevel[]> {
+  const params = new URLSearchParams();
+  if (query.chapterId) params.set('chapterId', query.chapterId);
+  if (query.status) params.set('status', query.status);
+  if (query.search) params.set('search', query.search);
+  const qs = params.toString();
+
+  return apiRequest<CampaignAdminLevel[]>(`/campaign/admin/levels${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+  });
+}
+
+export async function getCampaignAdminLevel(slug: string): Promise<CampaignAdminLevel> {
+  return apiRequest<CampaignAdminLevel>(`/campaign/admin/level/${encodeURIComponent(slug)}`, {
+    method: 'GET',
+  });
+}
+
+export async function createCampaignAdminLevel(
+  data: CampaignAdminLevelCreateRequest
+): Promise<CampaignAdminLevel> {
+  return apiRequest<CampaignAdminLevel>('/campaign/admin/levels', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateCampaignAdminLevel(
+  slug: string,
+  data: CampaignAdminLevelUpdateRequest
+): Promise<CampaignAdminLevel> {
+  return apiRequest<CampaignAdminLevel>(`/campaign/admin/level/${encodeURIComponent(slug)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteCampaignAdminLevel(slug: string): Promise<void> {
+  return apiRequest<void>(`/campaign/admin/level/${encodeURIComponent(slug)}`, {
+    method: 'DELETE',
+  });
+}
+
+// =========================
 // Leaderboard
 // =========================
 
@@ -1455,7 +1629,19 @@ export const api = {
   getCampaignLevel,
   startCampaignLevel,
   submitCampaignLevel,
-  
+
+  // Campaign Admin
+  getCampaignAdminChapters,
+  getCampaignAdminChapter,
+  createCampaignAdminChapter,
+  updateCampaignAdminChapter,
+  updateCampaignAdminChapterStatus,
+  getCampaignAdminLevels,
+  getCampaignAdminLevel,
+  createCampaignAdminLevel,
+  updateCampaignAdminLevel,
+  deleteCampaignAdminLevel,
+
   // Leaderboard
   getLeaderboard,
 

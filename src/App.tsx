@@ -20,6 +20,7 @@ import DictionaryScreen from './screens/DictionaryScreen';
 import WordDetailScreen from './screens/WordDetailScreen';
 import DebugGridScreen from './screens/DebugGridScreen';
 import AdminScreen from './screens/AdminScreen';
+import AdminCampaignScreen from './screens/AdminCampaignScreen';
 import BroadcastScreen from './screens/BroadcastScreen';
 import WordContributionScreen from './screens/WordContributionScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
@@ -114,6 +115,8 @@ export default function App() {
         return <DebugGridScreen store={store} />;
       case 'admin':
         return <AdminScreen store={store} />;
+      case 'adminCampaign':
+        return <AdminCampaignScreen store={store} />;
       case 'broadcast':
         return <BroadcastScreen store={store} />;
       case 'contribute':

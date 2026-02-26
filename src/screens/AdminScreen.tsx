@@ -626,6 +626,14 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
           <div className="space-y-2">
             <NavCard
               icon={<Layers size={18} className="text-white" />}
+              title="Кампании"
+              subtitle="Главы и уроки кампании"
+              onClick={() => navigate('adminCampaign')}
+              isDark={isDark}
+              color={isDark ? "bg-indigo-500/30" : "bg-indigo-100"}
+            />
+            <NavCard
+              icon={<Layers size={18} className="text-white" />}
               title="Управление уровнями"
               subtitle="Создание и редактирование ручных уровней"
               onClick={() => store.navigateToLevelEditor(null)}
