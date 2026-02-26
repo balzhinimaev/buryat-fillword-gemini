@@ -285,6 +285,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const endlessLevel = state.selectedEndlessLevel || 1;
   const campaignSlug = (!isEndlessMode && !isDailyMode) ? (state.selectedCategory || null) : null;
   const isCampaignMode = !isEndlessMode && !isDailyMode;
+  const isTimerEnabled = state.settings.timerEnabled !== false;
 
   // Campaign level data (server)
   const [campaignLevel, setCampaignLevel] = useState<CampaignLevelResponse | null>(null);
@@ -752,6 +753,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
   // Таймаут уровня (кампания или level mode) — отправляем неполный результат
   useEffect(() => {
+    if (!isTimerEnabled) return;
     if (showWinModal) return;
     if (submitInFlightRef.current) return;
 
@@ -782,7 +784,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       if (time < limit) return;
       void finishGame(foundWordIds, 'timeout');
     }
-  }, [isCampaignMode, isEndlessMode, isDailyMode, campaignLevel?.timeLimitSeconds, levelModeData?.timeLimitSeconds, dailyData?.timeLimitSeconds, time, showWinModal, campaignSessionId, levelModeSessionId, dailySessionId, finishGame, foundWordIds]);
+  }, [isTimerEnabled, isCampaignMode, isEndlessMode, isDailyMode, campaignLevel?.timeLimitSeconds, levelModeData?.timeLimitSeconds, dailyData?.timeLimitSeconds, time, showWinModal, campaignSessionId, levelModeSessionId, dailySessionId, finishGame, foundWordIds]);
 
   const handlePointerUp = useCallback(() => {
     setIsSelecting(false);
@@ -1385,23 +1387,25 @@ ${levelInfo}
         
         {/* Stats bar */}
         <div className="flex items-center justify-between gap-3">
-          <div className={cn(
-            "flex items-center gap-2 rounded-xl px-3 py-2",
-            styles.statsBadge.background
-          )}>
-            <Clock size={16} className={styles.statsBadge.iconColor} />
-            <span className={cn("font-mono font-bold", styles.statsBadge.valueColor)}>
-              {formatTime(
-                isCampaignMode && typeof campaignLevel?.timeLimitSeconds === 'number' && campaignLevel.timeLimitSeconds > 0
-                  ? Math.max(0, campaignLevel.timeLimitSeconds - time)
-                  : isEndlessMode && typeof levelModeData?.timeLimitSeconds === 'number' && levelModeData.timeLimitSeconds > 0
-                    ? Math.max(0, levelModeData.timeLimitSeconds - time)
-                    : isDailyMode && typeof dailyData?.timeLimitSeconds === 'number' && dailyData.timeLimitSeconds > 0
-                      ? Math.max(0, dailyData.timeLimitSeconds - time)
-                      : time
-              )}
-            </span>
-          </div>
+          {isTimerEnabled && (
+            <div className={cn(
+              "flex items-center gap-2 rounded-xl px-3 py-2",
+              styles.statsBadge.background
+            )}>
+              <Clock size={16} className={styles.statsBadge.iconColor} />
+              <span className={cn("font-mono font-bold", styles.statsBadge.valueColor)}>
+                {formatTime(
+                  isCampaignMode && typeof campaignLevel?.timeLimitSeconds === 'number' && campaignLevel.timeLimitSeconds > 0
+                    ? Math.max(0, campaignLevel.timeLimitSeconds - time)
+                    : isEndlessMode && typeof levelModeData?.timeLimitSeconds === 'number' && levelModeData.timeLimitSeconds > 0
+                      ? Math.max(0, levelModeData.timeLimitSeconds - time)
+                      : isDailyMode && typeof dailyData?.timeLimitSeconds === 'number' && dailyData.timeLimitSeconds > 0
+                        ? Math.max(0, dailyData.timeLimitSeconds - time)
+                        : time
+                )}
+              </span>
+            </div>
+          )}
           
           {combo > 1 && (
             <div className={cn(
@@ -1435,7 +1439,7 @@ ${levelInfo}
         </div>
 
         {/* Timer Progress */}
-        {(() => {
+        {isTimerEnabled && (() => {
           const limit = isCampaignMode
             ? (typeof campaignLevel?.timeLimitSeconds === 'number' && campaignLevel.timeLimitSeconds > 0 ? campaignLevel.timeLimitSeconds : 0)
             : isEndlessMode
