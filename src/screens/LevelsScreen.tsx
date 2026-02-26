@@ -1,13 +1,13 @@
 // src/screens/LevelsScreen.tsx
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Star, ArrowLeft, Layers, Lock, Clock, Hash, RefreshCw } from 'lucide-react';
+import { Star, ArrowLeft, Layers, Lock, Clock, Hash, RefreshCw, Sparkles } from 'lucide-react';
 import { CategoryCard, cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
-import { api, type ApiError, type CampaignDifficulty, type CampaignOverviewResponse, type CampaignOverviewLevel } from '../services/api';
+import { api, type ApiError, type CampaignDifficulty, type CampaignOverviewResponse, type CampaignOverviewLevel, type CampaignOverviewModule } from '../services/api';
 
 interface LevelsScreenProps {
   store: GameStore;
@@ -73,6 +73,35 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     const cats = overview?.categories ?? [];
     return [...cats].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [overview]);
+
+  const moduleSections = useMemo(() => {
+    const mods = overview?.modules ?? [];
+    return [...mods].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [overview]);
+
+  const moduleHasProgress = useCallback((module: CampaignOverviewModule): boolean => {
+    return (module.levels ?? []).some(level => {
+      if ((level.earnedStars ?? 0) > 0) return true;
+      if ((level.attempts ?? 0) > 0) return true;
+      if (typeof level.bestTimeSeconds === 'number') return true;
+      return Boolean(level.firstCompletedAt);
+    });
+  }, []);
+
+  const getModuleEntryLevel = useCallback((module: CampaignOverviewModule): CampaignOverviewLevel | undefined => {
+    const levels = [...(module.levels ?? [])].sort((a, b) => {
+      const reqA = a.requiredStars ?? 0;
+      const reqB = b.requiredStars ?? 0;
+      if (reqA !== reqB) return reqA - reqB;
+      const orderA = a.order ?? 0;
+      const orderB = b.order ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      return (a.slug ?? '').localeCompare(b.slug ?? '');
+    });
+
+    const firstUnlocked = levels.find(level => level.isUnlocked === true);
+    return firstUnlocked ?? levels[0];
+  }, []);
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
@@ -177,6 +206,91 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
             >
               Повторить
             </button>
+          </div>
+        )}
+
+        {moduleSections.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className={cn('inline-flex items-center gap-2 px-3 py-1 rounded-full', theme.categoryCard.bg, theme.categoryCard.border, 'border')}>
+                <Sparkles size={14} className={theme.text.accent} />
+                <span className={cn('font-semibold text-sm', theme.text.primary)}>Тематические модули</span>
+              </div>
+              <div className={cn('text-xs', theme.text.muted)}>
+                {moduleSections.length} мод.
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {moduleSections.map((module, index) => {
+                const sortedLevels = [...(module.levels ?? [])].sort((a, b) => {
+                  const reqA = a.requiredStars ?? 0;
+                  const reqB = b.requiredStars ?? 0;
+                  if (reqA !== reqB) return reqA - reqB;
+                  const orderA = a.order ?? 0;
+                  const orderB = b.order ?? 0;
+                  if (orderA !== orderB) return orderA - orderB;
+                  return (a.slug ?? '').localeCompare(b.slug ?? '');
+                });
+                const entryLevel = getModuleEntryLevel(module);
+                const moduleLocked = module.isUnlocked === false || !entryLevel;
+                const moduleStars = module.earnedStars ?? sortedLevels.reduce((sum, lvl) => sum + (lvl.earnedStars ?? 0), 0);
+                const moduleTotalStars = module.totalStars ?? sortedLevels.reduce((sum, lvl) => sum + (lvl.maxStars ?? 3), 0);
+                const moduleIsNew = !moduleLocked && !moduleHasProgress(module);
+                const moduleDifficulty = mapDifficulty(entryLevel?.difficulty);
+                const moduleEmoji = entryLevel?.icon ?? '🌙';
+                const moduleDescription = sortedLevels.length > 0
+                  ? `${sortedLevels.length} уровней · старт: ${entryLevel?.name ?? sortedLevels[0]?.name ?? 'Уровень'}`
+                  : 'Тематический модуль';
+
+                return (
+                  <motion.div
+                    key={module.id ?? `${module.title}-${index}`}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="space-y-1 relative"
+                  >
+                    {moduleIsNew && (
+                      <div className={cn(
+                        'absolute -top-1 right-2 z-20 px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide',
+                        'bg-emerald-500 text-white shadow'
+                      )}>
+                        Новый
+                      </div>
+                    )}
+
+                    <CategoryCard
+                      emoji={moduleEmoji}
+                      name={module.title ?? module.titleBur ?? 'Тематический модуль'}
+                      description={moduleDescription}
+                      stars={moduleStars}
+                      isLocked={moduleLocked}
+                      difficulty={moduleDifficulty}
+                      onClick={() => {
+                        if (!entryLevel) return;
+                        selectCategory(entryLevel.slug);
+                      }}
+                    />
+
+                    <div className={cn('flex items-center justify-between px-2', theme.text.muted)}>
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <span>⭐ {moduleStars}/{moduleTotalStars}</span>
+                        <span>•</span>
+                        <span>{sortedLevels.length} ур.</span>
+                      </div>
+
+                      {moduleLocked && typeof module.requiredStars === 'number' && (
+                        <div className="text-[11px] inline-flex items-center gap-1">
+                          <Lock size={12} />
+                          Нужно {module.requiredStars} ⭐
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
         )}
 
