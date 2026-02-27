@@ -87,7 +87,7 @@ const wordsToTextarea = (words?: Array<{ bur: string; ru: string }>): string => 
 };
 
 export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store }) => {
-  const { goBack } = store;
+  const { goBack, navigateToCampaignMapEditor } = store;
   const { isDark, theme } = useTheme();
 
   useBackButton(() => goBack());
@@ -655,6 +655,12 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
                             className={cn('px-2 py-1 rounded-lg text-xs', isDark ? 'bg-white/10 text-white/80' : 'bg-white text-stone-700 border border-stone-200')}
                           >
                             Edit
+                          </button>
+                          <button
+                            onClick={() => navigateToCampaignMapEditor(level.slug)}
+                            className={cn('px-2 py-1 rounded-lg text-xs', isDark ? 'bg-violet-500/20 text-violet-200' : 'bg-violet-50 text-violet-700 border border-violet-200')}
+                          >
+                            Maps
                           </button>
                           <button
                             onClick={() => void removeLesson(level.slug)}
