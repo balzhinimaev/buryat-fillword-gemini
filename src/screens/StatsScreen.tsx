@@ -183,6 +183,34 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
     return best;
   }, [groupedXpByDay]);
 
+  const last7DaysXp = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - (6 - index));
+
+      const key = toLocalDateKey(date);
+      const dayData = groupedXpByDay.get(key) ?? { xp: 0, actions: 0 };
+      const weekDay = date
+        .toLocaleDateString('ru-RU', { weekday: 'short' })
+        .replace('.', '')
+        .slice(0, 2);
+
+      return {
+        key,
+        weekDay,
+        dayNumber: date.getDate(),
+        xp: dayData.xp,
+        actions: dayData.actions,
+      };
+    });
+
+    const maxXp = Math.max(1, ...days.map((day) => day.xp));
+    const hasAnyXp = days.some((day) => day.xp > 0);
+
+    return { days, maxXp, hasAnyXp };
+  }, [groupedXpByDay]);
+
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
       {/* Sticky Header при скролле */}
@@ -381,6 +409,58 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
               </div>
             </div>
           </div>
+        </motion.div>
+
+        {/* Weekly XP chart */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.19 }}
+          className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-4")}
+        >
+          <h3 className={cn("font-semibold mb-3 flex items-center gap-2", theme.text.primary)}>
+            <BarChart3 size={18} className="text-cyan-400" />
+            XP за 7 дней
+          </h3>
+
+          <div className="grid grid-cols-7 gap-2 items-end">
+            {last7DaysXp.days.map((day, index) => {
+              const heightPercent = day.xp > 0
+                ? Math.max(10, (day.xp / last7DaysXp.maxXp) * 100)
+                : 0;
+
+              return (
+                <div key={day.key} className="flex flex-col items-center gap-1">
+                  <div className={cn("text-[10px] tabular-nums", theme.text.dimmed)}>
+                    {day.xp > 0 ? `+${day.xp}` : '·'}
+                  </div>
+
+                  <div className={cn("w-full h-20 rounded-lg flex items-end p-1", theme.progress.track)}>
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${heightPercent}%` }}
+                      transition={{ delay: 0.2 + index * 0.04, duration: 0.35 }}
+                      className={cn(
+                        "w-full rounded-md",
+                        day.xp > 0
+                          ? 'bg-gradient-to-t from-cyan-500 to-blue-500'
+                          : 'bg-transparent'
+                      )}
+                    />
+                  </div>
+
+                  <div className={cn("text-[10px] uppercase", theme.text.muted)}>{day.weekDay}</div>
+                  <div className={cn("text-[10px] tabular-nums", theme.text.dimmed)}>{day.dayNumber}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {!last7DaysXp.hasAnyXp && (
+            <p className={cn("text-xs mt-3 text-center", theme.text.dimmed)}>
+              Пока нет активности за последние 7 дней
+            </p>
+          )}
         </motion.div>
 
         {/* Progress section */}
