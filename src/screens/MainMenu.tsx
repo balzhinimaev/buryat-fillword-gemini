@@ -156,7 +156,7 @@ const AppTitle: React.FC<{ styles: ReturnType<typeof getMenuStyles> }> = ({ styl
 );
 
 export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
-  const { state, navigate, selectCategory, setCampaignLandingView, xpProgress, xpToNextLevel } = store;
+  const { state, navigate, selectCategory, setCampaignLandingView, setCampaignResumeSlug, startDailyGame, xpProgress, xpToNextLevel } = store;
   const { stats } = state;
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
@@ -251,6 +251,115 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
     setCampaignLandingView('chapters');
     navigate('levels');
   }, [navigate, selectCategory, setCampaignLandingView, state.settings.hasSeenHowTo]);
+
+  const handleResumeCampaignFromGoal = useCallback(() => {
+    if (!state.campaignResumeSlug) {
+      void handleStartCampaignFromWidget();
+      return;
+    }
+
+    if (!state.settings.hasSeenHowTo) {
+      navigate('howto');
+      return;
+    }
+
+    setCampaignLandingView(null);
+    selectCategory(state.campaignResumeSlug);
+    setCampaignResumeSlug(null);
+  }, [
+    handleStartCampaignFromWidget,
+    navigate,
+    selectCategory,
+    setCampaignLandingView,
+    setCampaignResumeSlug,
+    state.campaignResumeSlug,
+    state.settings.hasSeenHowTo,
+  ]);
+
+  const handleDailyGoalCta = useCallback(() => {
+    if (!state.settings.hasSeenHowTo) {
+      navigate('howto');
+      return;
+    }
+
+    startDailyGame();
+  }, [navigate, startDailyGame, state.settings.hasSeenHowTo]);
+
+  const dailyGoalCard = useMemo(() => {
+    const hasResume = Boolean(state.campaignResumeSlug);
+    const isNewPlayer = displayTotalStars <= 0;
+
+    if (!state.settings.hasSeenHowTo) {
+      return {
+        title: 'Пройди короткое обучение',
+        progress: 'Шаг 1/1',
+        cta: 'Начать',
+        iconDone: false,
+        hint: 'Это займёт меньше минуты',
+        onClick: () => navigate('howto'),
+      };
+    }
+
+    if (dailyGoalCompleted) {
+      return {
+        title: 'Цель дня выполнена',
+        progress: '1/1 выполнено',
+        cta: 'Филлворд дня',
+        iconDone: true,
+        hint: 'Бонус: закрепи прогресс в ежедневном режиме',
+        onClick: handleDailyGoalCta,
+      };
+    }
+
+    if (hasResume) {
+      return {
+        title: 'Заверши начатый уровень',
+        progress: '0/1 сегодня',
+        cta: 'Продолжить',
+        iconDone: false,
+        hint: 'Один шаг до выполнения цели дня',
+        onClick: handleResumeCampaignFromGoal,
+      };
+    }
+
+    if (isNewPlayer) {
+      return {
+        title: 'Сделай первую победу сегодня',
+        progress: '0/1 сегодня',
+        cta: 'Начать',
+        iconDone: false,
+        hint: 'Первая звезда запустит серию дней',
+        onClick: () => {
+          void handleStartCampaignFromWidget();
+        },
+      };
+    }
+
+    return {
+      title: currentStreak > 0
+        ? 'Сохрани серию: 1 уровень сегодня'
+        : 'Пройди 1 уровень сегодня',
+      progress: '0/1 сегодня',
+      cta: currentStreak > 0 ? 'Сохранить серию' : 'К уровню',
+      iconDone: false,
+      hint: currentStreak > 0
+        ? 'Один уровень — и серия не прервётся'
+        : 'Короткая сессия на 2–3 минуты',
+      onClick: () => {
+        void handleStartCampaignFromWidget();
+      },
+    };
+  }, [
+    currentStreak,
+    dailyGoalCompleted,
+    displayTotalStars,
+    handleDailyGoalCta,
+    handleResumeCampaignFromGoal,
+    handleStartCampaignFromWidget,
+    navigate,
+    state.campaignResumeSlug,
+    state.settings.hasSeenHowTo,
+  ]);
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
@@ -418,10 +527,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className={cn('text-xs mb-1', styles.buttons.text.muted)}>Цель дня</div>
-              <div className={cn('font-semibold', styles.buttons.text.primary)}>Пройди 1 уровень сегодня</div>
+              <div className={cn('font-semibold', styles.buttons.text.primary)}>{dailyGoalCard.title}</div>
             </div>
-            <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', dailyGoalCompleted ? 'bg-emerald-500/20' : 'bg-amber-500/20')}>
-              {dailyGoalCompleted ? (
+            <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', dailyGoalCard.iconDone ? 'bg-emerald-500/20' : 'bg-amber-500/20')}>
+              {dailyGoalCard.iconDone ? (
                 <CheckCircle2 size={18} className="text-emerald-400" />
               ) : (
                 <Target size={18} className="text-amber-400" />
@@ -429,19 +538,23 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             </div>
           </div>
 
+          <div className={cn('mt-2 text-[11px]', styles.buttons.text.muted)}>
+            {dailyGoalCard.hint}
+          </div>
+
           <div className="mt-3 flex items-center justify-between gap-3">
             <div className={cn('text-xs', styles.buttons.text.muted)}>
-              {dailyGoalCompleted ? '1/1 выполнено' : '0/1 сегодня'}
+              {dailyGoalCard.progress}
             </div>
             <button
               type="button"
-              onClick={() => void handleStartCampaignFromWidget()}
+              onClick={dailyGoalCard.onClick}
               className={cn(
                 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
                 isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-black/5 hover:bg-black/10 text-stone-700'
               )}
             >
-              К уровню
+              {dailyGoalCard.cta}
               <ArrowRight size={13} />
             </button>
           </div>
