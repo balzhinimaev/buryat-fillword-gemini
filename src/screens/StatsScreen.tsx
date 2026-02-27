@@ -29,12 +29,31 @@ interface StatsScreenProps {
   store: GameStore;
 }
 
+interface XpDayStats {
+  xp: number;
+  actions: number;
+  xpByType: Record<string, number>;
+}
+
+const XP_TYPE_LABELS: Record<string, string> = {
+  daily: 'Ежедневный филлворд',
+  streak: 'Бонус за серию дней',
+  level: 'Прохождение уровней',
+  lesson: 'Прохождение уроков',
+  campaign: 'Кампания',
+  endless: 'Бесконечный режим',
+  word: 'Найденные слова',
+  tutorial: 'Обучение',
+  contribution: 'Словарная мастерская',
+};
+
 export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const { state, goBack, xpProgress, xpToNextLevel } = store;
   const { stats, levelProgress } = state;
   const { theme } = useTheme();
   const { state: authState, refreshUser } = useAuth();
   const [xpHistory, setXpHistory] = useState<UserProfileXpHistoryItem[]>([]);
+  const [selectedChartDayKey, setSelectedChartDayKey] = useState<string | null>(null);
 
   const toLocalDateKey = (date: Date) => {
     const y = date.getFullYear();
@@ -149,17 +168,24 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   ];
 
   const groupedXpByDay = useMemo(() => {
-    const byDay = new Map<string, { xp: number; actions: number }>();
+    const byDay = new Map<string, XpDayStats>();
 
     xpHistory.forEach((entry) => {
       const date = new Date(entry.createdAt);
       if (Number.isNaN(date.getTime())) return;
 
       const key = toLocalDateKey(date);
-      const current = byDay.get(key) ?? { xp: 0, actions: 0 };
+      const current = byDay.get(key) ?? { xp: 0, actions: 0, xpByType: {} };
+      const gainedXp = Math.max(0, entry.amount);
+      const typeKey = (entry.type ?? 'other').toLowerCase();
+
       byDay.set(key, {
-        xp: current.xp + Math.max(0, entry.amount),
+        xp: current.xp + gainedXp,
         actions: current.actions + 1,
+        xpByType: {
+          ...current.xpByType,
+          [typeKey]: (current.xpByType[typeKey] ?? 0) + gainedXp,
+        },
       });
     });
 
@@ -168,7 +194,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
 
   const todayProgress = useMemo(() => {
     const todayKey = toLocalDateKey(new Date());
-    return groupedXpByDay.get(todayKey) ?? { xp: 0, actions: 0 };
+    return groupedXpByDay.get(todayKey) ?? { xp: 0, actions: 0, xpByType: {} };
   }, [groupedXpByDay]);
 
   const bestDayProgress = useMemo<{ dateKey: string; xp: number; actions: number } | null>(() => {
@@ -190,11 +216,17 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
       date.setDate(date.getDate() - (6 - index));
 
       const key = toLocalDateKey(date);
-      const dayData = groupedXpByDay.get(key) ?? { xp: 0, actions: 0 };
+      const dayData = groupedXpByDay.get(key) ?? { xp: 0, actions: 0, xpByType: {} };
       const weekDay = date
         .toLocaleDateString('ru-RU', { weekday: 'short' })
         .replace('.', '')
         .slice(0, 2);
+
+      const topTypeEntry = Object.entries(dayData.xpByType).sort((a, b) => b[1] - a[1])[0];
+      const topTypeKey = topTypeEntry?.[0] ?? null;
+      const topTypeLabel = topTypeKey
+        ? Object.entries(XP_TYPE_LABELS).find(([keyPart]) => topTypeKey.includes(keyPart))?.[1] ?? 'Разные активности'
+        : null;
 
       return {
         key,
@@ -202,6 +234,8 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
         dayNumber: date.getDate(),
         xp: dayData.xp,
         actions: dayData.actions,
+        topTypeKey,
+        topTypeLabel,
       };
     });
 
@@ -210,6 +244,42 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
 
     return { days, maxXp, hasAnyXp };
   }, [groupedXpByDay]);
+
+  const preferredChartDayKey = useMemo(() => {
+    if (last7DaysXp.days.length === 0) return null;
+
+    const todayKey = toLocalDateKey(new Date());
+    return last7DaysXp.days.find((day) => day.key === todayKey)?.key
+      ?? last7DaysXp.days[last7DaysXp.days.length - 1].key;
+  }, [last7DaysXp.days]);
+
+  const selectedChartDay = useMemo(() => {
+    if (last7DaysXp.days.length === 0) return null;
+
+    return last7DaysXp.days.find((day) => day.key === selectedChartDayKey)
+      ?? last7DaysXp.days.find((day) => day.key === preferredChartDayKey)
+      ?? last7DaysXp.days[last7DaysXp.days.length - 1];
+  }, [last7DaysXp.days, preferredChartDayKey, selectedChartDayKey]);
+
+  const getXpTip = (day: { xp: number; actions: number; topTypeKey: string | null }) => {
+    if (day.xp <= 0) {
+      return 'Начни с 1 уровня кампании и «слова дня» — это самый быстрый старт для XP.';
+    }
+
+    if (day.actions <= 1) {
+      return 'Сделай ещё 1–2 коротких захода сегодня: несколько сессий в день дают XP стабильнее.';
+    }
+
+    if (day.topTypeKey?.includes('daily')) {
+      return 'У тебя хорошо работает ежедневный режим — закрепи его серией дней для бонусного XP.';
+    }
+
+    if (day.xp < 80) {
+      return 'Для ускорения XP добивай уровни на 3★ и закрывай ежедневный филлворд.';
+    }
+
+    return 'Отличный темп! Чтобы расти ещё быстрее — держи серию дней и проходи уровни без подсказок.';
+  };
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
@@ -423,15 +493,30 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
             XP за 7 дней
           </h3>
 
+          <p className={cn("text-xs mb-3", theme.text.dimmed)}>
+            Тапни по столбику, чтобы посмотреть детали дня
+          </p>
+
           <div className="grid grid-cols-7 gap-2 items-end">
             {last7DaysXp.days.map((day, index) => {
               const heightPercent = day.xp > 0
                 ? Math.max(10, (day.xp / last7DaysXp.maxXp) * 100)
                 : 0;
+              const isSelected = day.key === selectedChartDay?.key;
 
               return (
-                <div key={day.key} className="flex flex-col items-center gap-1">
-                  <div className={cn("text-[10px] tabular-nums", theme.text.dimmed)}>
+                <button
+                  key={day.key}
+                  type="button"
+                  onClick={() => setSelectedChartDayKey(day.key)}
+                  className={cn(
+                    "flex flex-col items-center gap-1 rounded-lg p-1 transition-colors",
+                    isSelected
+                      ? (theme.borders.subtle + " border bg-white/5")
+                      : "border border-transparent"
+                  )}
+                >
+                  <div className={cn("text-[10px] tabular-nums", isSelected ? theme.text.primary : theme.text.dimmed)}>
                     {day.xp > 0 ? `+${day.xp}` : '·'}
                   </div>
 
@@ -443,15 +528,17 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
                       className={cn(
                         "w-full rounded-md",
                         day.xp > 0
-                          ? 'bg-gradient-to-t from-cyan-500 to-blue-500'
+                          ? (isSelected
+                              ? 'bg-gradient-to-t from-cyan-400 to-blue-400 shadow-lg shadow-cyan-500/30'
+                              : 'bg-gradient-to-t from-cyan-500 to-blue-500')
                           : 'bg-transparent'
                       )}
                     />
                   </div>
 
-                  <div className={cn("text-[10px] uppercase", theme.text.muted)}>{day.weekDay}</div>
+                  <div className={cn("text-[10px] uppercase", isSelected ? theme.text.primary : theme.text.muted)}>{day.weekDay}</div>
                   <div className={cn("text-[10px] tabular-nums", theme.text.dimmed)}>{day.dayNumber}</div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -460,6 +547,31 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
             <p className={cn("text-xs mt-3 text-center", theme.text.dimmed)}>
               Пока нет активности за последние 7 дней
             </p>
+          )}
+
+          {selectedChartDay && (
+            <div className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-3 mt-3") }>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div>
+                  <div className={cn("text-xs", theme.text.muted)}>{formatDateLabel(selectedChartDay.key)}</div>
+                  <div className={cn("text-lg font-bold", theme.text.primary)}>
+                    +{selectedChartDay.xp} XP · {selectedChartDay.actions} активн.
+                  </div>
+                </div>
+                {selectedChartDay.topTypeLabel && (
+                  <span className={cn(
+                    "text-[10px] px-2 py-1 rounded-full font-semibold",
+                    "bg-cyan-500/15 text-cyan-300 border border-cyan-400/20"
+                  )}>
+                    {selectedChartDay.topTypeLabel}
+                  </span>
+                )}
+              </div>
+
+              <p className={cn("text-xs leading-relaxed", theme.text.secondary)}>
+                💡 {getXpTip(selectedChartDay)}
+              </p>
+            </div>
           )}
         </motion.div>
 
