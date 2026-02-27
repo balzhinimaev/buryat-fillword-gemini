@@ -472,13 +472,44 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         }))
         .filter(w => w.bur.length >= 2);
 
-      // Используем специальный генератор для кампании:
-      // - вычисляет точный размер сетки (sqrt от суммы букв)
-      // - размещает слова начиная с угла
-      const result = generateCampaignLevel(words);
-      setGridLetters(result.grid);
-      setGridSize(result.size);
-      setPlacedWords(result.placedWords);
+      // Если backend прислал статичную карту варианта — используем её напрямую.
+      if (
+        Array.isArray(campaignLevel.grid) &&
+        campaignLevel.grid.length > 0 &&
+        Array.isArray(campaignLevel.wordPlacements) &&
+        campaignLevel.wordPlacements.length > 0
+      ) {
+        try {
+          const staticPlaced: PlacedWord[] = campaignLevel.wordPlacements.map(wp => ({
+            word: { bur: String(wp.bur ?? '').trim().toUpperCase(), ru: String(wp.ru ?? '').trim() },
+            path: Array.isArray(wp.path) ? wp.path : [],
+          }));
+
+          if (!staticPlaced.every(item => item.path.length > 0)) {
+            throw new Error('Invalid campaign static map: empty path');
+          }
+
+          setGridLetters(campaignLevel.grid);
+          setGridSize(
+            typeof campaignLevel.gridSize === 'number' && campaignLevel.gridSize > 0
+              ? campaignLevel.gridSize
+              : campaignLevel.grid.length
+          );
+          setPlacedWords(staticPlaced);
+        } catch (error) {
+          console.warn('Failed to use campaign static map, fallback to local generation', error);
+          const result = generateCampaignLevel(words);
+          setGridLetters(result.grid);
+          setGridSize(result.size);
+          setPlacedWords(result.placedWords);
+        }
+      } else {
+        // Фоллбэк: локальная генерация карты
+        const result = generateCampaignLevel(words);
+        setGridLetters(result.grid);
+        setGridSize(result.size);
+        setPlacedWords(result.placedWords);
+      }
     } catch (e) {
       setToastMessage(errorToMessage(e));
       setCampaignSessionId(null);
