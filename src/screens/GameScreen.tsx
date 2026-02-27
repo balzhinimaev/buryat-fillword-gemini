@@ -631,8 +631,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       hasSeenTimerOnboarding: true,
     });
     setShowTimerOnboardingModal(false);
+    showToast(
+      timerEnabled
+        ? 'Включён режим с таймером. Это можно изменить в Настройках.'
+        : 'Включён спокойный режим без таймера. Это можно изменить в Настройках.'
+    );
     void initCampaignGame(true);
-  }, [updateSettings, initCampaignGame]);
+  }, [updateSettings, showToast, initCampaignGame]);
 
   // Таймер
   useEffect(() => {
