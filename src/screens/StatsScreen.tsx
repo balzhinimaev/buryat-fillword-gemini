@@ -23,7 +23,11 @@ import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { useAuth } from '../store/authStore';
 import { categories, getAllWords } from '../data/words';
-import { getUserProfile, type UserProfileXpHistoryItem } from '../services/api';
+import {
+  getUserProfile,
+  type UserProfileXpHistoryItem,
+  type UserProfileAchievement,
+} from '../services/api';
 
 interface StatsScreenProps {
   store: GameStore;
@@ -53,6 +57,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const { theme } = useTheme();
   const { state: authState, refreshUser } = useAuth();
   const [xpHistory, setXpHistory] = useState<UserProfileXpHistoryItem[]>([]);
+  const [profileAchievements, setProfileAchievements] = useState<UserProfileAchievement[]>([]);
   const [selectedChartDayKey, setSelectedChartDayKey] = useState<string | null>(null);
 
   const toLocalDateKey = (date: Date) => {
@@ -82,7 +87,10 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
     const loadProfileHistory = async () => {
       const userId = authState.user?._id;
       if (!authState.isAuthenticated || !userId) {
-        if (mounted) setXpHistory([]);
+        if (mounted) {
+          setXpHistory([]);
+          setProfileAchievements([]);
+        }
         return;
       }
 
@@ -90,10 +98,12 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
         const profile = await getUserProfile(userId);
         if (mounted) {
           setXpHistory(profile.recentXpHistory ?? []);
+          setProfileAchievements(profile.achievements ?? []);
         }
       } catch {
         if (mounted) {
           setXpHistory([]);
+          setProfileAchievements([]);
         }
       }
     };
@@ -143,21 +153,23 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const completedLevels = Object.values(levelProgress).filter(p => p.completed).length;
   const totalLevels = categories.length;
 
-  // Достижения
-  const achievements = [
-    { id: 'first_word', name: 'Первое слово', icon: '🎯', condition: stats.totalWordsFound >= 1, description: 'Найти первое слово' },
-    { id: 'ten_words', name: 'Десятка', icon: '🔟', condition: stats.totalWordsFound >= 10, description: 'Найти 10 слов' },
-    { id: 'fifty_words', name: 'Полтинник', icon: '5️⃣0️⃣', condition: stats.totalWordsFound >= 50, description: 'Найти 50 слов' },
-    { id: 'hundred_words', name: 'Сотня', icon: '💯', condition: stats.totalWordsFound >= 100, description: 'Найти 100 слов' },
-    { id: 'first_level', name: 'Первая победа', icon: '🏆', condition: completedLevels >= 1, description: 'Пройти первый уровень' },
-    { id: 'streak_3', name: 'Три дня подряд', icon: '🔥', condition: longestStreak >= 3, description: 'Играть 3 дня подряд' },
-    { id: 'streak_7', name: 'Неделя!', icon: '📅', condition: longestStreak >= 7, description: 'Играть 7 дней подряд' },
-    { id: 'learned_10', name: 'Ученик', icon: '📚', condition: stats.learnedWords.length >= 10, description: 'Выучить 10 слов' },
-    { id: 'all_stars', name: 'Коллекционер', icon: '⭐', condition: displayTotalStars >= displayMaxStars, description: 'Собрать все звёзды' },
-    { id: 'level_5', name: 'Прокачанный', icon: '⬆️', condition: displayLevel >= 5, description: 'Достигнуть 5 уровня' },
+  // Достижения: берём с бэка, fallback — локальная упрощённая модель
+  const fallbackAchievements = [
+    { id: 'first_level', name: 'Первая победа', icon: '🏆', isUnlocked: completedLevels >= 1, description: 'Пройти первый уровень', progress: completedLevels, target: 1, progressPercent: Math.min(100, completedLevels * 100) },
+    { id: 'streak_7', name: 'Неделя!', icon: '📅', isUnlocked: longestStreak >= 7, description: 'Играть 7 дней подряд', progress: longestStreak, target: 7, progressPercent: Math.min(100, Math.round((longestStreak / 7) * 100)) },
+    { id: 'all_stars', name: 'Коллекционер', icon: '⭐', isUnlocked: displayTotalStars >= displayMaxStars, description: 'Собрать все звёзды', progress: displayTotalStars, target: displayMaxStars, progressPercent: Math.min(100, Math.round((displayTotalStars / Math.max(1, displayMaxStars)) * 100)) },
+    { id: 'level_5', name: 'Прокачанный', icon: '⬆️', isUnlocked: displayLevel >= 5, description: 'Достигнуть 5 уровня', progress: displayLevel, target: 5, progressPercent: Math.min(100, Math.round((displayLevel / 5) * 100)) },
   ];
 
-  const unlockedAchievements = achievements.filter(a => a.condition);
+  const achievements = profileAchievements.length > 0
+    ? profileAchievements
+    : fallbackAchievements;
+
+  const unlockedAchievements = achievements.filter((a) => a.isUnlocked);
+  const nextAchievementHints = achievements
+    .filter((a) => !a.isUnlocked)
+    .sort((a, b) => (b.progressPercent ?? 0) - (a.progressPercent ?? 0))
+    .slice(0, 3);
 
   // Статы для отображения
   const statCards = [
@@ -664,19 +676,45 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
                 initial={{ opacity: 0, scale: 0 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.4 + index * 0.03 }}
-                whileHover={{ scale: 1.1 }}
+                whileHover={{ scale: 1.08 }}
                 className={cn(
-                  "aspect-square rounded-xl flex items-center justify-center text-2xl transition-all",
-                  achievement.condition
+                  "aspect-square rounded-xl flex flex-col items-center justify-center text-2xl transition-all relative overflow-hidden",
+                  achievement.isUnlocked
                     ? 'bg-gradient-to-br from-amber-500/30 to-orange-500/20 shadow-lg shadow-amber-500/10'
-                    : 'bg-stone-800/50 grayscale opacity-40'
+                    : 'bg-stone-800/50 grayscale opacity-50'
                 )}
                 title={`${achievement.name}: ${achievement.description}`}
               >
-                {achievement.icon}
+                <span>{achievement.icon}</span>
+                {!achievement.isUnlocked && typeof achievement.progressPercent === 'number' && (
+                  <div className="absolute bottom-1 left-1 right-1 h-1 rounded-full bg-black/25 overflow-hidden">
+                    <div
+                      className="h-full bg-cyan-400"
+                      style={{ width: `${Math.max(4, achievement.progressPercent)}%` }}
+                    />
+                  </div>
+                )}
               </motion.div>
             ))}
           </div>
+
+          {nextAchievementHints.length > 0 && (
+            <div className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-3 mt-3") }>
+              <div className={cn("text-xs mb-2", theme.text.muted)}>Ближе всего к открытию</div>
+              <div className="space-y-1.5">
+                {nextAchievementHints.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className={cn("truncate", theme.text.secondary)}>
+                      {item.icon} {item.name}
+                    </span>
+                    <span className={cn("tabular-nums", theme.text.dimmed)}>
+                      {item.progress}/{item.target}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </motion.div>
 
         {/* Category Progress */}
