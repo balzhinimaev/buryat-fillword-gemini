@@ -164,7 +164,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const { state: authState, refreshUser } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
   const [totalVerifiedWords, setTotalVerifiedWords] = useState<number | null>(null);
-  const [showStatsTooltip, setShowStatsTooltip] = useState(false);
   const [showDonateBtn, setShowDonateBtn] = useState(true);
 
   // Скрываем кнопку 💸 когда прокручено дальше шапки (~250px)
@@ -614,62 +613,33 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 
           {/* Статистика и Рекорды */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="relative">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  setShowStatsTooltip(true);
-                  setTimeout(() => setShowStatsTooltip(false), 2500);
-                }}
-                className={cn(
-                  "w-full p-4 rounded-2xl border transition-all cursor-not-allowed relative overflow-hidden",
-                  styles.buttons.card.background,
-                  styles.buttons.card.border,
-                )}
-              >
-                <div className="relative opacity-40 grayscale">
-                  <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center mb-2", styles.buttons.iconColors.stats.bg)}>
-                    <BarChart3 size={22} className={styles.buttons.iconColors.stats.icon} />
-                  </div>
-                  <div className="text-left">
-                    <div className={cn("font-semibold", styles.buttons.text.primary)}>Статистика</div>
-                  </div>
-                </div>
-
-                {/* Бейдж "Скоро" */}
-                <div className={cn(
-                  "absolute bottom-3 right-3 z-20 px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide",
-                  isDark
-                    ? "bg-zinc-700 text-zinc-400"
-                    : "bg-zinc-200 text-zinc-500"
-                )}>
-                  Скоро
-                </div>
-              </motion.button>
-
-              {/* Тултип "В разработке" */}
-              {showStatsTooltip && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  className={cn(
-                    "absolute -top-11 left-1/2 -translate-x-1/2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap z-50 shadow-xl",
-                    isDark
-                      ? "bg-zinc-700 text-zinc-100 border border-zinc-600"
-                      : "bg-zinc-800 text-white"
-                  )}
-                >
-                  В разработке
-                  {/* Стрелочка тултипа */}
-                  <div className={cn(
-                    "absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45",
-                    isDark ? "bg-zinc-700 border-r border-b border-zinc-600" : "bg-zinc-800"
-                  )} />
-                </motion.div>
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('stats')}
+              className={cn(
+                "p-4 rounded-2xl border transition-all group relative overflow-hidden",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                styles.buttons.card.borderHover
               )}
-            </div>
+            >
+              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform", styles.buttons.iconColors.stats.bg)}>
+                <BarChart3 size={22} className={styles.buttons.iconColors.stats.icon} />
+              </div>
+              <div className="text-left">
+                <div className={cn("font-semibold", styles.buttons.text.primary)}>Статистика</div>
+              </div>
+
+              <div className={cn(
+                "absolute bottom-3 right-3 z-20 px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide border",
+                isDark
+                  ? "bg-violet-500/20 text-violet-300 border-violet-400/25"
+                  : "bg-violet-100 text-violet-700 border-violet-200"
+              )}>
+                Бета
+              </div>
+            </motion.button>
 
             <motion.button
               whileHover={{ scale: 1.02, y: -2 }}
