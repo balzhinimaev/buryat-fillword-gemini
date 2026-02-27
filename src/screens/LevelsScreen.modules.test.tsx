@@ -17,6 +17,52 @@ afterEach(() => {
 });
 
 describe('LevelsScreen thematic modules shelf', () => {
+  it('returns to previous screen from modules root instead of forcing first chapter', async () => {
+    const store = makeStore('modules');
+
+    const overview: CampaignOverviewResponse = {
+      categories: [],
+      modules: [
+        {
+          id: 'chapter-1',
+          title: 'Сагаан һара / Сагаалган',
+          order: 1,
+          requiredStars: 0,
+          isUnlocked: true,
+          earnedStars: 0,
+          totalStars: 3,
+          levels: [
+            {
+              id: 'lvl-open',
+              slug: 'open-level',
+              name: 'Open',
+              difficulty: 'beginner',
+              requiredStars: 0,
+              isUnlocked: true,
+              earnedStars: 0,
+              maxStars: 3,
+            },
+          ],
+        },
+      ],
+      totalStars: 3,
+      earnedStars: 0,
+      progressPercent: 0,
+    };
+
+    vi.spyOn(api, 'getCampaignOverview').mockResolvedValue(overview);
+
+    render(<LevelsScreen store={store as any} />);
+
+    await screen.findByText('Сагаан һара / Сагаалган');
+
+    fireEvent.click(screen.getByLabelText('Назад'));
+
+    expect(store.goBack).toHaveBeenCalledTimes(1);
+    expect(store.setCampaignLandingView).toHaveBeenCalledWith(null);
+    expect(store.setCampaignLandingView).not.toHaveBeenCalledWith('chapters');
+  });
+
   it('renders modules shelf and NEW badge for eligible non-started module', async () => {
     const store = makeStore('modules');
 

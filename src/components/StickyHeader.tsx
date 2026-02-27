@@ -109,6 +109,7 @@ export const StickyHeader: React.FC<StickyHeaderProps> = ({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={onBack}
+              aria-label="Назад"
               className={cn(
                 "p-2 rounded-xl transition-colors",
                 isDark 
