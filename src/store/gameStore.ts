@@ -111,6 +111,7 @@ const defaultGameState: GameState = {
   campaignLandingView: null,
   adminEditLevelNumber: null,
   adminEditDailyDate: null,
+  adminCampaignMapLessonSlug: null,
   settings: defaultSettings,
   stats: defaultStats,
   levelProgress: {},
@@ -314,6 +315,16 @@ export const useGameStore = () => {
       screenHistory: [...prev.screenHistory, prev.currentScreen],
       adminEditDailyDate: date,
       currentScreen: 'adminDailyWord' as Screen,
+    }));
+  }, []);
+
+  // Навигация к редактору карт урока кампании (админ)
+  const navigateToCampaignMapEditor = useCallback((lessonSlug: string) => {
+    setState(prev => ({
+      ...prev,
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      adminCampaignMapLessonSlug: lessonSlug,
+      currentScreen: 'adminCampaignMaps' as Screen,
     }));
   }, []);
 
@@ -623,6 +634,7 @@ export const useGameStore = () => {
     startDailyGame,
     navigateToLevelEditor,
     navigateToDailyWordEditor,
+    navigateToCampaignMapEditor,
     isPackUnlocked,
     getPackProgress,
     completeEndlessLevel,
