@@ -1,5 +1,5 @@
 // src/screens/LevelsScreen.tsx
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star, ArrowLeft, Layers, Lock, Clock, Hash, RefreshCw, Sparkles } from 'lucide-react';
 import { CategoryCard, cn } from '../components/ui';
@@ -18,6 +18,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   const { theme } = useTheme();
   const [showModulesChapter, setShowModulesChapter] = useState(state.campaignLandingView === 'modules');
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  const entryLandingViewRef = useRef(state.campaignLandingView);
 
   const handleBack = useCallback(() => {
     if (showModulesChapter && selectedModuleId) {
@@ -26,6 +27,15 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     }
 
     if (showModulesChapter) {
+      // Если пользователь зашёл в экран сразу через кнопку «Спецмодули»,
+      // ожидаемое поведение back — выйти на предыдущий экран (выбор режима),
+      // а не переключать его на «Первую главу».
+      if (entryLandingViewRef.current === 'modules') {
+        setCampaignLandingView(null);
+        goBack();
+        return;
+      }
+
       setShowModulesChapter(false);
       setCampaignLandingView('chapters');
       return;
@@ -178,6 +188,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleBack}
+              aria-label="Назад"
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
             >
               <ArrowLeft size={24} className={theme.header.text} />
