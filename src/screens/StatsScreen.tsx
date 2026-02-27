@@ -1,5 +1,5 @@
 // src/screens/StatsScreen.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   BarChart3, 
@@ -23,6 +23,7 @@ import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { useAuth } from '../store/authStore';
 import { categories, getAllWords } from '../data/words';
+import { getUserProfile, type UserProfileXpHistoryItem } from '../services/api';
 
 interface StatsScreenProps {
   store: GameStore;
@@ -33,6 +34,20 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const { stats, levelProgress } = state;
   const { theme } = useTheme();
   const { state: authState, refreshUser } = useAuth();
+  const [xpHistory, setXpHistory] = useState<UserProfileXpHistoryItem[]>([]);
+
+  const toLocalDateKey = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const formatDateLabel = (dateKey: string) => {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const date = new Date(year, (month ?? 1) - 1, day ?? 1);
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  };
 
   // Обновляем данные пользователя при монтировании компонента
   useEffect(() => {
@@ -40,6 +55,35 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
       refreshUser();
     }
   }, [authState.isAuthenticated, refreshUser]);
+
+  // История XP: нужна для блока «За сегодня / Лучший день»
+  useEffect(() => {
+    let mounted = true;
+
+    const loadProfileHistory = async () => {
+      const userId = authState.user?._id;
+      if (!authState.isAuthenticated || !userId) {
+        if (mounted) setXpHistory([]);
+        return;
+      }
+
+      try {
+        const profile = await getUserProfile(userId);
+        if (mounted) {
+          setXpHistory(profile.recentXpHistory ?? []);
+        }
+      } catch {
+        if (mounted) {
+          setXpHistory([]);
+        }
+      }
+    };
+
+    loadProfileHistory();
+    return () => {
+      mounted = false;
+    };
+  }, [authState.isAuthenticated, authState.user?._id]);
 
   // Streak — берём из бэка или fallback на локальное
   const currentStreak = authState.user?.streak?.current ?? stats.currentStreak;
@@ -103,6 +147,41 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
     { icon: Flame, label: 'Серия дней', value: currentStreak, subValue: `Рекорд: ${longestStreak}`, color: 'orange' },
     { icon: BarChart3, label: 'Игр сыграно', value: displayTotalAttempts, color: 'meadow' },
   ];
+
+  const groupedXpByDay = useMemo(() => {
+    const byDay = new Map<string, { xp: number; actions: number }>();
+
+    xpHistory.forEach((entry) => {
+      const date = new Date(entry.createdAt);
+      if (Number.isNaN(date.getTime())) return;
+
+      const key = toLocalDateKey(date);
+      const current = byDay.get(key) ?? { xp: 0, actions: 0 };
+      byDay.set(key, {
+        xp: current.xp + Math.max(0, entry.amount),
+        actions: current.actions + 1,
+      });
+    });
+
+    return byDay;
+  }, [xpHistory]);
+
+  const todayProgress = useMemo(() => {
+    const todayKey = toLocalDateKey(new Date());
+    return groupedXpByDay.get(todayKey) ?? { xp: 0, actions: 0 };
+  }, [groupedXpByDay]);
+
+  const bestDayProgress = useMemo<{ dateKey: string; xp: number; actions: number } | null>(() => {
+    let best: { dateKey: string; xp: number; actions: number } | null = null;
+
+    groupedXpByDay.forEach((value, key) => {
+      if (!best || value.xp > best.xp || (value.xp === best.xp && key > best.dateKey)) {
+        best = { dateKey: key, xp: value.xp, actions: value.actions };
+      }
+    });
+
+    return best;
+  }, [groupedXpByDay]);
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
@@ -269,6 +348,39 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
               {stat.subValue && <div className={cn("text-xs mt-1", theme.text.dimmed)}>{stat.subValue}</div>}
             </motion.div>
           ))}
+        </motion.div>
+
+        {/* Daily activity */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18 }}
+          className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-4")}
+        >
+          <h3 className={cn("font-semibold mb-4 flex items-center gap-2", theme.text.primary)}>
+            <TrendingUp size={18} className="text-violet-400" />
+            Динамика XP
+          </h3>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-3")}>
+              <div className={cn("text-xs mb-1", theme.text.muted)}>За сегодня</div>
+              <div className={cn("text-2xl font-bold", theme.text.primary)}>+{todayProgress.xp} XP</div>
+              <div className={cn("text-xs mt-1", theme.text.dimmed)}>{todayProgress.actions} активн.</div>
+            </div>
+
+            <div className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-3")}>
+              <div className={cn("text-xs mb-1", theme.text.muted)}>Лучший день</div>
+              <div className={cn("text-2xl font-bold", theme.text.primary)}>
+                {bestDayProgress ? `+${bestDayProgress.xp} XP` : '—'}
+              </div>
+              <div className={cn("text-xs mt-1", theme.text.dimmed)}>
+                {bestDayProgress
+                  ? `${formatDateLabel(bestDayProgress.dateKey)} · ${bestDayProgress.actions} активн.`
+                  : 'Недостаточно данных'}
+              </div>
+            </div>
+          </div>
         </motion.div>
 
         {/* Progress section */}
