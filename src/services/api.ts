@@ -849,6 +849,19 @@ export interface CampaignOverviewResponse extends ExtensibleRecord {
   progressPercent?: number;
 }
 
+export interface CampaignMapVariantMeta {
+  variantId: string;
+  preferredDifficultyLevel: 1 | 2 | 3 | number;
+  selectedDifficultyLevel: 1 | 2 | 3 | number;
+  selectionReason: 'exact' | 'nearest' | string;
+}
+
+export interface CampaignWordPlacement {
+  bur: string;
+  ru: string;
+  path: Array<{ r: number; c: number }>;
+}
+
 export interface CampaignLevelResponse extends ExtensibleRecord {
   id: string;
   slug: string;
@@ -859,6 +872,10 @@ export interface CampaignLevelResponse extends ExtensibleRecord {
   maxStars?: number;
   currentStars?: number;
   bestTimeSeconds?: number;
+  gridSize?: number;
+  grid?: string[][];
+  wordPlacements?: CampaignWordPlacement[];
+  mapVariantMeta?: CampaignMapVariantMeta;
 }
 
 export interface CampaignLevelStartResponse extends ExtensibleRecord {
@@ -978,6 +995,28 @@ export interface CampaignAdminWord {
   wordId?: string;
 }
 
+export interface CampaignMapGridCell {
+  r: number;
+  c: number;
+}
+
+export interface CampaignMapWordPlacementAdmin {
+  word: string;
+  path: CampaignMapGridCell[];
+}
+
+export interface CampaignMapVariantAdmin {
+  variantId?: string;
+  title?: string;
+  difficultyLevel: 1 | 2 | 3 | number;
+  gridSize: number;
+  grid: string[][];
+  wordPlacements: CampaignMapWordPlacementAdmin[];
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface CampaignAdminLevel {
   id: string;
   slug: string;
@@ -997,6 +1036,7 @@ export interface CampaignAdminLevel {
   description?: string;
   descriptionBur?: string;
   words?: CampaignAdminWord[];
+  mapVariants?: CampaignMapVariantAdmin[];
 }
 
 export interface CampaignChapterCreateRequest {
@@ -1026,6 +1066,7 @@ export interface CampaignAdminLevelCreateRequest {
   status?: CampaignContentStatus;
   description?: string;
   descriptionBur?: string;
+  mapVariants?: CampaignMapVariantAdmin[];
 }
 
 export type CampaignAdminLevelUpdateRequest = Partial<Omit<CampaignAdminLevelCreateRequest, 'slug'>>;
@@ -1114,6 +1155,59 @@ export async function deleteCampaignAdminLevel(slug: string): Promise<void> {
   return apiRequest<void>(`/campaign/admin/level/${encodeURIComponent(slug)}`, {
     method: 'DELETE',
   });
+}
+
+export interface CampaignAdminMapVariantsResponse {
+  slug: string;
+  mapVariants: CampaignMapVariantAdmin[];
+}
+
+export async function getCampaignAdminMapVariants(
+  slug: string
+): Promise<CampaignAdminMapVariantsResponse> {
+  return apiRequest<CampaignAdminMapVariantsResponse>(
+    `/campaign/admin/level/${encodeURIComponent(slug)}/map-variants`,
+    { method: 'GET' }
+  );
+}
+
+export async function createCampaignAdminMapVariant(
+  slug: string,
+  data: CampaignMapVariantAdmin
+): Promise<CampaignAdminMapVariantsResponse> {
+  return apiRequest<CampaignAdminMapVariantsResponse>(
+    `/campaign/admin/level/${encodeURIComponent(slug)}/map-variants`,
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export async function updateCampaignAdminMapVariant(
+  slug: string,
+  variantId: string,
+  data: CampaignMapVariantAdmin
+): Promise<CampaignAdminMapVariantsResponse> {
+  return apiRequest<CampaignAdminMapVariantsResponse>(
+    `/campaign/admin/level/${encodeURIComponent(slug)}/map-variants/${encodeURIComponent(variantId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export async function deleteCampaignAdminMapVariant(
+  slug: string,
+  variantId: string
+): Promise<CampaignAdminMapVariantsResponse> {
+  return apiRequest<CampaignAdminMapVariantsResponse>(
+    `/campaign/admin/level/${encodeURIComponent(slug)}/map-variants/${encodeURIComponent(variantId)}`,
+    {
+      method: 'DELETE',
+    }
+  );
 }
 
 // =========================
@@ -1686,6 +1780,10 @@ export const api = {
   createCampaignAdminLevel,
   updateCampaignAdminLevel,
   deleteCampaignAdminLevel,
+  getCampaignAdminMapVariants,
+  createCampaignAdminMapVariant,
+  updateCampaignAdminMapVariant,
+  deleteCampaignAdminMapVariant,
 
   // Leaderboard
   getLeaderboard,
