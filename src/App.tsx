@@ -1,7 +1,7 @@
 // src/App.tsx
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from './store/gameStore';
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, lazy, Suspense } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
 import { getTheme } from './theme';
 import { TelegramThemeSync } from './components/TelegramThemeSync';
@@ -9,28 +9,28 @@ import { useAuth } from './store/authStore';
 import { api } from './services/api';
 import { getResumeFirstLevelSlug } from './utils/campaignResume';
 
-// Screens
-import MainMenu from './screens/MainMenu';
-import GameModeSelectScreen from './screens/GameModeSelectScreen';
-import LevelsScreen from './screens/LevelsScreen';
-import LevelPackScreen from './screens/LevelPackScreen';
-import GameScreen from './screens/GameScreen';
-import SettingsScreen from './screens/SettingsScreen';
-import StatsScreen from './screens/StatsScreen';
-import LeaderboardScreen from './screens/LeaderboardScreen';
-import DictionaryScreen from './screens/DictionaryScreen';
-import WordDetailScreen from './screens/WordDetailScreen';
-import DebugGridScreen from './screens/DebugGridScreen';
-import AdminScreen from './screens/AdminScreen';
-import AdminCampaignScreen from './screens/AdminCampaignScreen';
-import BroadcastScreen from './screens/BroadcastScreen';
-import WordContributionScreen from './screens/WordContributionScreen';
-import OnboardingScreen from './screens/OnboardingScreen';
-import HowToPlayScreen from './screens/HowToPlayScreen';
-import AdminLevelEditorScreen from './screens/AdminLevelEditorScreen';
-import AdminDailyWordScreen from './screens/AdminDailyWordScreen';
-import AdminCampaignMapVariantsScreen from './screens/AdminCampaignMapVariantsScreen';
-import SupportScreen from './screens/SupportScreen';
+// Screens (lazy-loaded для code splitting)
+const MainMenu = lazy(() => import('./screens/MainMenu'));
+const GameModeSelectScreen = lazy(() => import('./screens/GameModeSelectScreen'));
+const LevelsScreen = lazy(() => import('./screens/LevelsScreen'));
+const LevelPackScreen = lazy(() => import('./screens/LevelPackScreen'));
+const GameScreen = lazy(() => import('./screens/GameScreen'));
+const SettingsScreen = lazy(() => import('./screens/SettingsScreen'));
+const StatsScreen = lazy(() => import('./screens/StatsScreen'));
+const LeaderboardScreen = lazy(() => import('./screens/LeaderboardScreen'));
+const DictionaryScreen = lazy(() => import('./screens/DictionaryScreen'));
+const WordDetailScreen = lazy(() => import('./screens/WordDetailScreen'));
+const DebugGridScreen = lazy(() => import('./screens/DebugGridScreen'));
+const AdminScreen = lazy(() => import('./screens/AdminScreen'));
+const AdminCampaignScreen = lazy(() => import('./screens/AdminCampaignScreen'));
+const BroadcastScreen = lazy(() => import('./screens/BroadcastScreen'));
+const WordContributionScreen = lazy(() => import('./screens/WordContributionScreen'));
+const OnboardingScreen = lazy(() => import('./screens/OnboardingScreen'));
+const HowToPlayScreen = lazy(() => import('./screens/HowToPlayScreen'));
+const AdminLevelEditorScreen = lazy(() => import('./screens/AdminLevelEditorScreen'));
+const AdminDailyWordScreen = lazy(() => import('./screens/AdminDailyWordScreen'));
+const AdminCampaignMapVariantsScreen = lazy(() => import('./screens/AdminCampaignMapVariantsScreen'));
+const SupportScreen = lazy(() => import('./screens/SupportScreen'));
 
 // Плавный fade переход
 const pageVariants = {
@@ -204,7 +204,15 @@ export default function App() {
             transition={pageTransition}
             className="min-h-[100dvh]"
           >
-            {renderScreen()}
+            <Suspense
+              fallback={(
+                <div className={`min-h-[100dvh] flex items-center justify-center text-sm ${currentTheme.text.muted}`}>
+                  Загрузка…
+                </div>
+              )}
+            >
+              {renderScreen()}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </div>
