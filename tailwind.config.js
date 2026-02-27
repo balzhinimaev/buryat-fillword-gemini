@@ -23,8 +23,6 @@ export default {
     { pattern: /^fill-(stone|slate|amber|orange|cyan|blue|emerald|transparent)-(50|100|200|300|400|500|600|700|800|900|950)/ },
     // Тени
     { pattern: /^shadow-(stone|slate|amber|orange|cyan|blue|emerald)-(50|100|200|300|400|500|600|700|800|900|950)/ },
-    // Hover состояния
-    { pattern: /^hover:(bg|text|border|from|to|via)-(stone|slate|amber|orange|white|cyan|blue|emerald)-(50|100|200|300|400|500|600|700|800|900|950)/ },
     // Специальные классы
     'bg-white',
     'text-white',

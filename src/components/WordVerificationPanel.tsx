@@ -144,10 +144,14 @@ const VoteWordCard: React.FC<{
       )}
     >
       {/* Фоновый паттерн */}
-      <div className={cn(
-        "absolute inset-0 opacity-5",
-        isDark ? "bg-[url('/patterns/dots.svg')]" : "bg-[url('/patterns/grid.svg')]"
-      )} />
+      <div
+        className="absolute inset-0 opacity-5"
+        style={{
+          backgroundImage: `url('${import.meta.env.BASE_URL}patterns/${isDark ? 'dots' : 'grid'}.svg')`,
+          backgroundSize: isDark ? '14px 14px' : '18px 18px',
+          backgroundRepeat: 'repeat',
+        }}
+      />
 
       {/* Контент */}
       <div className="relative z-10">
