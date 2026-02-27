@@ -78,6 +78,7 @@ export interface GameState {
   campaignLandingView: 'chapters' | 'modules' | null; // какой раздел открыть в экране первой главы
   adminEditLevelNumber: number | null; // номер уровня для редактора (null = создание нового)
   adminEditDailyDate: string | null; // дата для редактора филлворда дня (null = создание нового, 'YYYY-MM-DD' = редактирование)
+  adminCampaignMapLessonSlug: string | null; // slug урока для редактора карт кампании
   settings: GameSettings;
   stats: PlayerStats;
   levelProgress: Record<string, LevelProgress>;
@@ -105,6 +106,7 @@ export type Screen =
   | 'howto' // Обучение "Как играть"
   | 'adminLevelEditor' // Редактор уровней (админ)
   | 'adminDailyWord' // Редактор филлвордов дня (админ)
+  | 'adminCampaignMaps' // Редактор карт уроков кампании (админ)
   | 'support'; // Поддержать проект
 
 // === Режимы игры ===
