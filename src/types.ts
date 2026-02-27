@@ -63,6 +63,7 @@ export interface GameSettings {
   publicProfile: boolean;
   notificationsEnabled: boolean;
   hasSeenHowTo: boolean; // пройдено ли обучение "Как играть"
+  hasSeenTimerOnboarding: boolean; // показан ли выбор режима таймера перед первым уроком
   difficulty: Difficulty; // сложность игры
 }
 

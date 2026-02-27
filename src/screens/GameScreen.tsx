@@ -275,7 +275,7 @@ const LetterCell = React.memo(({
 
 
 export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
-  const { state, navigate, goBack, completeEndlessLevel, addToLeaderboard, selectEndlessLevel, navigateToLevelEditor } = store;
+  const { state, navigate, goBack, completeEndlessLevel, addToLeaderboard, selectEndlessLevel, navigateToLevelEditor, updateSettings } = store;
   const { state: authState } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
   
@@ -286,6 +286,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const campaignSlug = (!isEndlessMode && !isDailyMode) ? (state.selectedCategory || null) : null;
   const isCampaignMode = !isEndlessMode && !isDailyMode;
   const isTimerEnabled = state.settings.timerEnabled !== false;
+  const isFirstCampaignLesson = campaignSlug === 'greetings';
+  const shouldAskTimerOnFirstLesson =
+    isCampaignMode &&
+    isFirstCampaignLesson &&
+    state.settings.hasSeenTimerOnboarding !== true;
 
   // Campaign level data (server)
   const [campaignLevel, setCampaignLevel] = useState<CampaignLevelResponse | null>(null);
@@ -377,6 +382,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const manualHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [showWinModal, setShowWinModal] = useState(false);
+  const [showTimerOnboardingModal, setShowTimerOnboardingModal] = useState(false);
   const [time, setTime] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -440,8 +446,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     }
   }, [endlessLevel]);
 
-  const initCampaignGame = useCallback(async () => {
+  const initCampaignGame = useCallback(async (forceStart = false) => {
     if (!campaignSlug || !campaignLevel) return;
+
+    if (!forceStart && shouldAskTimerOnFirstLesson) {
+      setShowTimerOnboardingModal(true);
+      return;
+    }
+
     if (timerRef.current) clearInterval(timerRef.current);
 
     setIsCampaignStarting(true);
@@ -516,7 +528,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     } finally {
       setIsCampaignStarting(false);
     }
-  }, [campaignSlug, campaignLevel]);
+  }, [campaignSlug, campaignLevel, shouldAskTimerOnFirstLesson]);
 
   // Инициализация филлворда дня (server-driven)
   const initDailyGame = useCallback(async () => {
@@ -590,6 +602,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   useEffect(() => {
     if (isCampaignMode && campaignLevel && campaignSlug) void initCampaignGame();
   }, [isCampaignMode, campaignLevel, campaignSlug, initCampaignGame]);
+
+  useEffect(() => {
+    if (!shouldAskTimerOnFirstLesson) {
+      setShowTimerOnboardingModal(false);
+    }
+  }, [shouldAskTimerOnFirstLesson]);
   
   // Очистка таймера toast при размонтировании
   useEffect(() => {
@@ -607,9 +625,18 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     }, 3000);
   }, []);
 
+  const applyTimerOnboardingChoice = useCallback((timerEnabled: boolean) => {
+    updateSettings({
+      timerEnabled,
+      hasSeenTimerOnboarding: true,
+    });
+    setShowTimerOnboardingModal(false);
+    void initCampaignGame(true);
+  }, [updateSettings, initCampaignGame]);
+
   // Таймер
   useEffect(() => {
-    const canRunTimer = !showWinModal && (
+    const canRunTimer = !showWinModal && !showTimerOnboardingModal && (
       (isEndlessMode && !!levelModeSessionId && !levelModeLoading && !isLevelModeSubmitting) ||
       (isDailyMode && !!dailySessionId && !dailyLoading && !isDailySubmitting) ||
       (isCampaignMode && !!campaignSessionId && !isCampaignStarting && !isCampaignSubmitting)
@@ -623,7 +650,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [showWinModal, isEndlessMode, isDailyMode, levelModeSessionId, levelModeLoading, isLevelModeSubmitting, dailySessionId, dailyLoading, isDailySubmitting, isCampaignMode, campaignSessionId, isCampaignStarting, isCampaignSubmitting]);
+  }, [showWinModal, showTimerOnboardingModal, isEndlessMode, isDailyMode, levelModeSessionId, levelModeLoading, isLevelModeSubmitting, dailySessionId, dailyLoading, isDailySubmitting, isCampaignMode, campaignSessionId, isCampaignStarting, isCampaignSubmitting]);
 
   // Форматирование времени
   const formatTime = (seconds: number) => {
@@ -1662,6 +1689,61 @@ ${levelInfo}
             <p className={cn("text-sm font-medium", styles.toast.text)}>
               {toastMessage}
             </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Timer onboarding modal (перед первым уроком) */}
+      <AnimatePresence>
+        {showTimerOnboardingModal && shouldAskTimerOnFirstLesson && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={cn('absolute inset-0 z-50 flex items-center justify-center p-4', isDark ? 'bg-black/65' : 'bg-stone-900/45')}
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.96, y: 8 }}
+              className={cn(
+                'w-full max-w-sm rounded-2xl border p-5 shadow-2xl',
+                isDark ? 'bg-stone-900 border-white/10 text-white' : 'bg-white border-stone-200 text-stone-900'
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', isDark ? 'bg-violet-500/20' : 'bg-violet-100')}>
+                  <Clock size={18} className={cn(isDark ? 'text-violet-200' : 'text-violet-700')} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className={cn('text-base font-bold', isDark ? 'text-white' : 'text-stone-900')}>Как удобнее играть?</h3>
+                  <p className={cn('text-sm mt-1', isDark ? 'text-white/70' : 'text-stone-600')}>
+                    Можно включить таймер для динамики или играть спокойно без ограничения по времени.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 mt-4">
+                <button
+                  onClick={() => applyTimerOnboardingChoice(true)}
+                  className={cn(
+                    'w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200',
+                    isDark ? 'bg-violet-500/25 hover:bg-violet-500/35 text-violet-100' : 'bg-violet-600 hover:bg-violet-700 text-white'
+                  )}
+                >
+                  Играть с таймером
+                </button>
+                <button
+                  onClick={() => applyTimerOnboardingChoice(false)}
+                  className={cn(
+                    'w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200',
+                    isDark ? 'bg-white/10 hover:bg-white/15 text-white/90' : 'bg-stone-100 hover:bg-stone-200 text-stone-800'
+                  )}
+                >
+                  Играть без таймера
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

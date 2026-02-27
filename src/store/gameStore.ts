@@ -75,6 +75,7 @@ const defaultSettings: GameSettings = {
   publicProfile: true,
   notificationsEnabled: true,
   hasSeenHowTo: false,
+  hasSeenTimerOnboarding: false,
   difficulty: 'medium',
 };
 
