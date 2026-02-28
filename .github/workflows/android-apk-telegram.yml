@@ -1,0 +1,153 @@
+name: Android APK Build & Telegram Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_label:
+        description: 'Optional custom release label (e.g. beta-2026-02-28)'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-send-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      APK_OUTPUT_PATH: android/app/build/outputs/apk/debug/app-debug.apk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Sync Capacitor Android project
+        run: npm run android:sync
+
+      - name: Build debug APK
+        run: npm run android:build:debug
+
+      - name: Prepare release metadata
+        id: meta
+        run: |
+          APP_VERSION=$(node -p "require('./package.json').version")
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG_NAME=""
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          fi
+
+          INPUT_LABEL="${{ github.event.inputs.release_label }}"
+          if [ -n "$INPUT_LABEL" ]; then
+            RELEASE_LABEL="$INPUT_LABEL"
+          elif [ -n "$TAG_NAME" ]; then
+            RELEASE_LABEL="$TAG_NAME"
+          else
+            RELEASE_LABEL="v${APP_VERSION}-build-${GITHUB_RUN_NUMBER}"
+          fi
+
+          FILE_NAME="burlive-${RELEASE_LABEL}-${SHORT_SHA}.apk"
+
+          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "release_label=$RELEASE_LABEL" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "file_name=$FILE_NAME" >> "$GITHUB_OUTPUT"
+
+          cp "$APK_OUTPUT_PATH" "$FILE_NAME"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.file_name }}
+          path: ${{ steps.meta.outputs.file_name }}
+          if-no-files-found: error
+
+      - name: Send Telegram release message
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID secret"
+            exit 1
+          fi
+
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          MESSAGE=$(cat <<EOF
+📦 Burlive Android APK release
+
+Release: ${{ steps.meta.outputs.release_label }}
+Version: ${{ steps.meta.outputs.app_version }}
+Commit: ${{ steps.meta.outputs.short_sha }}
+Workflow: ${RUN_URL}
+EOF
+)
+
+          SEND_TEXT_URL="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+
+          if [ -n "$TELEGRAM_THREAD_ID" ]; then
+            RESP=$(curl -sS -X POST "$SEND_TEXT_URL" \
+              -d "chat_id=${TELEGRAM_CHAT_ID}" \
+              -d "message_thread_id=${TELEGRAM_THREAD_ID}" \
+              --data-urlencode "text=${MESSAGE}")
+          else
+            RESP=$(curl -sS -X POST "$SEND_TEXT_URL" \
+              -d "chat_id=${TELEGRAM_CHAT_ID}" \
+              --data-urlencode "text=${MESSAGE}")
+          fi
+
+          echo "$RESP"
+          echo "$RESP" | grep -q '"ok":true'
+
+      - name: Send APK to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+        run: |
+          SEND_DOC_URL="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"
+
+          CAPTION="Burlive APK • ${{ steps.meta.outputs.release_label }} • commit ${{ steps.meta.outputs.short_sha }}"
+
+          if [ -n "$TELEGRAM_THREAD_ID" ]; then
+            RESP=$(curl -sS -X POST "$SEND_DOC_URL" \
+              -F "chat_id=${TELEGRAM_CHAT_ID}" \
+              -F "message_thread_id=${TELEGRAM_THREAD_ID}" \
+              -F "caption=${CAPTION}" \
+              -F "document=@${{ steps.meta.outputs.file_name }}")
+          else
+            RESP=$(curl -sS -X POST "$SEND_DOC_URL" \
+              -F "chat_id=${TELEGRAM_CHAT_ID}" \
+              -F "caption=${CAPTION}" \
+              -F "document=@${{ steps.meta.outputs.file_name }}")
+          fi
+
+          echo "$RESP"
+          echo "$RESP" | grep -q '"ok":true'

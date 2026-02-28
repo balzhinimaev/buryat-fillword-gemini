@@ -95,8 +95,26 @@ npm run android:sync
 
 Клиентское поведение:
 - permission запрашивается только в нативном Android-приложении,
-- после успешного login FCM token отправляется в backend (`/push/devices/register`),
+- после завершения онбординга и успешной авторизации FCM token отправляется в backend (`/push/devices/register`),
 - при logout токен отзывается (`/push/devices/unregister`).
+
+### CI: APK в Telegram канал
+
+Workflow: `.github/workflows/android-apk-telegram.yml`
+
+Триггеры:
+- push tag `v*` (например `v1.2.0`)
+- manual `workflow_dispatch`
+
+Обязательные secrets репозитория:
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `TELEGRAM_THREAD_ID` (опционально, если канал с топиками)
+
+Результат:
+- собирается `debug APK`,
+- APK сохраняется в GitHub Artifact,
+- в Telegram отправляется сообщение с release-метаданными и сам APK-файл.
 
 ## Примечание по API
 
