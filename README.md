@@ -19,7 +19,7 @@
 
 - Android Studio (последняя стабильная)
 - Android SDK Platform 34+
-- JDK 17
+- JDK 21
 - Android device / эмулятор для теста APK
 
 ## Быстрый старт
