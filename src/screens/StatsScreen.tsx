@@ -1,6 +1,6 @@
 // src/screens/StatsScreen.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { 
   BarChart3, 
   Clock, 
@@ -78,6 +78,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const [profileAchievements, setProfileAchievements] = useState<UserProfileAchievement[]>([]);
   const [selectedChartDayKey, setSelectedChartDayKey] = useState<string | null>(null);
   const [newAchievementToast, setNewAchievementToast] = useState<UserProfileAchievement | null>(null);
+  const [selectedAchievement, setSelectedAchievement] = useState<UserProfileAchievement | null>(null);
 
   const toLocalDateKey = (date: Date) => {
     const y = date.getFullYear();
@@ -195,7 +196,13 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const displayPlayTime = campaignStats?.totalPlayTimeSeconds ?? stats.totalTimePlayed;
   const displayTotalAttempts = campaignStats?.totalAttempts ?? stats.totalGamesPlayed;
   
-  useBackButton(() => goBack());
+  useBackButton(() => {
+    if (selectedAchievement) {
+      setSelectedAchievement(null);
+      return;
+    }
+    goBack();
+  });
 
   // Форматирование времени
   const formatPlayTime = (seconds: number) => {
@@ -376,6 +383,31 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
     }
 
     return 'Отличный темп! Чтобы расти ещё быстрее — держи серию дней и проходи уровни без подсказок.';
+  };
+
+  const getAchievementTip = (achievement: UserProfileAchievement) => {
+    if (achievement.isUnlocked) {
+      return 'Открыто! Продолжай в том же темпе и двигайся к следующей цели.';
+    }
+
+    const remaining = Math.max(0, achievement.target - achievement.progress);
+    if (remaining <= 1) {
+      return 'Остался последний шаг — можно закрыть уже в следующей сессии.';
+    }
+
+    if (achievement.category === 'streak') {
+      return `До цели осталось ${remaining} дн. серии. Заходи ежедневно без пропусков.`;
+    }
+
+    if (achievement.category === 'daily') {
+      return `Осталось ${remaining} прохождений филлворда дня. Это самый стабильный путь.`;
+    }
+
+    if (achievement.category === 'campaign') {
+      return `Осталось ${remaining}. Проходи уровни на 3★ — прогресс будет быстрее.`;
+    }
+
+    return `До открытия осталось ${remaining}. Маленькие шаги каждый день дают лучший результат.`;
   };
 
   return (
@@ -806,34 +838,47 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
               ))}
             </div>
           )}
-          
+
+          <p className={cn("text-xs mb-3", theme.text.dimmed)}>
+            Нажми на достижение, чтобы увидеть детали и советы по прогрессу
+          </p>
+
           <div className="grid grid-cols-5 gap-2">
-            {sortedAchievements.map((achievement, index) => (
-              <motion.div
-                key={achievement.id}
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4 + index * 0.03 }}
-                whileHover={{ scale: 1.08 }}
-                className={cn(
-                  "aspect-square rounded-xl flex flex-col items-center justify-center text-2xl transition-all relative overflow-hidden",
-                  achievement.isUnlocked
-                    ? 'bg-gradient-to-br from-amber-500/30 to-orange-500/20 shadow-lg shadow-amber-500/10'
-                    : 'bg-stone-800/50 grayscale opacity-50'
-                )}
-                title={`${achievement.name}: ${achievement.description}`}
-              >
-                <span>{achievement.icon}</span>
-                {!achievement.isUnlocked && typeof achievement.progressPercent === 'number' && (
-                  <div className="absolute bottom-1 left-1 right-1 h-1 rounded-full bg-black/25 overflow-hidden">
-                    <div
-                      className="h-full bg-cyan-400"
-                      style={{ width: `${Math.max(4, achievement.progressPercent)}%` }}
-                    />
-                  </div>
-                )}
-              </motion.div>
-            ))}
+            {sortedAchievements.map((achievement, index) => {
+              const isActive = selectedAchievement?.id === achievement.id;
+
+              return (
+                <motion.button
+                  key={achievement.id}
+                  type="button"
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4 + index * 0.03 }}
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setSelectedAchievement(achievement)}
+                  className={cn(
+                    "aspect-square rounded-xl flex flex-col items-center justify-center text-2xl transition-all relative overflow-hidden border",
+                    achievement.isUnlocked
+                      ? 'bg-gradient-to-br from-amber-500/30 to-orange-500/20 shadow-lg shadow-amber-500/10 border-amber-400/20'
+                      : 'bg-stone-800/50 grayscale opacity-70 border-white/5',
+                    isActive && 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-transparent'
+                  )}
+                  title={`${achievement.name}: ${achievement.description}`}
+                  aria-label={`Открыть достижение: ${achievement.name}`}
+                >
+                  <span>{achievement.icon}</span>
+                  {!achievement.isUnlocked && typeof achievement.progressPercent === 'number' && (
+                    <div className="absolute bottom-1 left-1 right-1 h-1 rounded-full bg-black/25 overflow-hidden">
+                      <div
+                        className="h-full bg-cyan-400"
+                        style={{ width: `${Math.max(4, achievement.progressPercent)}%` }}
+                      />
+                    </div>
+                  )}
+                </motion.button>
+              );
+            })}
           </div>
 
           {nextAchievementHints.length > 0 && (
@@ -901,6 +946,101 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
           </div>
         </motion.div>
       </main>
+
+      <AnimatePresence>
+        {selectedAchievement && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70]"
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedAchievement(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-[1px]"
+              aria-label="Закрыть детали достижения"
+            />
+
+            <motion.div
+              initial={{ y: 32, opacity: 0, scale: 0.98 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 20, opacity: 0, scale: 0.98 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+              className={cn(
+                "absolute left-3 right-3 bottom-3 rounded-3xl border p-4 shadow-2xl",
+                theme.backgrounds.card,
+                theme.borders.subtle,
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <div className={cn(
+                  "w-14 h-14 rounded-2xl text-3xl flex items-center justify-center border",
+                  selectedAchievement.isUnlocked
+                    ? 'bg-gradient-to-br from-amber-500/30 to-orange-500/20 border-amber-400/20'
+                    : 'bg-stone-800/60 border-white/10'
+                )}>
+                  {selectedAchievement.icon}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className={cn("text-xs mb-1", theme.text.muted)}>
+                    {ACHIEVEMENT_CATEGORY_LABELS[selectedAchievement.category]}
+                  </div>
+                  <div className={cn("font-semibold", theme.text.primary)}>{selectedAchievement.name}</div>
+                  <div className={cn("text-xs mt-0.5", theme.text.secondary)}>{selectedAchievement.description}</div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedAchievement(null)}
+                  className={cn("p-1 rounded-lg", theme.text.dimmed, "hover:bg-white/10")}
+                  aria-label="Закрыть"
+                >
+                  <XCircle size={16} />
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className={theme.text.muted}>Прогресс</span>
+                  <span className={cn("tabular-nums", theme.text.secondary)}>
+                    {selectedAchievement.progress}/{selectedAchievement.target}
+                  </span>
+                </div>
+                <div className={cn("h-2.5 rounded-full overflow-hidden", theme.progress.track)}>
+                  <div
+                    className={selectedAchievement.isUnlocked ? theme.progress.fill.amber : theme.progress.fill.primary}
+                    style={{
+                      height: '100%',
+                      width: `${Math.max(4, selectedAchievement.progressPercent)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <p className={cn("text-xs leading-relaxed mt-3", theme.text.secondary)}>
+                💡 {getAchievementTip(selectedAchievement)}
+              </p>
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAchievement(null)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-sm font-medium border",
+                    theme.borders.subtle,
+                    theme.text.primary,
+                    theme.backgrounds.card,
+                  )}
+                >
+                  Понятно
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
