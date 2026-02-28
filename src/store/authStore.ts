@@ -2,11 +2,14 @@
 import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import { 
   telegramAuth, 
+  requestEmailOtp,
+  verifyEmailOtp,
   getStoredTokens, 
   clearStoredTokens, 
   refreshToken, 
   AUTH_REQUIRED_EVENT, 
   type AuthResponse,
+  type EmailOtpRequestResponse,
   getMe,
   resolvePaywallEligibility,
   type MeResponse,
@@ -22,7 +25,7 @@ import { useTelegram } from '../hooks/useTelegram';
 
 export interface User {
   _id: string;
-  telegramId: number;
+  telegramId?: number;
   name: string;
   telegramUsername?: string;
   photoUrl?: string;
@@ -72,6 +75,9 @@ export interface AuthState {
 export interface AuthStore {
   state: AuthState;
   login: () => Promise<void>;
+  requestEmailOtp: (email: string) => Promise<EmailOtpRequestResponse>;
+  verifyEmailOtp: (email: string, code: string) => Promise<void>;
+  clearError: () => void;
   logout: () => void;
   setOnboardingCompleted: (user: User) => void;
   setUserName: (name: string) => void;
@@ -99,14 +105,20 @@ const saveUser = (user: User | null): void => {
 };
 
 const mapAuthResponseToUser = (response: AuthResponse): User => ({
-  _id: response._id,
+  _id: response._id ?? '',
   telegramId: response.telegramId,
   name: response.name,
   telegramUsername: response.telegramUsername,
   photoUrl: response.photoUrl,
   role: response.role,
-  trustScore: response.trustScore,
-  stats: response.stats,
+  trustScore: response.trustScore ?? 0,
+  stats: response.stats ?? {
+    wordsAdded: 0,
+    wordsVerified: 0,
+    wordsApproved: 0,
+    wordsRejected: 0,
+    verificationAccuracy: 0,
+  },
   // streak/campaignStats/xp придут из /auth/me
   streak: response.currentStreak != null
     ? { current: response.currentStreak, longest: response.currentStreak }
@@ -197,7 +209,7 @@ export function useAuthStore(): AuthStore {
         isAuthenticated: true,
         isLoading: false,
         error: null,
-        isNewUser: response.isNewUser,
+        isNewUser: !!response.isNewUser,
         onboardingCompleted: response.onboardingCompleted,
       });
 
@@ -216,6 +228,61 @@ export function useAuthStore(): AuthStore {
       }));
     }
   }, [initData]);
+
+  const requestEmailOtpCode = useCallback(async (email: string): Promise<EmailOtpRequestResponse> => {
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      const response = await requestEmailOtp(email);
+      setState(prev => ({ ...prev, isLoading: false, error: null }));
+      return response;
+    } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : (error as { message?: string })?.message || 'Не удалось отправить код';
+
+      setState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
+      throw error;
+    }
+  }, []);
+
+  const verifyEmailOtpCode = useCallback(async (email: string, code: string) => {
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      const response = await verifyEmailOtp(email, code);
+      let user: User = mapAuthResponseToUser(response);
+
+      try {
+        const me = await getMe();
+        user = mapMeResponseToUser(me, user);
+      } catch (e) {
+        console.log('⚠️ Не удалось загрузить /auth/me после email OTP:', e);
+      }
+
+      saveUser(user);
+
+      setState({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+        isNewUser: !!response.isNewUser,
+        onboardingCompleted: response.onboardingCompleted,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : (error as { message?: string })?.message || 'Неверный или просроченный код';
+
+      setState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
+      throw error;
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    setState(prev => ({ ...prev, error: null }));
+  }, []);
 
   const logout = useCallback(() => {
     clearStoredTokens();
@@ -354,7 +421,7 @@ export function useAuthStore(): AuthStore {
             isAuthenticated: true,
             isLoading: false,
             error: null,
-            isNewUser: response.isNewUser,
+            isNewUser: !!response.isNewUser,
             onboardingCompleted: response.onboardingCompleted,
           });
 
@@ -424,7 +491,7 @@ export function useAuthStore(): AuthStore {
             isAuthenticated: true,
             isLoading: false,
             error: null,
-            isNewUser: response.isNewUser,
+            isNewUser: !!response.isNewUser,
             onboardingCompleted: response.onboardingCompleted,
           });
 
@@ -499,6 +566,9 @@ export function useAuthStore(): AuthStore {
   return {
     state,
     login,
+    requestEmailOtp: requestEmailOtpCode,
+    verifyEmailOtp: verifyEmailOtpCode,
+    clearError,
     logout,
     setOnboardingCompleted,
     setUserName,

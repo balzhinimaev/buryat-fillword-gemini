@@ -31,6 +31,7 @@ const AdminLevelEditorScreen = lazy(() => import('./screens/AdminLevelEditorScre
 const AdminDailyWordScreen = lazy(() => import('./screens/AdminDailyWordScreen'));
 const AdminCampaignMapVariantsScreen = lazy(() => import('./screens/AdminCampaignMapVariantsScreen'));
 const SupportScreen = lazy(() => import('./screens/SupportScreen'));
+const AuthScreen = lazy(() => import('./screens/AuthScreen'));
 
 // Плавный fade переход
 const pageVariants = {
@@ -120,11 +121,20 @@ export default function App() {
 
   // Определяем какой экран показывать
   const effectiveScreen = useMemo(() => {
+    if (authState.isLoading && !authState.isAuthenticated) {
+      return 'authLoading';
+    }
+
+    if (!authState.isAuthenticated) {
+      return 'auth';
+    }
+
     if (shouldShowOnboarding) {
       return 'onboarding';
     }
+
     return currentScreen;
-  }, [shouldShowOnboarding, currentScreen]);
+  }, [authState.isAuthenticated, authState.isLoading, shouldShowOnboarding, currentScreen]);
 
   // Прокручиваем страницу вверх при переходе на новый экран
   useEffect(() => {
@@ -139,6 +149,14 @@ export default function App() {
 
   const renderScreen = () => {
     switch (effectiveScreen) {
+      case 'authLoading':
+        return (
+          <div className={`min-h-[100dvh] flex items-center justify-center text-sm ${currentTheme.text.muted}`}>
+            Проверяем сессию…
+          </div>
+        );
+      case 'auth':
+        return <AuthScreen />;
       case 'onboarding':
         return <OnboardingScreen store={store} />;
       case 'howto':
