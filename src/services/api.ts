@@ -12,24 +12,25 @@ export type ReminderTime = 'morning' | 'day' | 'evening';
 
 // Типы ответов API
 export interface AuthResponse {
-  _id: string;
+  _id?: string;
   access_token: string;
   refresh_token: string;
-  telegramId: number;
+  telegramId?: number;
+  email?: string;
   name: string;
   telegramUsername?: string;
   photoUrl?: string;
   role: string;
-  trustScore: number;
+  trustScore?: number;
   currentStreak?: number;
-  stats: {
+  stats?: {
     wordsAdded: number;
     wordsVerified: number;
     wordsApproved: number;
     wordsRejected: number;
     verificationAccuracy: number;
   };
-  isNewUser: boolean;
+  isNewUser?: boolean;
   isLanguageKeeper?: boolean;
   languageKeeperJoinedAt?: string;
   // Поля онбординга
@@ -39,6 +40,12 @@ export interface AuthResponse {
   buriatLevel?: BuriatLevel;
   reminderPlan?: ReminderPlan;
   reminderTime?: ReminderTime;
+}
+
+export interface EmailOtpRequestResponse {
+  ok: boolean;
+  expiresInSeconds: number;
+  debugCode?: string;
 }
 
 export interface RefreshResponse {
@@ -84,7 +91,7 @@ export interface MeXpInfo {
 
 export interface MeResponse {
   id: string;
-  telegramId: number;
+  telegramId?: number;
   name: string;
   telegramUsername?: string;
   photoUrl?: string;
@@ -589,6 +596,29 @@ export async function telegramAuth(initData: string): Promise<AuthResponse> {
   });
 
   // Сохраняем токены
+  setStoredTokens({
+    access_token: response.access_token,
+    refresh_token: response.refresh_token,
+  });
+
+  return response;
+}
+
+// Запрос OTP кода на email
+export async function requestEmailOtp(email: string): Promise<EmailOtpRequestResponse> {
+  return apiRequest<EmailOtpRequestResponse>('/auth/otp/request', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+// Верификация OTP и вход/регистрация
+export async function verifyEmailOtp(email: string, code: string): Promise<AuthResponse> {
+  const response = await apiRequest<AuthResponse>('/auth/otp/verify', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
+  });
+
   setStoredTokens({
     access_token: response.access_token,
     refresh_token: response.refresh_token,
@@ -1754,6 +1784,8 @@ export async function deleteDailyWord(date: string): Promise<void> {
 // API экспорт
 export const api = {
   telegramAuth,
+  requestEmailOtp,
+  verifyEmailOtp,
   refreshToken,
   getMe,
   resolvePaywallEligibility,
