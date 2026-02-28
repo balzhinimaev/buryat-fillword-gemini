@@ -506,13 +506,33 @@ interface StoredTokens {
 export const getStoredTokens = (): StoredTokens | null => {
   try {
     const stored = localStorage.getItem(TOKEN_KEY);
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+
+    const parsed = JSON.parse(stored) as Partial<StoredTokens> | null;
+    const access = parsed?.access_token;
+    const refresh = parsed?.refresh_token;
+
+    if (typeof access !== 'string' || !access || typeof refresh !== 'string' || !refresh) {
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+
+    return {
+      access_token: access,
+      refresh_token: refresh,
+    };
   } catch {
+    localStorage.removeItem(TOKEN_KEY);
     return null;
   }
 };
 
 export const setStoredTokens = (tokens: StoredTokens): void => {
+  if (!tokens?.access_token || !tokens?.refresh_token) {
+    localStorage.removeItem(TOKEN_KEY);
+    return;
+  }
+
   localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
 };
 

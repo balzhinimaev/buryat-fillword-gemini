@@ -198,7 +198,18 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ store }) => 
       store.navigate('menu');
     } catch (err) {
       console.error('Onboarding error:', err);
-      setError('Не удалось сохранить данные. Попробуйте ещё раз.');
+      const apiError = err as { statusCode?: number; message?: string | string[] };
+      const messageRaw = apiError?.message;
+      const message = Array.isArray(messageRaw) ? messageRaw[0] : messageRaw;
+
+      if (apiError?.statusCode === 401) {
+        setError('Сессия истекла. Войдите снова и повторите.');
+      } else if (typeof message === 'string' && message.trim()) {
+        setError(message);
+      } else {
+        setError('Не удалось сохранить данные. Попробуйте ещё раз.');
+      }
+
       hapticFeedback('error');
     } finally {
       setIsSubmitting(false);
