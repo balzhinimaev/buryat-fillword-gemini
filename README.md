@@ -15,6 +15,13 @@
 - Node.js 22+
 - npm 10+
 
+### Для Android (Capacitor)
+
+- Android Studio (последняя стабильная)
+- Android SDK Platform 34+
+- JDK 17
+- Android device / эмулятор для теста APK
+
 ## Быстрый старт
 
 ```bash
@@ -47,6 +54,34 @@ VITE_API_URL=https://burlive.ru/api
 - `npm run build` — production build
 - `npm run preview` — предпросмотр build
 - `npm run lint` — линтер
+- `npm run android:sync` — синхронизировать web-проект в Android shell
+- `npm run android:open` — открыть Android проект в Android Studio
+- `npm run android:build:debug` — собрать debug APK (`android/app/build/outputs/apk/debug`)
+- `npm run android:build:release` — собрать release APK (`android/app/build/outputs/apk/release`)
+
+## Android APK (Capacitor)
+
+В репозитории добавлен Android shell (`/android`) через Capacitor.
+
+- `appId`: `ru.burlive.app`
+- `appName`: `Burlive`
+- URL в APK: `https://burlive.ru/webapp/`
+
+### Быстрый цикл для Android
+
+```bash
+npm install
+npm run build
+npm run android:sync
+npm run android:open
+```
+
+Дальше в Android Studio:
+1. Подключить устройство/эмулятор
+2. Запустить `app` (debug)
+3. Для релиза использовать `Build > Generate Signed Bundle / APK`
+
+> Важно: перед публикацией в стор зафиксируйте release keystore и храните его отдельно от репозитория.
 
 ## Примечание по API
 

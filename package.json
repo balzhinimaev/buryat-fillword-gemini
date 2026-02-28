@@ -12,9 +12,16 @@
     "test:watch": "vitest",
     "size:check": "node ./scripts/size-check.mjs",
     "ci": "npm run lint:changed && npm run test && npm run build && npm run size:check",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:sync": "npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:copy": "npx cap copy android",
+    "android:build:debug": "cd android && ./gradlew assembleDebug",
+    "android:build:release": "cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
     "@types/canvas-confetti": "^1.9.0",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
@@ -25,6 +32,7 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.1.0",
     "@eslint/js": "^9.39.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
