@@ -51,6 +51,24 @@ const XP_TYPE_LABELS: Record<string, string> = {
   contribution: 'Словарная мастерская',
 };
 
+const ACHIEVEMENT_CATEGORY_ORDER: UserProfileAchievement['category'][] = [
+  'starter',
+  'progress',
+  'streak',
+  'campaign',
+  'daily',
+  'community',
+];
+
+const ACHIEVEMENT_CATEGORY_LABELS: Record<UserProfileAchievement['category'], string> = {
+  starter: 'Старт',
+  progress: 'Прогресс',
+  streak: 'Серия',
+  campaign: 'Кампания',
+  daily: 'Дейлики',
+  community: 'Комьюнити',
+};
+
 export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const { state, goBack, xpProgress, xpToNextLevel } = store;
   const { stats, levelProgress } = state;
@@ -59,6 +77,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const [xpHistory, setXpHistory] = useState<UserProfileXpHistoryItem[]>([]);
   const [profileAchievements, setProfileAchievements] = useState<UserProfileAchievement[]>([]);
   const [selectedChartDayKey, setSelectedChartDayKey] = useState<string | null>(null);
+  const [newAchievementToast, setNewAchievementToast] = useState<UserProfileAchievement | null>(null);
 
   const toLocalDateKey = (date: Date) => {
     const y = date.getFullYear();
@@ -71,6 +90,42 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
     const [year, month, day] = dateKey.split('-').map(Number);
     const date = new Date(year, (month ?? 1) - 1, day ?? 1);
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  };
+
+  const detectNewlyUnlockedAchievement = (
+    userId: string,
+    achievementsList: UserProfileAchievement[],
+  ): UserProfileAchievement | null => {
+    if (achievementsList.length === 0) return null;
+
+    const storageKey = `bfw:seen-achievements:${userId}`;
+    const unlockedIds = achievementsList
+      .filter((item) => item.isUnlocked)
+      .map((item) => item.id)
+      .sort();
+
+    try {
+      const raw = localStorage.getItem(storageKey);
+
+      if (!raw) {
+        localStorage.setItem(storageKey, JSON.stringify(unlockedIds));
+        return null;
+      }
+
+      const previous = JSON.parse(raw);
+      const previousIds = Array.isArray(previous)
+        ? previous.filter((item): item is string => typeof item === 'string')
+        : [];
+
+      const newlyUnlockedIds = unlockedIds.filter((id) => !previousIds.includes(id));
+      localStorage.setItem(storageKey, JSON.stringify(unlockedIds));
+
+      if (newlyUnlockedIds.length === 0) return null;
+
+      return achievementsList.find((item) => item.id === newlyUnlockedIds[0] && item.isUnlocked) ?? null;
+    } catch {
+      return null;
+    }
   };
 
   // Обновляем данные пользователя при монтировании компонента
@@ -97,8 +152,14 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
       try {
         const profile = await getUserProfile(userId);
         if (mounted) {
+          const achievementsFromApi = profile.achievements ?? [];
           setXpHistory(profile.recentXpHistory ?? []);
-          setProfileAchievements(profile.achievements ?? []);
+          setProfileAchievements(achievementsFromApi);
+
+          const newlyUnlocked = detectNewlyUnlockedAchievement(userId, achievementsFromApi);
+          if (newlyUnlocked) {
+            window.setTimeout(() => setNewAchievementToast(newlyUnlocked), 0);
+          }
         }
       } catch {
         if (mounted) {
@@ -154,22 +215,46 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const totalLevels = categories.length;
 
   // Достижения: берём с бэка, fallback — локальная упрощённая модель
-  const fallbackAchievements = [
-    { id: 'first_level', name: 'Первая победа', icon: '🏆', isUnlocked: completedLevels >= 1, description: 'Пройти первый уровень', progress: completedLevels, target: 1, progressPercent: Math.min(100, completedLevels * 100) },
-    { id: 'streak_7', name: 'Неделя!', icon: '📅', isUnlocked: longestStreak >= 7, description: 'Играть 7 дней подряд', progress: longestStreak, target: 7, progressPercent: Math.min(100, Math.round((longestStreak / 7) * 100)) },
-    { id: 'all_stars', name: 'Коллекционер', icon: '⭐', isUnlocked: displayTotalStars >= displayMaxStars, description: 'Собрать все звёзды', progress: displayTotalStars, target: displayMaxStars, progressPercent: Math.min(100, Math.round((displayTotalStars / Math.max(1, displayMaxStars)) * 100)) },
-    { id: 'level_5', name: 'Прокачанный', icon: '⬆️', isUnlocked: displayLevel >= 5, description: 'Достигнуть 5 уровня', progress: displayLevel, target: 5, progressPercent: Math.min(100, Math.round((displayLevel / 5) * 100)) },
+  const fallbackAchievements: UserProfileAchievement[] = [
+    { id: 'first_level', name: 'Первая победа', icon: '🏆', category: 'starter', isUnlocked: completedLevels >= 1, description: 'Пройти первый уровень', progress: completedLevels, target: 1, progressPercent: Math.min(100, completedLevels * 100) },
+    { id: 'streak_7', name: 'Неделя!', icon: '📅', category: 'streak', isUnlocked: longestStreak >= 7, description: 'Играть 7 дней подряд', progress: longestStreak, target: 7, progressPercent: Math.min(100, Math.round((longestStreak / 7) * 100)) },
+    { id: 'all_stars', name: 'Коллекционер', icon: '⭐', category: 'campaign', isUnlocked: displayTotalStars >= displayMaxStars, description: 'Собрать все звёзды', progress: displayTotalStars, target: displayMaxStars, progressPercent: Math.min(100, Math.round((displayTotalStars / Math.max(1, displayMaxStars)) * 100)) },
+    { id: 'level_5', name: 'Прокачанный', icon: '⬆️', category: 'progress', isUnlocked: displayLevel >= 5, description: 'Достигнуть 5 уровня', progress: displayLevel, target: 5, progressPercent: Math.min(100, Math.round((displayLevel / 5) * 100)) },
   ];
 
   const achievements = profileAchievements.length > 0
     ? profileAchievements
     : fallbackAchievements;
 
-  const unlockedAchievements = achievements.filter((a) => a.isUnlocked);
-  const nextAchievementHints = achievements
+  const sortedAchievements = useMemo(() => (
+    [...achievements].sort((a, b) => {
+      const categoryDiff = ACHIEVEMENT_CATEGORY_ORDER.indexOf(a.category) - ACHIEVEMENT_CATEGORY_ORDER.indexOf(b.category);
+      if (categoryDiff !== 0) return categoryDiff;
+      if (a.isUnlocked !== b.isUnlocked) return Number(b.isUnlocked) - Number(a.isUnlocked);
+      return (b.progressPercent ?? 0) - (a.progressPercent ?? 0);
+    })
+  ), [achievements]);
+
+  const unlockedAchievements = sortedAchievements.filter((a) => a.isUnlocked);
+  const nextAchievementHints = sortedAchievements
     .filter((a) => !a.isUnlocked)
     .sort((a, b) => (b.progressPercent ?? 0) - (a.progressPercent ?? 0))
     .slice(0, 3);
+
+  const achievementCategorySummary = useMemo(() => (
+    ACHIEVEMENT_CATEGORY_ORDER
+      .map((category) => ({
+        category,
+        total: sortedAchievements.filter((item) => item.category === category).length,
+      }))
+      .filter((item) => item.total > 0)
+  ), [sortedAchievements]);
+
+  useEffect(() => {
+    if (!newAchievementToast) return;
+    const timer = window.setTimeout(() => setNewAchievementToast(null), 4200);
+    return () => window.clearTimeout(timer);
+  }, [newAchievementToast]);
 
   // Статы для отображения
   const statCards = [
@@ -295,6 +380,41 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
+      {newAchievementToast && (
+        <motion.div
+          initial={{ opacity: 0, y: -12, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className="fixed top-[max(env(safe-area-inset-top),12px)] left-3 right-3 z-[60]"
+        >
+          <div className={cn(
+            "rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur",
+            theme.backgrounds.card,
+            theme.borders.subtle,
+          )}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/30 to-orange-500/20 flex items-center justify-center text-xl">
+                {newAchievementToast.icon}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className={cn("text-xs", theme.text.muted)}>Новое достижение</div>
+                <div className={cn("font-semibold truncate", theme.text.primary)}>{newAchievementToast.name}</div>
+                <div className={cn("text-xs truncate", theme.text.dimmed)}>
+                  {ACHIEVEMENT_CATEGORY_LABELS[newAchievementToast.category]} · {newAchievementToast.description}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewAchievementToast(null)}
+                className={cn("p-1 rounded-lg", theme.text.dimmed, "hover:bg-white/10")}
+                aria-label="Закрыть уведомление о достижении"
+              >
+                <XCircle size={16} />
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Sticky Header при скролле */}
       <StickyHeader 
         title="Статистика" 
@@ -668,9 +788,27 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
             Достижения 
             <span className={theme.text.muted}>({unlockedAchievements.length}/{achievements.length})</span>
           </h3>
+
+          {achievementCategorySummary.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {achievementCategorySummary.map((item) => (
+                <span
+                  key={item.category}
+                  className={cn(
+                    "text-[10px] px-2 py-1 rounded-full border",
+                    theme.borders.subtle,
+                    theme.text.dimmed,
+                    theme.backgrounds.card,
+                  )}
+                >
+                  {ACHIEVEMENT_CATEGORY_LABELS[item.category]} · {item.total}
+                </span>
+              ))}
+            </div>
+          )}
           
           <div className="grid grid-cols-5 gap-2">
-            {achievements.map((achievement, index) => (
+            {sortedAchievements.map((achievement, index) => (
               <motion.div
                 key={achievement.id}
                 initial={{ opacity: 0, scale: 0 }}
