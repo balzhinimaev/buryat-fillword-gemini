@@ -137,6 +137,7 @@ export default function AuthScreen() {
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 placeholder="000000"
                 inputMode="numeric"
+                autoFocus
                 className={cn(
                   'w-full rounded-xl px-3 py-2.5 text-sm tracking-[0.3em] border outline-none text-center',
                   theme.backgrounds.card,
@@ -182,7 +183,7 @@ export default function AuthScreen() {
                     (!canResend || state.isLoading) && 'cursor-not-allowed'
                   )}
                 >
-                  {canResend ? 'Отправить код снова' : `Повторно через ${secondsLeft}с`}
+                  {canResend ? 'Отправить код снова' : `Попробуйте через ${secondsLeft} сек`}
                 </button>
               </div>
 

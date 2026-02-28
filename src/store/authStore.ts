@@ -164,6 +164,25 @@ const mapMeResponseToUser = (me: MeResponse, prevUser?: User | null): User => ({
   reminderTime: me.reminderTime,
 });
 
+const normalizeAuthErrorMessage = (error: unknown, fallback: string): string => {
+  const messageRaw = (error as { message?: unknown })?.message;
+  const message = Array.isArray(messageRaw)
+    ? String(messageRaw[0] ?? fallback)
+    : typeof messageRaw === 'string'
+      ? messageRaw
+      : fallback;
+
+  if (!message || message === 'Internal server error') {
+    return 'Сервер временно недоступен. Попробуйте ещё раз через пару секунд.';
+  }
+
+  if (message === 'Failed to fetch') {
+    return 'Нет соединения с сервером. Проверьте интернет и попробуйте снова.';
+  }
+
+  return message;
+};
+
 export function useAuthStore(): AuthStore {
   const { initData, isReady, isTelegram } = useTelegram();
   
@@ -220,9 +239,7 @@ export function useAuthStore(): AuthStore {
     } catch (error) {
       console.error('Auth failed:', error);
       
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : (error as { message?: string })?.message || 'Ошибка авторизации';
+      const errorMessage = normalizeAuthErrorMessage(error, 'Ошибка авторизации');
 
       setState(prev => ({
         ...prev,
@@ -240,9 +257,7 @@ export function useAuthStore(): AuthStore {
       setState(prev => ({ ...prev, isLoading: false, error: null }));
       return response;
     } catch (error) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : (error as { message?: string })?.message || 'Не удалось отправить код';
+      const errorMessage = normalizeAuthErrorMessage(error, 'Не удалось отправить код');
 
       setState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
       throw error;
@@ -275,9 +290,7 @@ export function useAuthStore(): AuthStore {
         onboardingCompleted: response.onboardingCompleted,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : (error as { message?: string })?.message || 'Неверный или просроченный код';
+      const errorMessage = normalizeAuthErrorMessage(error, 'Неверный или просроченный код');
 
       setState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
       throw error;
@@ -440,9 +453,7 @@ export function useAuthStore(): AuthStore {
         } catch (error) {
           console.error('❌ Ошибка авторизации:', error);
           
-          const errorMessage = error instanceof Error 
-            ? error.message 
-            : (error as { message?: string })?.message || 'Ошибка авторизации';
+          const errorMessage = normalizeAuthErrorMessage(error, 'Ошибка авторизации');
 
           setState(prev => ({
             ...prev,
@@ -515,13 +526,12 @@ export function useAuthStore(): AuthStore {
         } catch (error) {
           console.error('❌ Ошибка переавторизации:', error);
           
-          const errorMessage = error instanceof Error 
-            ? error.message 
-            : (error as { message?: string })?.message || 'Ошибка авторизации';
+          const errorMessage = normalizeAuthErrorMessage(error, 'Ошибка авторизации');
 
           setState(prev => ({
             ...prev,
             isLoading: false,
+            isCheckingSession: false,
             error: errorMessage,
           }));
         } finally {
