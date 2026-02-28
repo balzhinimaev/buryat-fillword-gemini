@@ -45,6 +45,7 @@ export interface AuthResponse {
 export interface EmailOtpRequestResponse {
   ok: boolean;
   expiresInSeconds: number;
+  resendAfterSeconds?: number;
   debugCode?: string;
 }
 

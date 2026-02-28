@@ -18,26 +18,26 @@ export default function AuthScreen() {
   const [step, setStep] = useState<AuthStep>('email');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
-  const [expiresAtMs, setExpiresAtMs] = useState<number | null>(null);
+  const [resendAvailableAtMs, setResendAvailableAtMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [debugCode, setDebugCode] = useState<string | null>(null);
 
   const emailValid = useMemo(() => EMAIL_RE.test(email.trim()), [email]);
 
   useEffect(() => {
-    if (!expiresAtMs) return;
+    if (!resendAvailableAtMs) return;
 
     const id = window.setInterval(() => {
       setNowMs(Date.now());
     }, 1000);
 
     return () => window.clearInterval(id);
-  }, [expiresAtMs]);
+  }, [resendAvailableAtMs]);
 
   const secondsLeft = useMemo(() => {
-    if (!expiresAtMs) return 0;
-    return Math.max(0, Math.floor((expiresAtMs - nowMs) / 1000));
-  }, [expiresAtMs, nowMs]);
+    if (!resendAvailableAtMs) return 0;
+    return Math.max(0, Math.ceil((resendAvailableAtMs - nowMs) / 1000));
+  }, [resendAvailableAtMs, nowMs]);
 
   const canResend = secondsLeft === 0;
 
@@ -49,8 +49,10 @@ export default function AuthScreen() {
       const response = await requestEmailOtp(email.trim());
       setStep('otp');
       setOtp('');
-      setNowMs(Date.now());
-      setExpiresAtMs(Date.now() + response.expiresInSeconds * 1000);
+      const now = Date.now();
+      const resendAfterSeconds = response.resendAfterSeconds ?? 60;
+      setNowMs(now);
+      setResendAvailableAtMs(now + resendAfterSeconds * 1000);
       setDebugCode(response.debugCode ?? null);
     } catch {
       // error already handled in auth store
@@ -89,11 +91,16 @@ export default function AuthScreen() {
               <h1 className={cn('text-lg font-semibold', theme.text.primary)}>
                 {step === 'email' ? 'Вход по email' : 'Введите код из письма'}
               </h1>
-              <p className={cn('text-xs', theme.text.muted)}>
-                {step === 'email'
-                  ? 'Без Telegram Mini App — через одноразовый код'
-                  : `Код отправлен на ${email || 'ваш email'}`}
-              </p>
+              {step === 'email' ? (
+                <p className={cn('text-xs', theme.text.muted)}>
+                  Без Telegram Mini App — через одноразовый код
+                </p>
+              ) : (
+                <p className={cn('text-xs', theme.text.muted)}>
+                  Код отправлен на{' '}
+                  <span className={cn('font-semibold', theme.text.primary)}>{email || 'ваш email'}</span>
+                </p>
+              )}
             </div>
           </div>
 
