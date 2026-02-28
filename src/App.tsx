@@ -121,7 +121,7 @@ export default function App() {
 
   // Определяем какой экран показывать
   const effectiveScreen = useMemo(() => {
-    if (authState.isLoading && !authState.isAuthenticated) {
+    if (authState.isCheckingSession && !authState.isAuthenticated) {
       return 'authLoading';
     }
 

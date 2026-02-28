@@ -67,6 +67,7 @@ export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isCheckingSession: boolean;
   error: string | null;
   isNewUser: boolean;
   onboardingCompleted: boolean;
@@ -174,6 +175,7 @@ export function useAuthStore(): AuthStore {
       user,
       isAuthenticated: !!tokens && !!user,
       isLoading: false,
+      isCheckingSession: true,
       error: null,
       isNewUser: false,
       onboardingCompleted: user?.onboardingCompleted ?? false,
@@ -187,7 +189,7 @@ export function useAuthStore(): AuthStore {
       return;
     }
 
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    setState(prev => ({ ...prev, isLoading: true, isCheckingSession: false, error: null }));
 
     try {
       const response: AuthResponse = await telegramAuth(initData);
@@ -208,6 +210,7 @@ export function useAuthStore(): AuthStore {
         user,
         isAuthenticated: true,
         isLoading: false,
+        isCheckingSession: false,
         error: null,
         isNewUser: !!response.isNewUser,
         onboardingCompleted: response.onboardingCompleted,
@@ -230,7 +233,7 @@ export function useAuthStore(): AuthStore {
   }, [initData]);
 
   const requestEmailOtpCode = useCallback(async (email: string): Promise<EmailOtpRequestResponse> => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    setState(prev => ({ ...prev, isLoading: true, isCheckingSession: false, error: null }));
 
     try {
       const response = await requestEmailOtp(email);
@@ -247,7 +250,7 @@ export function useAuthStore(): AuthStore {
   }, []);
 
   const verifyEmailOtpCode = useCallback(async (email: string, code: string) => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    setState(prev => ({ ...prev, isLoading: true, isCheckingSession: false, error: null }));
 
     try {
       const response = await verifyEmailOtp(email, code);
@@ -266,6 +269,7 @@ export function useAuthStore(): AuthStore {
         user,
         isAuthenticated: true,
         isLoading: false,
+        isCheckingSession: false,
         error: null,
         isNewUser: !!response.isNewUser,
         onboardingCompleted: response.onboardingCompleted,
@@ -292,6 +296,7 @@ export function useAuthStore(): AuthStore {
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      isCheckingSession: false,
       error: null,
       isNewUser: false,
       onboardingCompleted: false,
@@ -367,6 +372,7 @@ export function useAuthStore(): AuthStore {
           }
 
           console.log('✅ Токен успешно обновлён при старте');
+          setState(prev => ({ ...prev, isLoading: false, isCheckingSession: false }));
           return; // Успех - выходим
         } catch (error) {
           console.error('❌ Не удалось обновить токен при старте:', error);
@@ -374,6 +380,7 @@ export function useAuthStore(): AuthStore {
           // Если уже идёт переавторизация через событие - не дублируем
           if (isReauthenticatingRef.current) {
             console.log('⏭️ Переавторизация уже запущена через событие, пропускаем...');
+            setState(prev => ({ ...prev, isLoading: false, isCheckingSession: false }));
             return;
           }
           
@@ -384,6 +391,7 @@ export function useAuthStore(): AuthStore {
             user: null,
             isAuthenticated: false,
             isLoading: false,
+            isCheckingSession: false,
             error: null,
             isNewUser: false,
             onboardingCompleted: false,
@@ -394,6 +402,7 @@ export function useAuthStore(): AuthStore {
       // Если уже идёт переавторизация через событие - не дублируем
       if (isReauthenticatingRef.current) {
         console.log('⏭️ Переавторизация уже запущена через событие, пропускаем авторизацию...');
+        setState(prev => ({ ...prev, isLoading: false, isCheckingSession: false }));
         return;
       }
 
@@ -420,6 +429,7 @@ export function useAuthStore(): AuthStore {
             user,
             isAuthenticated: true,
             isLoading: false,
+            isCheckingSession: false,
             error: null,
             isNewUser: !!response.isNewUser,
             onboardingCompleted: response.onboardingCompleted,
@@ -436,10 +446,13 @@ export function useAuthStore(): AuthStore {
           setState(prev => ({
             ...prev,
             isLoading: false,
+            isCheckingSession: false,
             error: errorMessage,
           }));
         }
       }
+
+      setState(prev => ({ ...prev, isLoading: false, isCheckingSession: false }));
     };
 
     authenticateOnStart();
@@ -463,6 +476,7 @@ export function useAuthStore(): AuthStore {
         user: null,
         isAuthenticated: false,
         isLoading: true,
+        isCheckingSession: false,
         error: null,
         isNewUser: false,
         onboardingCompleted: false,
@@ -490,6 +504,7 @@ export function useAuthStore(): AuthStore {
             user,
             isAuthenticated: true,
             isLoading: false,
+            isCheckingSession: false,
             error: null,
             isNewUser: !!response.isNewUser,
             onboardingCompleted: response.onboardingCompleted,
