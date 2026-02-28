@@ -175,7 +175,7 @@ export function useAuthStore(): AuthStore {
       user,
       isAuthenticated: !!tokens && !!user,
       isLoading: false,
-      isCheckingSession: true,
+      isCheckingSession: false,
       error: null,
       isNewUser: false,
       onboardingCompleted: user?.onboardingCompleted ?? false,
@@ -340,6 +340,7 @@ export function useAuthStore(): AuthStore {
       // Предотвращаем повторные попытки
       if (hasTriedAuthRef.current || !isReady) return;
       hasTriedAuthRef.current = true;
+      setState(prev => ({ ...prev, isCheckingSession: true, error: null }));
 
       const tokens = getStoredTokens();
       
