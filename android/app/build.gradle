@@ -1,14 +1,47 @@
 apply plugin: 'com.android.application'
 
+def readConfig = { String key, def fallback = null ->
+    def envValue = System.getenv(key)
+    if (envValue != null && envValue.toString().trim()) {
+        return envValue.toString().trim()
+    }
+
+    if (project.hasProperty(key)) {
+        def propValue = project.property(key)?.toString()?.trim()
+        if (propValue) {
+            return propValue
+        }
+    }
+
+    return fallback
+}
+
+def releaseStoreFile = readConfig('BURLIVE_UPLOAD_STORE_FILE')
+def releaseStorePassword = readConfig('BURLIVE_UPLOAD_STORE_PASSWORD')
+def releaseKeyAlias = readConfig('BURLIVE_UPLOAD_KEY_ALIAS')
+def releaseKeyPassword = readConfig('BURLIVE_UPLOAD_KEY_PASSWORD')
+def releaseVersionName = readConfig('BURLIVE_VERSION_NAME')
+def releaseVersionCodeRaw = readConfig('BURLIVE_VERSION_CODE')
+def releaseVersionCode = null
+
+if (releaseVersionCodeRaw) {
+    try {
+        releaseVersionCode = Integer.parseInt(releaseVersionCodeRaw)
+    } catch (Exception ignored) {
+        println("Invalid BURLIVE_VERSION_CODE='${releaseVersionCodeRaw}', using default versionCode")
+    }
+}
+
 android {
     namespace = "ru.burlive.app"
     compileSdk = rootProject.ext.compileSdkVersion
+
     defaultConfig {
         applicationId "ru.burlive.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode releaseVersionCode ?: 1
+        versionName releaseVersionName ?: "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +49,28 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
+    signingConfigs {
+        release {
+            if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+
+            if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) {
+                signingConfig signingConfigs.release
+            } else {
+                println('Release signing credentials are not configured. Building unsigned release artifacts.')
+            }
         }
     }
 }

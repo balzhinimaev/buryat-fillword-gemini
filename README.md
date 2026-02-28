@@ -100,21 +100,43 @@ npm run android:sync
 
 ### CI: APK в Telegram канал
 
+#### 1) Debug APK (быстрые сборки)
 Workflow: `.github/workflows/android-apk-telegram.yml`
 
 Триггеры:
 - push tag `v*` (например `v1.2.0`)
 - manual `workflow_dispatch`
 
-Обязательные secrets репозитория:
+Secrets:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
-- `TELEGRAM_THREAD_ID` (опционально, если канал с топиками)
+- `TELEGRAM_THREAD_ID` (опционально)
 
 Результат:
 - собирается `debug APK`,
 - APK сохраняется в GitHub Artifact,
-- в Telegram отправляется сообщение с release-метаданными и сам APK-файл.
+- в Telegram отправляется сообщение и APK-файл.
+
+#### 2) Signed release APK + AAB
+Workflow: `.github/workflows/android-release-telegram.yml`
+
+Триггеры:
+- push tag `release-v*` (например `release-v1.2.0`)
+- manual `workflow_dispatch` (можно передать `release_label`, `version_code`)
+
+Secrets:
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `TELEGRAM_THREAD_ID` (опционально)
+- `ANDROID_KEYSTORE_B64` (base64 содержимое `.jks/.keystore`)
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+Результат:
+- собирается **signed release** `APK + AAB`,
+- оба файла сохраняются в GitHub Artifact,
+- в Telegram отправляется релизное сообщение + signed APK.
 
 ## Примечание по API
 

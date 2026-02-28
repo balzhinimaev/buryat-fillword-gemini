@@ -17,7 +17,8 @@
     "android:open": "npx cap open android",
     "android:copy": "npx cap copy android",
     "android:build:debug": "cd android && ./gradlew assembleDebug",
-    "android:build:release": "cd android && ./gradlew assembleRelease"
+    "android:build:release": "cd android && ./gradlew assembleRelease",
+    "android:bundle:release": "cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

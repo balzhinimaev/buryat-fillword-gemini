@@ -1,0 +1,214 @@
+name: Android Release (signed) + Telegram
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_label:
+        description: 'Optional release label (e.g. release-v1.2.0)'
+        required: false
+        type: string
+      version_code:
+        description: 'Optional Android versionCode override (integer)'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'release-v*'
+
+jobs:
+  build-signed-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Validate required secrets
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -e
+          required=(
+            TELEGRAM_BOT_TOKEN
+            TELEGRAM_CHAT_ID
+            ANDROID_KEYSTORE_B64
+            ANDROID_KEYSTORE_PASSWORD
+            ANDROID_KEY_ALIAS
+            ANDROID_KEY_PASSWORD
+          )
+
+          for key in "${required[@]}"; do
+            if [ -z "${!key}" ]; then
+              echo "Missing required secret: ${key}"
+              exit 1
+            fi
+          done
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Sync Capacitor Android project
+        run: npm run android:sync
+
+      - name: Decode Android keystore
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -e
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > android/app/release.keystore
+          ls -lh android/app/release.keystore
+
+      - name: Prepare release metadata
+        id: meta
+        run: |
+          set -e
+
+          APP_VERSION=$(node -p "require('./package.json').version")
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG_NAME=""
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          fi
+
+          INPUT_LABEL="${{ github.event.inputs.release_label }}"
+          INPUT_CODE="${{ github.event.inputs.version_code }}"
+
+          if [ -n "$INPUT_LABEL" ]; then
+            RELEASE_LABEL="$INPUT_LABEL"
+          elif [ -n "$TAG_NAME" ]; then
+            RELEASE_LABEL="$TAG_NAME"
+          else
+            RELEASE_LABEL="release-v${APP_VERSION}"
+          fi
+
+          if [ -n "$INPUT_CODE" ]; then
+            VERSION_CODE="$INPUT_CODE"
+          else
+            VERSION_CODE="$GITHUB_RUN_NUMBER"
+          fi
+
+          if [[ ! "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
+            echo "version_code must be integer, got: $VERSION_CODE"
+            exit 1
+          fi
+
+          VERSION_NAME="${RELEASE_LABEL#release-}"
+          APK_NAME="burlive-${RELEASE_LABEL}-${SHORT_SHA}.apk"
+          AAB_NAME="burlive-${RELEASE_LABEL}-${SHORT_SHA}.aab"
+
+          {
+            echo "app_version=$APP_VERSION"
+            echo "release_label=$RELEASE_LABEL"
+            echo "short_sha=$SHORT_SHA"
+            echo "version_code=$VERSION_CODE"
+            echo "version_name=$VERSION_NAME"
+            echo "apk_name=$APK_NAME"
+            echo "aab_name=$AAB_NAME"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build signed release APK + AAB
+        env:
+          ORG_GRADLE_PROJECT_BURLIVE_UPLOAD_STORE_FILE: release.keystore
+          ORG_GRADLE_PROJECT_BURLIVE_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_BURLIVE_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_BURLIVE_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ORG_GRADLE_PROJECT_BURLIVE_VERSION_CODE: ${{ steps.meta.outputs.version_code }}
+          ORG_GRADLE_PROJECT_BURLIVE_VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+        run: |
+          set -e
+          npm run android:build:release
+          npm run android:bundle:release
+
+          cp android/app/build/outputs/apk/release/app-release.apk "${{ steps.meta.outputs.apk_name }}"
+          cp android/app/build/outputs/bundle/release/app-release.aab "${{ steps.meta.outputs.aab_name }}"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-${{ steps.meta.outputs.release_label }}
+          path: |
+            ${{ steps.meta.outputs.apk_name }}
+            ${{ steps.meta.outputs.aab_name }}
+          if-no-files-found: error
+
+      - name: Send release message to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+        run: |
+          set -e
+          RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          MESSAGE=$(printf "🚀 Burlive Android release\n\nRelease: %s\nVersionName: %s\nVersionCode: %s\nCommit: %s\nArtifacts: APK + AAB\nWorkflow: %s" \
+            "${{ steps.meta.outputs.release_label }}" \
+            "${{ steps.meta.outputs.version_name }}" \
+            "${{ steps.meta.outputs.version_code }}" \
+            "${{ steps.meta.outputs.short_sha }}" \
+            "${RUN_URL}")
+
+          URL="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+          if [ -n "$TELEGRAM_THREAD_ID" ]; then
+            RESP=$(curl -sS -X POST "$URL" \
+              -d "chat_id=${TELEGRAM_CHAT_ID}" \
+              -d "message_thread_id=${TELEGRAM_THREAD_ID}" \
+              --data-urlencode "text=${MESSAGE}")
+          else
+            RESP=$(curl -sS -X POST "$URL" \
+              -d "chat_id=${TELEGRAM_CHAT_ID}" \
+              --data-urlencode "text=${MESSAGE}")
+          fi
+
+          echo "$RESP"
+          echo "$RESP" | grep -q '"ok":true'
+
+      - name: Send release APK to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+        run: |
+          set -e
+          URL="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"
+          CAPTION="Burlive signed APK • ${{ steps.meta.outputs.release_label }} • vCode ${{ steps.meta.outputs.version_code }}"
+
+          if [ -n "$TELEGRAM_THREAD_ID" ]; then
+            RESP=$(curl -sS -X POST "$URL" \
+              -F "chat_id=${TELEGRAM_CHAT_ID}" \
+              -F "message_thread_id=${TELEGRAM_THREAD_ID}" \
+              -F "caption=${CAPTION}" \
+              -F "document=@${{ steps.meta.outputs.apk_name }}")
+          else
+            RESP=$(curl -sS -X POST "$URL" \
+              -F "chat_id=${TELEGRAM_CHAT_ID}" \
+              -F "caption=${CAPTION}" \
+              -F "document=@${{ steps.meta.outputs.apk_name }}")
+          fi
+
+          echo "$RESP"
+          echo "$RESP" | grep -q '"ok":true'
