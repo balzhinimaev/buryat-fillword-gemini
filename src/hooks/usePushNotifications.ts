@@ -29,7 +29,7 @@ const setStoredPushToken = (token: string | null): void => {
   }
 };
 
-export function usePushNotifications(isAuthenticated: boolean): void {
+export function usePushNotifications(isPushFlowEnabled: boolean): void {
   const registeredTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export function usePushNotifications(isAuthenticated: boolean): void {
       registeredTokenRef.current = null;
     };
 
-    if (!isAuthenticated) {
+    if (!isPushFlowEnabled) {
       cleanupTokenOnLogout();
       return;
     }
@@ -121,5 +121,5 @@ export function usePushNotifications(isAuthenticated: boolean): void {
       cancelled = true;
       PushNotifications.removeAllListeners().catch(() => undefined);
     };
-  }, [isAuthenticated]);
+  }, [isPushFlowEnabled]);
 }

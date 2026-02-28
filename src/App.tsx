@@ -55,7 +55,8 @@ export default function App() {
   const { state: authState } = useAuth();
   const resumeFlowCheckedRef = useRef(false);
 
-  usePushNotifications(authState.isAuthenticated);
+  // Запрашиваем push-permission после завершения онбординга
+  usePushNotifications(authState.isAuthenticated && authState.onboardingCompleted);
 
   // Загружаем настройки с сервера после авторизации
   useEffect(() => {
