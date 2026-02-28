@@ -83,6 +83,21 @@ npm run android:open
 
 > Важно: перед публикацией в стор зафиксируйте release keystore и храните его отдельно от репозитория.
 
+### Push (Firebase FCM) — Android
+
+- В проекте используется plugin `@capacitor/push-notifications`.
+- Файл `android/app/google-services.json` должен соответствовать `applicationId` (`ru.burlive.app`).
+- После изменения firebase-конфига обязательно выполнить:
+
+```bash
+npm run android:sync
+```
+
+Клиентское поведение:
+- permission запрашивается только в нативном Android-приложении,
+- после успешного login FCM token отправляется в backend (`/push/devices/register`),
+- при logout токен отзывается (`/push/devices/unregister`).
+
 ## Примечание по API
 
 Фронт ходит в API через `src/services/api.ts` и использует `VITE_API_URL`.

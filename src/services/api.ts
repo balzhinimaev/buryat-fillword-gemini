@@ -54,6 +54,16 @@ export interface RefreshResponse {
   currentStreak?: number;
 }
 
+export interface PushDeviceRegisterRequest {
+  token: string;
+  platform: 'android';
+  appVersion?: string;
+  deviceModel?: string;
+  osVersion?: string;
+  locale?: string;
+  timezone?: string;
+}
+
 // Текущий пользователь
 // (отдельный эндпоинт /auth/me; поля могут расширяться)
 export interface MeStreakInfo {
@@ -626,6 +636,20 @@ export async function verifyEmailOtp(email: string, code: string): Promise<AuthR
   });
 
   return response;
+}
+
+export async function registerPushDevice(payload: PushDeviceRegisterRequest): Promise<void> {
+  await apiRequest('/push/devices/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function unregisterPushDevice(token: string): Promise<void> {
+  await apiRequest('/push/devices/unregister', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
 }
 
 // Обновление токена

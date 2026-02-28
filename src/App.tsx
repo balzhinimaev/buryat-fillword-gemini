@@ -8,6 +8,7 @@ import { TelegramThemeSync } from './components/TelegramThemeSync';
 import { useAuth } from './store/authStore';
 import { api } from './services/api';
 import { getResumeFirstLevelSlug } from './utils/campaignResume';
+import { usePushNotifications } from './hooks/usePushNotifications';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./screens/MainMenu'));
@@ -53,6 +54,8 @@ export default function App() {
   const currentTheme = getTheme(settings.theme);
   const { state: authState } = useAuth();
   const resumeFlowCheckedRef = useRef(false);
+
+  usePushNotifications(authState.isAuthenticated);
 
   // Загружаем настройки с сервера после авторизации
   useEffect(() => {

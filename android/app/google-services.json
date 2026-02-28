@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "90123905688",
+    "project_id": "burlive-1cab8",
+    "storage_bucket": "burlive-1cab8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:90123905688:android:600db82479915db3bd7eed",
+        "android_client_info": {
+          "package_name": "ru.burlive.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBSRATk3ry1VIDRry_EQ0pMABtA05_D9Jg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
