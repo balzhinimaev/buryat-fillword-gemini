@@ -1310,6 +1310,24 @@ export interface UserProfileXpHistoryItem {
   createdAt: string;
 }
 
+export interface UserProfileAchievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: 'starter' | 'progress' | 'streak' | 'campaign' | 'daily' | 'community';
+  target: number;
+  progress: number;
+  progressPercent: number;
+  isUnlocked: boolean;
+}
+
+export interface UserProfileAchievementSummary {
+  total: number;
+  unlocked: number;
+  completionPercent: number;
+}
+
 export interface UserProfileResponse {
   user: UserProfileUser;
   xp: UserProfileXp;
@@ -1318,6 +1336,9 @@ export interface UserProfileResponse {
   dictionary: UserProfileDictionary;
   xpByType: UserProfileXpByType[];
   recentXpHistory: UserProfileXpHistoryItem[];
+  achievements: UserProfileAchievement[];
+  nextAchievements: UserProfileAchievement[];
+  achievementSummary: UserProfileAchievementSummary;
   isOwnProfile: boolean;
 }
 
