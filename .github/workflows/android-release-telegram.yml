@@ -22,6 +22,7 @@ on:
 jobs:
   build-signed-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     permissions:
       contents: read
 
@@ -207,13 +208,43 @@ jobs:
             ${{ steps.meta.outputs.aab_name }}
           if-no-files-found: error
 
-      - name: Send release message to Telegram
+      - name: Resolve Telegram target + preflight
+        id: tg
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
         run: |
-          set -e
+          set -euo pipefail
+
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID"
+            exit 1
+          fi
+
+          URL="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChat"
+          RESP=$(curl -sS --retry 3 --retry-delay 2 --retry-all-errors -X POST "$URL" -d "chat_id=${TELEGRAM_CHAT_ID}")
+          echo "$RESP"
+          echo "$RESP" | jq -e '.ok == true' >/dev/null
+          ACTUAL_CHAT_ID=$(echo "$RESP" | jq -r '.result.id | tostring')
+
+          if [ "$ACTUAL_CHAT_ID" != "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram preflight mismatch: expected chat_id=$TELEGRAM_CHAT_ID, got $ACTUAL_CHAT_ID"
+            exit 1
+          fi
+
+          {
+            echo "chat_id=$TELEGRAM_CHAT_ID"
+            echo "thread_id=${TELEGRAM_THREAD_ID}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send release message to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ steps.tg.outputs.chat_id }}
+          THREAD_ID: ${{ steps.tg.outputs.thread_id }}
+        run: |
+          set -euo pipefail
           RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
           MESSAGE=$(printf "🚀 Burlive Android release\n\nRelease: %s\nVersionName: %s\nVersionCode: %s\nBuild: #%s\nCommit: %s\nArtifacts: signed APK + AAB\nWorkflow: %s" \
@@ -225,42 +256,69 @@ jobs:
             "${RUN_URL}")
 
           URL="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
-          if [ -n "$TELEGRAM_THREAD_ID" ]; then
-            RESP=$(curl -sS -X POST "$URL" \
-              -d "chat_id=${TELEGRAM_CHAT_ID}" \
-              -d "message_thread_id=${TELEGRAM_THREAD_ID}" \
-              --data-urlencode "text=${MESSAGE}")
-          else
-            RESP=$(curl -sS -X POST "$URL" \
-              -d "chat_id=${TELEGRAM_CHAT_ID}" \
-              --data-urlencode "text=${MESSAGE}")
-          fi
 
-          echo "$RESP"
-          echo "$RESP" | grep -q '"ok":true'
+          for attempt in 1 2 3; do
+            if [ -n "$THREAD_ID" ]; then
+              RESP=$(curl -sS --retry 3 --retry-delay 2 --retry-all-errors -X POST "$URL" \
+                -d "chat_id=${CHAT_ID}" \
+                -d "message_thread_id=${THREAD_ID}" \
+                --data-urlencode "text=${MESSAGE}")
+            else
+              RESP=$(curl -sS --retry 3 --retry-delay 2 --retry-all-errors -X POST "$URL" \
+                -d "chat_id=${CHAT_ID}" \
+                --data-urlencode "text=${MESSAGE}")
+            fi
+
+            echo "$RESP"
+            OK=$(echo "$RESP" | jq -r '.ok // false')
+            RESP_CHAT_ID=$(echo "$RESP" | jq -r '.result.chat.id // empty | tostring')
+
+            if [ "$OK" = "true" ] && [ "$RESP_CHAT_ID" = "$CHAT_ID" ]; then
+              exit 0
+            fi
+
+            echo "Telegram sendMessage attempt $attempt failed"
+            sleep 2
+          done
+
+          echo "Telegram sendMessage failed after retries"
+          exit 1
 
       - name: Send signed APK to Telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+          CHAT_ID: ${{ steps.tg.outputs.chat_id }}
+          THREAD_ID: ${{ steps.tg.outputs.thread_id }}
         run: |
-          set -e
+          set -euo pipefail
           URL="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"
           CAPTION="Burlive signed APK • ${{ steps.meta.outputs.release_label }} • vCode ${{ steps.meta.outputs.version_code }}"
 
-          if [ -n "$TELEGRAM_THREAD_ID" ]; then
-            RESP=$(curl -sS -X POST "$URL" \
-              -F "chat_id=${TELEGRAM_CHAT_ID}" \
-              -F "message_thread_id=${TELEGRAM_THREAD_ID}" \
-              -F "caption=${CAPTION}" \
-              -F "document=@${{ steps.meta.outputs.apk_name }}")
-          else
-            RESP=$(curl -sS -X POST "$URL" \
-              -F "chat_id=${TELEGRAM_CHAT_ID}" \
-              -F "caption=${CAPTION}" \
-              -F "document=@${{ steps.meta.outputs.apk_name }}")
-          fi
+          for attempt in 1 2 3; do
+            if [ -n "$THREAD_ID" ]; then
+              RESP=$(curl -sS --retry 3 --retry-delay 2 --retry-all-errors -X POST "$URL" \
+                -F "chat_id=${CHAT_ID}" \
+                -F "message_thread_id=${THREAD_ID}" \
+                -F "caption=${CAPTION}" \
+                -F "document=@${{ steps.meta.outputs.apk_name }}")
+            else
+              RESP=$(curl -sS --retry 3 --retry-delay 2 --retry-all-errors -X POST "$URL" \
+                -F "chat_id=${CHAT_ID}" \
+                -F "caption=${CAPTION}" \
+                -F "document=@${{ steps.meta.outputs.apk_name }}")
+            fi
 
-          echo "$RESP"
-          echo "$RESP" | grep -q '"ok":true'
+            echo "$RESP"
+            OK=$(echo "$RESP" | jq -r '.ok // false')
+            RESP_CHAT_ID=$(echo "$RESP" | jq -r '.result.chat.id // empty | tostring')
+
+            if [ "$OK" = "true" ] && [ "$RESP_CHAT_ID" = "$CHAT_ID" ]; then
+              exit 0
+            fi
+
+            echo "Telegram sendDocument attempt $attempt failed"
+            sleep 2
+          done
+
+          echo "Telegram sendDocument failed after retries"
+          exit 1

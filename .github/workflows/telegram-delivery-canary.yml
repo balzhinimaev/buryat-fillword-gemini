@@ -1,0 +1,78 @@
+name: Telegram Delivery Canary
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '40 2 * * *'
+
+jobs:
+  telegram-canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Resolve Telegram target + preflight
+        id: tg
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID_INTERNAL: ${{ secrets.TELEGRAM_CHAT_ID_INTERNAL }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID_INTERNAL: ${{ secrets.TELEGRAM_THREAD_ID_INTERNAL }}
+          TELEGRAM_THREAD_ID: ${{ secrets.TELEGRAM_THREAD_ID }}
+        run: |
+          set -euo pipefail
+
+          CHAT_ID="${TELEGRAM_CHAT_ID_INTERNAL:-$TELEGRAM_CHAT_ID}"
+          THREAD_ID="${TELEGRAM_THREAD_ID_INTERNAL:-$TELEGRAM_THREAD_ID}"
+
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "Missing TELEGRAM_BOT_TOKEN or chat id secret"
+            exit 1
+          fi
+
+          RESP=$(curl -sS --retry 3 --retry-delay 2 --retry-all-errors \
+            -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChat" \
+            -d "chat_id=${CHAT_ID}")
+
+          echo "$RESP"
+          echo "$RESP" | jq -e '.ok == true' >/dev/null
+          ACTUAL_CHAT_ID=$(echo "$RESP" | jq -r '.result.id | tostring')
+
+          if [ "$ACTUAL_CHAT_ID" != "$CHAT_ID" ]; then
+            echo "Telegram preflight mismatch: expected chat_id=$CHAT_ID, got $ACTUAL_CHAT_ID"
+            exit 1
+          fi
+
+          {
+            echo "chat_id=$CHAT_ID"
+            echo "thread_id=$THREAD_ID"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send canary ping
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ steps.tg.outputs.chat_id }}
+          THREAD_ID: ${{ steps.tg.outputs.thread_id }}
+        run: |
+          set -euo pipefail
+
+          MESSAGE="🩺 Telegram canary OK · repo=${GITHUB_REPOSITORY} · run=${GITHUB_RUN_ID}"
+          URL="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+
+          if [ -n "$THREAD_ID" ]; then
+            RESP=$(curl -sS --retry 3 --retry-delay 2 --retry-all-errors -X POST "$URL" \
+              -d "chat_id=${CHAT_ID}" \
+              -d "message_thread_id=${THREAD_ID}" \
+              --data-urlencode "text=${MESSAGE}")
+          else
+            RESP=$(curl -sS --retry 3 --retry-delay 2 --retry-all-errors -X POST "$URL" \
+              -d "chat_id=${CHAT_ID}" \
+              --data-urlencode "text=${MESSAGE}")
+          fi
+
+          echo "$RESP"
+          echo "$RESP" | jq -e '.ok == true' >/dev/null
+          RESP_CHAT_ID=$(echo "$RESP" | jq -r '.result.chat.id // empty | tostring')
+          [ "$RESP_CHAT_ID" = "$CHAT_ID" ]

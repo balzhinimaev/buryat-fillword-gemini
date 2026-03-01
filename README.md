@@ -119,6 +119,7 @@ Secrets (для Telegram-отправки):
 Результат:
 - всегда собирается `debug APK` и сохраняется в GitHub Artifact,
 - в Telegram отправка идёт только для nightly/manual с включённой публикацией.
+- перед отправкой выполняется preflight `getChat` + проверка chat_id + retry.
 
 #### 2) Signed release APK + AAB
 Workflow: `.github/workflows/android-release-telegram.yml`
@@ -141,6 +142,14 @@ Secrets:
 - оба файла сохраняются в GitHub Artifact,
 - в Telegram отправляется релизное сообщение + signed APK,
 - `versionName`/`versionCode` назначаются автоматически (Play-safe), при необходимости можно переопределить вручную.
+- перед отправкой выполняется preflight `getChat` + проверка chat_id + retry.
+
+#### 3) Telegram delivery canary
+Workflow: `.github/workflows/telegram-delivery-canary.yml`
+
+Назначение:
+- ежедневный health-check Telegram доставки (nightly),
+- раннее обнаружение проблем с bot token/chat id до релизной сборки.
 
 ## Примечание по API
 

@@ -21,6 +21,14 @@
   - кладёт оба файла в artifact
   - отправляет релизное сообщение + signed APK в Telegram канал
   - применяет версионирование, пригодное для Google Play
+  - перед отправкой делает Telegram preflight (`getChat`) + проверку chat_id + retry
+
+### Telegram canary pipeline
+- Workflow: `.github/workflows/telegram-delivery-canary.yml`
+- Что делает:
+  - ежедневно проверяет, что бот видит целевой канал
+  - отправляет canary ping в внутренний канал
+  - помогает поймать поломку Telegram доставки до релиза
 
 ---
 
