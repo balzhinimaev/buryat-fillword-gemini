@@ -7,9 +7,12 @@
 ### Debug pipeline
 - Workflow: `.github/workflows/android-apk-telegram.yml`
 - Что делает:
-  - собирает `debug APK`
-  - кладёт artifact в GitHub Actions
-  - отправляет сообщение + APK в Telegram канал
+  - всегда собирает `debug APK`
+  - всегда кладёт artifact в GitHub Actions
+  - в Telegram отправляет только:
+    - nightly schedule
+    - manual run с `publish_telegram=true`
+  - push в `master` → **artifact only** (без спама в канал)
 
 ### Signed release pipeline
 - Workflow: `.github/workflows/android-release-telegram.yml`
@@ -17,6 +20,7 @@
   - собирает **signed** `APK + AAB`
   - кладёт оба файла в artifact
   - отправляет релизное сообщение + signed APK в Telegram канал
+  - применяет версионирование, пригодное для Google Play
 
 ---
 
@@ -24,8 +28,10 @@
 
 ### Telegram
 - `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
+- `TELEGRAM_CHAT_ID` (основной релизный канал)
 - `TELEGRAM_THREAD_ID` (опционально)
+- `TELEGRAM_CHAT_ID_INTERNAL` (рекомендуется для debug/nightly)
+- `TELEGRAM_THREAD_ID_INTERNAL` (опционально)
 
 ### Signing (только для signed release)
 - `ANDROID_KEYSTORE_B64`
@@ -38,16 +44,17 @@
 ## 3) Как выпустить DEBUG APK
 
 ### Вариант A — вручную
-1. GitHub → Actions → `Android APK Build & Telegram Release`
-2. Run workflow (опц. `release_label`)
+1. GitHub → Actions → `Android Debug APK (artifact + optional Telegram)`
+2. Run workflow
+3. Параметры:
+   - `release_label` (опционально)
+   - `publish_telegram=true|false`
 
-### Вариант B — тег
-```bash
-git tag v1.2.3
-git push origin v1.2.3
-```
+### Вариант B — автоматически
+- push в `master` → сборка + artifact (без Telegram)
+- nightly schedule (UTC) → сборка + отправка в внутренний Telegram канал
 
-Результат: APK уйдёт в Telegram + появится в Artifacts.
+Результат: APK всегда в Artifacts; в Telegram отправляется по правилу выше.
 
 ---
 
@@ -72,7 +79,23 @@ git push origin release-v1.2.3
 
 ---
 
-## 5) Проверка после релиза
+## 5) Политика версий (важно для Google Play)
+
+- `versionName` — человекочитаемая версия (пример: `1.2.3`)
+- `versionCode` — целое число, которое для каждого нового релиза должно **строго расти**
+
+В workflow реализовано:
+- если релиз идёт по тегу `release-vX.Y.Z`, то `versionName = X.Y.Z`
+- по умолчанию `versionCode = YYDDDHHMM` (UTC), например `2606011520`
+- можно вручную передать `version_code`, если нужен override
+- workflow валидирует диапазон `1..2100000000`
+
+Если Play отклоняет релиз по причине version code:
+- запусти workflow ещё раз с большим `version_code`
+
+---
+
+## 6) Проверка после релиза
 
 Проверить в workflow run:
 - шаг `Build signed release APK + AAB` = success
@@ -88,7 +111,7 @@ git push origin release-v1.2.3
 
 ---
 
-## 6) Быстрый rollback
+## 7) Быстрый rollback
 
 Если релиз неудачный:
 1. Не использовать проблемный APK/AAB
@@ -97,7 +120,7 @@ git push origin release-v1.2.3
 
 ---
 
-## 7) Ключ подписи (критично)
+## 8) Ключ подписи (критично)
 
 - Keystore нельзя терять.
 - Хранить минимум в 2 независимых местах.
@@ -105,7 +128,7 @@ git push origin release-v1.2.3
 
 ---
 
-## 8) Частые проблемы
+## 9) Частые проблемы
 
 ### `Build debug/release APK` failed
 - проверить Java (pipeline уже на JDK 21)

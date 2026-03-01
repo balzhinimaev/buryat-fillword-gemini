@@ -4,11 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       release_label:
-        description: 'Optional release label (e.g. release-v1.2.0)'
+        description: 'Optional release label (default: release-v<version_name>)'
+        required: false
+        type: string
+      version_name:
+        description: 'Optional semantic version (e.g. 1.2.3 or 1.2.3-rc.1)'
         required: false
         type: string
       version_code:
-        description: 'Optional Android versionCode override (integer)'
+        description: 'Optional Android versionCode override (integer, must increase for Play)'
         required: false
         type: string
   push:
@@ -86,7 +90,7 @@ jobs:
       - name: Prepare release metadata
         id: meta
         run: |
-          set -e
+          set -euo pipefail
 
           APP_VERSION=$(node -p "require('./package.json').version")
           SHORT_SHA=$(git rev-parse --short HEAD)
@@ -97,20 +101,54 @@ jobs:
           fi
 
           INPUT_LABEL="${{ github.event.inputs.release_label }}"
+          INPUT_VERSION_NAME="${{ github.event.inputs.version_name }}"
           INPUT_CODE="${{ github.event.inputs.version_code }}"
 
-          if [ -n "$INPUT_LABEL" ]; then
-            RELEASE_LABEL="$INPUT_LABEL"
-          elif [ -n "$TAG_NAME" ]; then
+          VERSION_NAME=""
+          RELEASE_LABEL=""
+
+          # Priority 1: release tag format release-vX.Y.Z(-suffix)
+          if [ -n "$TAG_NAME" ]; then
+            if [[ ! "$TAG_NAME" =~ ^release-v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "Tag must match release-v<semver>, got: $TAG_NAME"
+              exit 1
+            fi
+
             RELEASE_LABEL="$TAG_NAME"
+            VERSION_NAME="${TAG_NAME#release-v}"
           else
-            RELEASE_LABEL="release-v${APP_VERSION}"
+            # Manual run path
+            if [ -n "$INPUT_VERSION_NAME" ]; then
+              VERSION_NAME="$INPUT_VERSION_NAME"
+            else
+              VERSION_NAME="$APP_VERSION"
+            fi
+
+            # Strip leading v if user passed v1.2.3
+            VERSION_NAME="${VERSION_NAME#v}"
+
+            if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "version_name must look like semver (e.g. 1.2.3 or 1.2.3-rc.1), got: $VERSION_NAME"
+              exit 1
+            fi
+
+            if [ -n "$INPUT_LABEL" ]; then
+              RELEASE_LABEL="$INPUT_LABEL"
+            else
+              RELEASE_LABEL="release-v${VERSION_NAME}"
+            fi
+
+            if [[ "$RELEASE_LABEL" != release-v* ]]; then
+              RELEASE_LABEL="release-v${RELEASE_LABEL}"
+            fi
           fi
 
           if [ -n "$INPUT_CODE" ]; then
             VERSION_CODE="$INPUT_CODE"
           else
-            VERSION_CODE="$GITHUB_RUN_NUMBER"
+            # Monotonic by time and safe for Android int max.
+            # Format: YYDDDHHMM (example: 2606011520)
+            VERSION_CODE=$(date -u +%y%j%H%M)
           fi
 
           if [[ ! "$VERSION_CODE" =~ ^[0-9]+$ ]]; then
@@ -118,19 +156,31 @@ jobs:
             exit 1
           fi
 
-          VERSION_NAME="${RELEASE_LABEL#release-}"
-          APK_NAME="burlive-${RELEASE_LABEL}-${SHORT_SHA}.apk"
-          AAB_NAME="burlive-${RELEASE_LABEL}-${SHORT_SHA}.aab"
+          if [ "$VERSION_CODE" -le 0 ] || [ "$VERSION_CODE" -gt 2100000000 ]; then
+            echo "version_code out of Android Play range (1..2100000000): $VERSION_CODE"
+            exit 1
+          fi
+
+          SAFE_RELEASE_LABEL=$(echo "$RELEASE_LABEL" | tr -cs 'A-Za-z0-9._-' '-')
+          APK_NAME="burlive-${SAFE_RELEASE_LABEL}-${SHORT_SHA}.apk"
+          AAB_NAME="burlive-${SAFE_RELEASE_LABEL}-${SHORT_SHA}.aab"
 
           {
             echo "app_version=$APP_VERSION"
             echo "release_label=$RELEASE_LABEL"
+            echo "safe_release_label=$SAFE_RELEASE_LABEL"
             echo "short_sha=$SHORT_SHA"
             echo "version_code=$VERSION_CODE"
             echo "version_name=$VERSION_NAME"
             echo "apk_name=$APK_NAME"
             echo "aab_name=$AAB_NAME"
+            echo "tag_name=$TAG_NAME"
           } >> "$GITHUB_OUTPUT"
+
+          echo "Resolved release metadata:"
+          echo "  release_label=${RELEASE_LABEL}"
+          echo "  version_name=${VERSION_NAME}"
+          echo "  version_code=${VERSION_CODE}"
 
       - name: Build signed release APK + AAB
         env:
@@ -151,7 +201,7 @@ jobs:
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-release-${{ steps.meta.outputs.release_label }}
+          name: android-release-${{ steps.meta.outputs.safe_release_label }}
           path: |
             ${{ steps.meta.outputs.apk_name }}
             ${{ steps.meta.outputs.aab_name }}
@@ -165,10 +215,12 @@ jobs:
         run: |
           set -e
           RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          MESSAGE=$(printf "🚀 Burlive Android release\n\nRelease: %s\nVersionName: %s\nVersionCode: %s\nCommit: %s\nArtifacts: APK + AAB\nWorkflow: %s" \
+
+          MESSAGE=$(printf "🚀 Burlive Android release\n\nRelease: %s\nVersionName: %s\nVersionCode: %s\nBuild: #%s\nCommit: %s\nArtifacts: signed APK + AAB\nWorkflow: %s" \
             "${{ steps.meta.outputs.release_label }}" \
             "${{ steps.meta.outputs.version_name }}" \
             "${{ steps.meta.outputs.version_code }}" \
+            "${GITHUB_RUN_NUMBER}" \
             "${{ steps.meta.outputs.short_sha }}" \
             "${RUN_URL}")
 
@@ -187,7 +239,7 @@ jobs:
           echo "$RESP"
           echo "$RESP" | grep -q '"ok":true'
 
-      - name: Send release APK to Telegram
+      - name: Send signed APK to Telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

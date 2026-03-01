@@ -125,7 +125,7 @@ Workflow: `.github/workflows/android-release-telegram.yml`
 
 Триггеры:
 - push tag `release-v*` (например `release-v1.2.0`)
-- manual `workflow_dispatch` (можно передать `release_label`, `version_code`)
+- manual `workflow_dispatch` (можно передать `release_label`, `version_name`, `version_code`)
 
 Secrets:
 - `TELEGRAM_BOT_TOKEN`
@@ -139,7 +139,8 @@ Secrets:
 Результат:
 - собирается **signed release** `APK + AAB`,
 - оба файла сохраняются в GitHub Artifact,
-- в Telegram отправляется релизное сообщение + signed APK.
+- в Telegram отправляется релизное сообщение + signed APK,
+- `versionName`/`versionCode` назначаются автоматически (Play-safe), при необходимости можно переопределить вручную.
 
 ## Примечание по API
 
