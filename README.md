@@ -106,18 +106,19 @@ npm run android:sync
 Workflow: `.github/workflows/android-apk-telegram.yml`
 
 Триггеры:
-- push tag `v*` (например `v1.2.0`)
-- manual `workflow_dispatch`
+- `push` в `master` → сборка + artifact (без Telegram)
+- `schedule` nightly (UTC) → сборка + отправка debug APK в Telegram
+- manual `workflow_dispatch` → можно включить/выключить отправку в Telegram
 
-Secrets:
+Secrets (для Telegram-отправки):
 - `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
-- `TELEGRAM_THREAD_ID` (опционально)
+- `TELEGRAM_CHAT_ID_INTERNAL` (рекомендуется для debug/nightly)
+- `TELEGRAM_THREAD_ID_INTERNAL` (опционально)
+- fallback: `TELEGRAM_CHAT_ID` / `TELEGRAM_THREAD_ID`
 
 Результат:
-- собирается `debug APK`,
-- APK сохраняется в GitHub Artifact,
-- в Telegram отправляется сообщение и APK-файл.
+- всегда собирается `debug APK` и сохраняется в GitHub Artifact,
+- в Telegram отправка идёт только для nightly/manual с включённой публикацией.
 
 #### 2) Signed release APK + AAB
 Workflow: `.github/workflows/android-release-telegram.yml`
