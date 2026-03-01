@@ -2,6 +2,8 @@
 
 Фронтенд Telegram Mini App для игры в бурятский филворд.
 
+> Android release guide: [`ANDROID_RELEASE_RUNBOOK.md`](./ANDROID_RELEASE_RUNBOOK.md)
+
 ## Архитектура
 
 - **Frontend:** этот репозиторий (`buryat-fillword-gemini`)
