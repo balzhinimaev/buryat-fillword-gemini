@@ -390,26 +390,42 @@ export function useAuthStore(): AuthStore {
           return; // Успех - выходим
         } catch (error) {
           console.error('❌ Не удалось обновить токен при старте:', error);
-          
+
           // Если уже идёт переавторизация через событие - не дублируем
           if (isReauthenticatingRef.current) {
             console.log('⏭️ Переавторизация уже запущена через событие, пропускаем...');
             setState(prev => ({ ...prev, isLoading: false, isCheckingSession: false }));
             return;
           }
-          
-          // Очищаем невалидные токены
-          clearStoredTokens();
-          saveUser(null);
-          setState({
-            user: null,
-            isAuthenticated: false,
+
+          const statusCode = (error as { statusCode?: number })?.statusCode;
+          const isInvalidRefresh = statusCode === 401 || statusCode === 403;
+
+          if (isInvalidRefresh) {
+            // Только при явной невалидной сессии делаем полный logout.
+            clearStoredTokens();
+            saveUser(null);
+            setState({
+              user: null,
+              isAuthenticated: false,
+              isLoading: false,
+              isCheckingSession: false,
+              error: null,
+              isNewUser: false,
+              onboardingCompleted: false,
+            });
+            return;
+          }
+
+          // Временный сетевой/серверный сбой: не выкидываем пользователя из сессии.
+          console.log('⏳ Временный сбой refresh при старте, сохраняем локальную сессию');
+          setState(prev => ({
+            ...prev,
             isLoading: false,
             isCheckingSession: false,
             error: null,
-            isNewUser: false,
-            onboardingCompleted: false,
-          });
+          }));
+          return;
         }
       }
 

@@ -580,25 +580,31 @@ async function apiRequest<T>(
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refresh_token: tokens.refresh_token }),
         });
-        
+
         if (refreshResponse.ok) {
           const { access_token }: RefreshResponse = await refreshResponse.json();
           console.log('✅ Токен обновлён успешно');
           setStoredTokens({ ...tokens, access_token });
           // Повторяем оригинальный запрос с новым токеном
           return apiRequest<T>(endpoint, options, true);
-        } else {
-          console.log('❌ Не удалось обновить токен:', await refreshResponse.text());
-          // Refresh token невалиден - очищаем токены и уведомляем о необходимости переавторизации
-          console.log('🔒 Очищаем невалидные токены и запрашиваем переавторизацию...');
+        }
+
+        const refreshStatus = refreshResponse.status;
+        const refreshBody = await refreshResponse.text();
+        console.log('❌ Не удалось обновить токен:', refreshStatus, refreshBody);
+
+        // Сессию сбрасываем только если refresh действительно невалиден.
+        if (refreshStatus === 401 || refreshStatus === 403) {
+          console.log('🔒 Refresh token недействителен, очищаем токены и запрашиваем переавторизацию...');
           clearStoredTokens();
           window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
+        } else {
+          // Временные сетевые/серверные ошибки: не теряем сессию принудительно.
+          console.log('⏳ Временная ошибка refresh, сохраняем текущие токены');
         }
       } catch (refreshError) {
-        console.log('❌ Ошибка при обновлении токена:', refreshError);
-        // Если refresh не удался - очищаем токены и уведомляем
-        clearStoredTokens();
-        window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
+        console.log('❌ Ошибка сети при обновлении токена, сохраняем текущие токены:', refreshError);
+        // При сетевом сбое не сбрасываем сессию.
       }
     }
     
