@@ -107,7 +107,7 @@ Workflow: `.github/workflows/android-apk-telegram.yml`
 
 Триггеры:
 - `push` в `master` → сборка + artifact (без Telegram)
-- `schedule` nightly (UTC) → сборка + отправка debug APK в Telegram
+- `schedule` nightly (UTC) → сборка + отправка **signed internal APK** в Telegram
 - manual `workflow_dispatch` → можно включить/выключить отправку в Telegram
 
 Secrets (для Telegram-отправки):
@@ -117,8 +117,8 @@ Secrets (для Telegram-отправки):
 - fallback: `TELEGRAM_CHAT_ID` / `TELEGRAM_THREAD_ID`
 
 Результат:
-- всегда собирается `debug APK` и сохраняется в GitHub Artifact,
-- в Telegram отправка идёт только для nightly/manual с включённой публикацией.
+- на `master` всегда собирается `debug APK` и сохраняется в GitHub Artifact,
+- для nightly/manual (с publish=true) в Telegram уходит **signed internal APK** (тот же keystore, обновляется поверх старой версии),
 - перед отправкой выполняется preflight `getChat` + проверка chat_id + retry.
 
 #### 2) Signed release APK + AAB

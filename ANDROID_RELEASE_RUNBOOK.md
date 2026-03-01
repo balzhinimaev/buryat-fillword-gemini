@@ -4,14 +4,12 @@
 
 ## 1) Что уже настроено
 
-### Debug pipeline
+### Debug/Internal pipeline
 - Workflow: `.github/workflows/android-apk-telegram.yml`
 - Что делает:
-  - всегда собирает `debug APK`
-  - всегда кладёт artifact в GitHub Actions
-  - в Telegram отправляет только:
-    - nightly schedule
-    - manual run с `publish_telegram=true`
+  - на `master` собирает `debug APK` и кладёт в artifact
+  - для nightly/manual с `publish_telegram=true` собирает **signed internal APK**
+  - signed internal APK подписан тем же keystore, поэтому обновляется поверх предыдущей версии
   - push в `master` → **artifact only** (без спама в канал)
 
 ### Signed release pipeline
@@ -41,7 +39,7 @@
 - `TELEGRAM_CHAT_ID_INTERNAL` (рекомендуется для debug/nightly)
 - `TELEGRAM_THREAD_ID_INTERNAL` (опционально)
 
-### Signing (только для signed release)
+### Signing (для signed release + signed internal debug в Telegram)
 - `ANDROID_KEYSTORE_B64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
@@ -58,11 +56,15 @@
    - `release_label` (опционально)
    - `publish_telegram=true|false`
 
-### Вариант B — автоматически
-- push в `master` → сборка + artifact (без Telegram)
-- nightly schedule (UTC) → сборка + отправка в внутренний Telegram канал
+Поведение:
+- `publish_telegram=false` → debug APK только в artifact
+- `publish_telegram=true` → signed internal APK отправляется в Telegram
 
-Результат: APK всегда в Artifacts; в Telegram отправляется по правилу выше.
+### Вариант B — автоматически
+- push в `master` → debug сборка + artifact (без Telegram)
+- nightly schedule (UTC) → signed internal APK в внутренний Telegram канал
+
+Результат: APK всегда в Artifacts; в Telegram отправляется подписанный internal APK.
 
 ---
 

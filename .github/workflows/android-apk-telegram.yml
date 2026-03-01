@@ -8,7 +8,7 @@ on:
         required: false
         type: string
       publish_telegram:
-        description: 'Send debug APK to Telegram'
+        description: 'Send APK to Telegram (signed internal build)'
         required: false
         type: boolean
         default: true
@@ -27,7 +27,8 @@ jobs:
       contents: read
 
     env:
-      APK_OUTPUT_PATH: android/app/build/outputs/apk/debug/app-debug.apk
+      DEBUG_APK_OUTPUT_PATH: android/app/build/outputs/apk/debug/app-debug.apk
+      RELEASE_APK_OUTPUT_PATH: android/app/build/outputs/apk/release/app-release.apk
 
     steps:
       - name: Checkout
@@ -57,13 +58,10 @@ jobs:
       - name: Sync Capacitor Android project
         run: npm run android:sync
 
-      - name: Build debug APK
-        run: npm run android:build:debug
-
       - name: Prepare build metadata
         id: meta
         run: |
-          set -e
+          set -euo pipefail
 
           APP_VERSION=$(node -p "require('./package.json').version")
           SHORT_SHA=$(git rev-parse --short HEAD)
@@ -71,6 +69,9 @@ jobs:
 
           INPUT_LABEL="${{ github.event.inputs.release_label }}"
           INPUT_PUBLISH="${{ github.event.inputs.publish_telegram }}"
+
+          RELEASE_LABEL=""
+          PUBLISH_TELEGRAM=false
 
           if [ "$EVENT_NAME" = "schedule" ]; then
             RELEASE_LABEL="nightly-$(date -u +%Y%m%d)"
@@ -81,6 +82,7 @@ jobs:
             else
               RELEASE_LABEL="manual-v${APP_VERSION}-build-${GITHUB_RUN_NUMBER}"
             fi
+
             if [ "$INPUT_PUBLISH" = "false" ]; then
               PUBLISH_TELEGRAM=false
             else
@@ -92,17 +94,84 @@ jobs:
             PUBLISH_TELEGRAM=false
           fi
 
-          FILE_NAME="burlive-${RELEASE_LABEL}-${SHORT_SHA}.apk"
+          if [ "$PUBLISH_TELEGRAM" = "true" ]; then
+            BUILD_KIND="signed-internal"
+            VERSION_CODE=$(date -u +%y%j%H%M)
+            VERSION_NAME="internal-${APP_VERSION}"
+            APK_SOURCE_PATH="${RELEASE_APK_OUTPUT_PATH}"
+          else
+            BUILD_KIND="debug"
+            VERSION_CODE=""
+            VERSION_NAME=""
+            APK_SOURCE_PATH="${DEBUG_APK_OUTPUT_PATH}"
+          fi
+
+          SAFE_RELEASE_LABEL=$(echo "$RELEASE_LABEL" | tr -cs 'A-Za-z0-9._-' '-')
+          FILE_NAME="burlive-${SAFE_RELEASE_LABEL}-${BUILD_KIND}-${SHORT_SHA}.apk"
 
           {
             echo "app_version=$APP_VERSION"
             echo "release_label=$RELEASE_LABEL"
+            echo "safe_release_label=$SAFE_RELEASE_LABEL"
             echo "short_sha=$SHORT_SHA"
-            echo "file_name=$FILE_NAME"
             echo "publish_telegram=$PUBLISH_TELEGRAM"
+            echo "build_kind=$BUILD_KIND"
+            echo "version_code=$VERSION_CODE"
+            echo "version_name=$VERSION_NAME"
+            echo "apk_source_path=$APK_SOURCE_PATH"
+            echo "file_name=$FILE_NAME"
           } >> "$GITHUB_OUTPUT"
 
-          cp "$APK_OUTPUT_PATH" "$FILE_NAME"
+      - name: Validate signing secrets (signed internal only)
+        if: steps.meta.outputs.publish_telegram == 'true'
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -e
+          required=(
+            ANDROID_KEYSTORE_B64
+            ANDROID_KEYSTORE_PASSWORD
+            ANDROID_KEY_ALIAS
+            ANDROID_KEY_PASSWORD
+          )
+          for key in "${required[@]}"; do
+            if [ -z "${!key}" ]; then
+              echo "Missing required signing secret: ${key}"
+              exit 1
+            fi
+          done
+
+      - name: Decode Android keystore (signed internal only)
+        if: steps.meta.outputs.publish_telegram == 'true'
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -e
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > android/app/release.keystore
+
+      - name: Build signed internal APK (Telegram path)
+        if: steps.meta.outputs.publish_telegram == 'true'
+        env:
+          ORG_GRADLE_PROJECT_BURLIVE_UPLOAD_STORE_FILE: release.keystore
+          ORG_GRADLE_PROJECT_BURLIVE_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_BURLIVE_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_BURLIVE_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ORG_GRADLE_PROJECT_BURLIVE_VERSION_CODE: ${{ steps.meta.outputs.version_code }}
+          ORG_GRADLE_PROJECT_BURLIVE_VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+        run: |
+          set -e
+          npm run android:build:release
+          cp "${{ steps.meta.outputs.apk_source_path }}" "${{ steps.meta.outputs.file_name }}"
+
+      - name: Build debug APK (artifact-only path)
+        if: steps.meta.outputs.publish_telegram != 'true'
+        run: |
+          set -e
+          npm run android:build:debug
+          cp "${{ steps.meta.outputs.apk_source_path }}" "${{ steps.meta.outputs.file_name }}"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -147,7 +216,7 @@ jobs:
             echo "thread_id=$THREAD_ID"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Send Telegram debug build message
+      - name: Send Telegram build message
         if: steps.meta.outputs.publish_telegram == 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -158,9 +227,11 @@ jobs:
 
           RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
-          MESSAGE=$(printf "📦 Burlive Android DEBUG build\n\nLabel: %s\nVersion: %s\nCommit: %s\nEvent: %s\nWorkflow: %s" \
+          MESSAGE=$(printf "📦 Burlive Android build\n\nLabel: %s\nKind: %s\nVersion: %s\nVersionCode: %s\nCommit: %s\nEvent: %s\nWorkflow: %s" \
             "${{ steps.meta.outputs.release_label }}" \
-            "${{ steps.meta.outputs.app_version }}" \
+            "${{ steps.meta.outputs.build_kind }}" \
+            "${{ steps.meta.outputs.version_name }}" \
+            "${{ steps.meta.outputs.version_code }}" \
             "${{ steps.meta.outputs.short_sha }}" \
             "${GITHUB_EVENT_NAME}" \
             "${RUN_URL}")
@@ -194,7 +265,7 @@ jobs:
           echo "Telegram sendMessage failed after retries"
           exit 1
 
-      - name: Send debug APK to Telegram
+      - name: Send APK to Telegram
         if: steps.meta.outputs.publish_telegram == 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -204,7 +275,7 @@ jobs:
           set -euo pipefail
 
           URL="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"
-          CAPTION="Burlive DEBUG APK • ${{ steps.meta.outputs.release_label }} • ${{ steps.meta.outputs.short_sha }}"
+          CAPTION="Burlive ${{ steps.meta.outputs.build_kind }} APK • ${{ steps.meta.outputs.release_label }} • ${{ steps.meta.outputs.short_sha }}"
 
           for attempt in 1 2 3; do
             if [ -n "$THREAD_ID" ]; then
