@@ -822,6 +822,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     completeEndlessLevel,
     campaignSlug,
     campaignSessionId,
+    dailySessionId,
+    isDailyMode,
     levelModeSessionId,
     mistakes,
     score,

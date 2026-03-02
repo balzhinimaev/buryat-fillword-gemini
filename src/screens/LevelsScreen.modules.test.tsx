@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import LevelsScreen from './LevelsScreen';
 import { api, type CampaignOverviewResponse } from '../services/api';
+import type { GameStore } from '../store/gameStore';
 
 const makeStore = (campaignLandingView: 'chapters' | 'modules' | null = null) => ({
   state: { stats: { totalStars: 0 }, campaignLandingView, campaignPreferredModuleId: null },
@@ -53,7 +54,7 @@ describe('LevelsScreen thematic modules shelf', () => {
 
     vi.spyOn(api, 'getCampaignOverview').mockResolvedValue(overview);
 
-    render(<LevelsScreen store={store as any} />);
+    render(<LevelsScreen store={store as unknown as GameStore} />);
 
     await screen.findByText('Сагаан һара / Сагаалган');
 
@@ -100,7 +101,7 @@ describe('LevelsScreen thematic modules shelf', () => {
 
     vi.spyOn(api, 'getCampaignOverview').mockResolvedValue(overview);
 
-    render(<LevelsScreen store={store as any} />);
+    render(<LevelsScreen store={store as unknown as GameStore} />);
 
     expect(await screen.findByText('Сагаан һара / Сагаалган')).toBeInTheDocument();
     expect(screen.getByText('Новый')).toBeInTheDocument();
@@ -152,7 +153,7 @@ describe('LevelsScreen thematic modules shelf', () => {
     vi.spyOn(api, 'getCampaignOverview').mockResolvedValue(overview);
     const trackSpy = vi.spyOn(api, 'trackCampaignModuleOpened').mockResolvedValue({ ok: true });
 
-    render(<LevelsScreen store={store as any} />);
+    render(<LevelsScreen store={store as unknown as GameStore} />);
 
     const moduleTitle = await screen.findByText('Сагаан һара / Сагаалган');
     fireEvent.click(moduleTitle);

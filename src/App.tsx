@@ -228,7 +228,12 @@ export default function App() {
     }
 
     return currentScreen;
-  }, [authState.isAuthenticated, authState.isLoading, shouldShowOnboarding, currentScreen]);
+  }, [
+    authState.isAuthenticated,
+    authState.isCheckingSession,
+    shouldShowOnboarding,
+    currentScreen,
+  ]);
 
   // Прокручиваем страницу вверх при переходе на новый экран
   useEffect(() => {

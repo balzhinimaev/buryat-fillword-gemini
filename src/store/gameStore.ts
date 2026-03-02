@@ -189,7 +189,8 @@ const loadState = (): GameState => {
 // Сохранение состояния (без screenHistory — она runtime-only)
 const saveState = (state: GameState) => {
   try {
-    const { screenHistory, ...toSave } = state;
+    const toSave: Partial<GameState> = { ...state };
+    delete toSave.screenHistory;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch (e) {
     console.error('Failed to save game state:', e);
