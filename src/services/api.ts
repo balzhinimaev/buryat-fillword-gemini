@@ -1072,6 +1072,58 @@ export async function trackActivity(type?: string): Promise<ActivityStreakRespon
 }
 
 // =========================
+// Analytics (event stream)
+// =========================
+
+export type AnalyticsEventName =
+  | 'app_open'
+  | 'daily_started'
+  | 'daily_completed'
+  | 'campaign_level_started'
+  | 'campaign_level_completed'
+  | 'level_started'
+  | 'level_completed'
+  | 'module_opened'
+  | 'resume_clicked'
+  | 'reactivation_sent'
+  | 'reactivation_opened';
+
+export interface AnalyticsEventContext {
+  source?: 'menu' | 'startapp' | 'broadcast' | 'push' | 'unknown';
+  startappIntent?: 'daily' | 'resume' | 'module';
+  campaignId?: string;
+  moduleId?: string;
+  platform?: 'android' | 'ios' | 'web';
+  appVersion?: string;
+}
+
+export interface AnalyticsEventInput {
+  eventId?: string;
+  eventName: AnalyticsEventName;
+  occurredAtClient?: string;
+  sessionId?: string;
+  ctx?: AnalyticsEventContext;
+  props?: Record<string, unknown>;
+}
+
+export interface IngestAnalyticsEventsResponse {
+  accepted: number;
+  inserted: number;
+  duplicates: number;
+}
+
+export async function trackAnalyticsEvents(events: AnalyticsEventInput[]): Promise<IngestAnalyticsEventsResponse> {
+  if (events.length === 0) {
+    return { accepted: 0, inserted: 0, duplicates: 0 };
+  }
+
+  return apiRequest<IngestAnalyticsEventsResponse>('/analytics/events', {
+    method: 'POST',
+    body: JSON.stringify({ events }),
+  });
+}
+
+// =========================
 // Campaign Admin (chapters + lessons)
 // =========================
 
@@ -1908,6 +1960,9 @@ export const api = {
   // Activity
   getActivityStreak,
   trackActivity,
+
+  // Analytics
+  trackAnalyticsEvents,
 
   // Campaign Admin
   getCampaignAdminChapters,
