@@ -7,6 +7,7 @@ import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
+import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { api, type ApiError, type CampaignDifficulty, type CampaignOverviewResponse, type CampaignOverviewLevel, type CampaignOverviewModule } from '../services/api';
 
 interface LevelsScreenProps {
@@ -346,6 +347,12 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                           onClick={() => {
                             if (!module.id || moduleLocked) return;
                             void api.trackCampaignModuleOpened(module.id, 'levels_screen').catch(() => undefined);
+                            trackAnalyticsEventNonBlocking('module_opened', {
+                              ctx: {
+                                source: 'menu',
+                                moduleId: module.id,
+                              },
+                            });
                             setSelectedModuleId(module.id);
                             setCampaignPreferredModuleId(module.id);
                           }}

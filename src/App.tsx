@@ -6,8 +6,9 @@ import { ThemeProvider } from './theme/ThemeContext';
 import { getTheme } from './theme';
 import { TelegramThemeSync } from './components/TelegramThemeSync';
 import { useAuth } from './store/authStore';
-import { api } from './services/api';
+import { api, type AnalyticsEventContext } from './services/api';
 import { getResumeFirstLevelSlug } from './utils/campaignResume';
+import { trackAnalyticsEventsNonBlocking } from './utils/analytics';
 import { extractStartAppPayload, parseStartAppIntent } from './utils/startapp';
 import { usePushNotifications } from './hooks/usePushNotifications';
 
@@ -73,6 +74,34 @@ export default function App() {
     return parseStartAppIntent(raw);
   }, []);
 
+  const startupAnalyticsCtx = useMemo<AnalyticsEventContext>(() => {
+    let source: AnalyticsEventContext['source'] = startAppIntent ? 'startapp' : 'unknown';
+    let campaignId: string | undefined;
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const sourceParam = (params.get('source') || '').trim();
+      const campaignParam = (params.get('campaign_id') || params.get('campaignId') || '').trim();
+
+      if (sourceParam === 'menu' || sourceParam === 'startapp' || sourceParam === 'broadcast' || sourceParam === 'push' || sourceParam === 'unknown') {
+        source = sourceParam;
+      }
+
+      if (campaignParam) {
+        campaignId = campaignParam;
+      }
+    } catch {
+      // ignore malformed query string
+    }
+
+    return {
+      source,
+      campaignId,
+      startappIntent: startAppIntent?.type,
+      platform: 'web',
+    };
+  }, [startAppIntent]);
+
   // Запрашиваем push-permission после завершения онбординга
   usePushNotifications(authState.isAuthenticated && authState.onboardingCompleted);
 
@@ -89,6 +118,21 @@ export default function App() {
 
     let cancelled = false;
 
+    const shouldMarkReactivationOpened =
+      startupAnalyticsCtx.source === 'broadcast'
+      || startupAnalyticsCtx.source === 'push'
+      || (startupAnalyticsCtx.campaignId?.toLowerCase().startsWith('reactiv_') ?? false);
+
+    trackAnalyticsEventsNonBlocking([
+      {
+        eventName: 'app_open',
+        ctx: startupAnalyticsCtx,
+      },
+      ...(shouldMarkReactivationOpened
+        ? [{ eventName: 'reactivation_opened' as const, ctx: startupAnalyticsCtx }]
+        : []),
+    ]);
+
     (async () => {
       try {
         await api.trackActivity('app_open');
@@ -103,7 +147,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [authState.isAuthenticated, authState.isLoading, refreshUser]);
+  }, [authState.isAuthenticated, authState.isLoading, refreshUser, startupAnalyticsCtx]);
 
   // Определяем нужно ли показывать онбординг
   const shouldShowOnboarding = useMemo(() => {

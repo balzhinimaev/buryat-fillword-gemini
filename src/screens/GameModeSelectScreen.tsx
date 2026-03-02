@@ -28,6 +28,7 @@ import { getMenuStyles } from '../theme/menuStyles';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
+import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { api, type CampaignOverviewResponse, type LevelModeProgressResponse, type DailyWordTodayResponse } from '../services/api';
 
 interface GameModeSelectScreenProps {
@@ -92,6 +93,14 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
 
   const handleResumeFirstLevel = useCallback(() => {
     if (!resumeLevelSlug) return;
+    trackAnalyticsEventNonBlocking('resume_clicked', {
+      ctx: {
+        source: 'menu',
+      },
+      props: {
+        slug: resumeLevelSlug,
+      },
+    });
     setCampaignResumeSlug(null);
     selectCategory(resumeLevelSlug);
   }, [resumeLevelSlug, selectCategory, setCampaignResumeSlug]);

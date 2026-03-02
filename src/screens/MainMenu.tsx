@@ -23,6 +23,7 @@ import { getMenuStyles } from '../theme/menuStyles';
 import { cn } from '../components/ui';
 import { useTelegram } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
+import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { api, getWordsStats } from '../services/api';
 
 interface MainMenuProps {
@@ -284,6 +285,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
       return;
     }
 
+    trackAnalyticsEventNonBlocking('resume_clicked', {
+      ctx: {
+        source: 'menu',
+      },
+      props: {
+        slug: state.campaignResumeSlug,
+      },
+    });
     setCampaignLandingView(null);
     selectCategory(state.campaignResumeSlug);
     setCampaignResumeSlug(null);
