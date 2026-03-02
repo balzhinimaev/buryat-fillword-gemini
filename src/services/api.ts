@@ -1041,6 +1041,37 @@ export async function trackCampaignPaywallShown(payload?: {
 }
 
 // =========================
+// Activity (streak + heartbeat)
+// =========================
+
+export interface ActivityStreakResponse {
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate?: string;
+  isStreakActive: boolean;
+}
+
+export async function getActivityStreak(recalculate = false): Promise<ActivityStreakResponse> {
+  const params = new URLSearchParams();
+  if (recalculate) params.set('recalculate', 'true');
+
+  const suffix = params.toString();
+  return apiRequest<ActivityStreakResponse>(`/activity/streak${suffix ? `?${suffix}` : ''}`, {
+    method: 'GET',
+  });
+}
+
+export async function trackActivity(type?: string): Promise<ActivityStreakResponse> {
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+
+  const suffix = params.toString();
+  return apiRequest<ActivityStreakResponse>(`/activity/track${suffix ? `?${suffix}` : ''}`, {
+    method: 'POST',
+  });
+}
+
+// =========================
 // Campaign Admin (chapters + lessons)
 // =========================
 
@@ -1439,7 +1470,8 @@ export type BroadcastCohortType =
   | 'active'
   | 'inactive'
   | 'language_keepers'
-  | 'prelaunch';
+  | 'prelaunch'
+  | 'zero_star_inactive_24h';
 
 export type BroadcastStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
 
@@ -1872,6 +1904,10 @@ export const api = {
   submitCampaignLevel,
   trackCampaignModuleOpened,
   trackCampaignPaywallShown,
+
+  // Activity
+  getActivityStreak,
+  trackActivity,
 
   // Campaign Admin
   getCampaignAdminChapters,

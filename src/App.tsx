@@ -8,6 +8,7 @@ import { TelegramThemeSync } from './components/TelegramThemeSync';
 import { useAuth } from './store/authStore';
 import { api } from './services/api';
 import { getResumeFirstLevelSlug } from './utils/campaignResume';
+import { extractStartAppPayload, parseStartAppIntent } from './utils/startapp';
 import { usePushNotifications } from './hooks/usePushNotifications';
 
 // Screens (lazy-loaded для code splitting)
@@ -50,10 +51,27 @@ const pageTransition = {
 export default function App() {
   const store = useGameStore();
   const { currentScreen, settings } = store.state;
-  const { loadSettingsFromApi, setCampaignResumeSlug, navigate } = store;
+  const {
+    loadSettingsFromApi,
+    setCampaignResumeSlug,
+    setCampaignLandingView,
+    setCampaignPreferredModuleId,
+    startDailyGame,
+    selectCategory,
+    navigate,
+  } = store;
   const currentTheme = getTheme(settings.theme);
-  const { state: authState } = useAuth();
-  const resumeFlowCheckedRef = useRef(false);
+  const { state: authState, refreshUser } = useAuth();
+  const startupFlowCheckedRef = useRef(false);
+
+  const startAppIntent = useMemo(() => {
+    const telegramStartParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param ?? null;
+    const raw = extractStartAppPayload({
+      search: window.location.search,
+      telegramStartParam,
+    });
+    return parseStartAppIntent(raw);
+  }, []);
 
   // Запрашиваем push-permission после завершения онбординга
   usePushNotifications(authState.isAuthenticated && authState.onboardingCompleted);
@@ -64,6 +82,28 @@ export default function App() {
       loadSettingsFromApi();
     }
   }, [authState.isAuthenticated, authState.isLoading, loadSettingsFromApi]);
+
+  // Базовый heartbeat активности при входе в приложение
+  useEffect(() => {
+    if (!authState.isAuthenticated || authState.isLoading) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await api.trackActivity('app_open');
+        if (!cancelled) {
+          void refreshUser();
+        }
+      } catch {
+        // non-blocking
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authState.isAuthenticated, authState.isLoading, refreshUser]);
 
   // Определяем нужно ли показывать онбординг
   const shouldShowOnboarding = useMemo(() => {
@@ -76,38 +116,82 @@ export default function App() {
     return authState.isNewUser || !authState.onboardingCompleted;
   }, [authState.isAuthenticated, authState.isLoading, authState.isNewUser, authState.onboardingCompleted]);
 
-  // Если пользователь разлогинился — сбрасываем флаг проверки resume-flow
+  // Если пользователь разлогинился — сбрасываем флаги стартовой маршрутизации
   useEffect(() => {
     if (!authState.isAuthenticated) {
-      resumeFlowCheckedRef.current = false;
+      startupFlowCheckedRef.current = false;
       setCampaignResumeSlug(null);
+      setCampaignPreferredModuleId(null);
     }
-  }, [authState.isAuthenticated, setCampaignResumeSlug]);
+  }, [authState.isAuthenticated, setCampaignResumeSlug, setCampaignPreferredModuleId]);
 
-  // Resume-first-flow:
-  // если первый уровень кампании уже стартовали, но не завершили —
-  // при следующем открытии приложения ведём пользователя сразу к prompt на экране выбора режима.
+  // Startup routing:
+  // 1) deep-link startapp (daily/resume/module)
+  // 2) fallback resume-first-flow
   useEffect(() => {
     if (!authState.isAuthenticated || authState.isLoading) return;
     if (shouldShowOnboarding) return;
-    if (resumeFlowCheckedRef.current) return;
+    if (startupFlowCheckedRef.current) return;
 
-    resumeFlowCheckedRef.current = true;
+    startupFlowCheckedRef.current = true;
     let isMounted = true;
 
     (async () => {
+      let resumeSlug: string | null = null;
+
       try {
         const overview = await api.getCampaignOverview();
         if (!isMounted) return;
 
-        const resumeSlug = getResumeFirstLevelSlug(overview);
+        resumeSlug = getResumeFirstLevelSlug(overview);
         setCampaignResumeSlug(resumeSlug);
-
-        if (resumeSlug && currentScreen === 'menu') {
-          navigate('gameMode');
-        }
       } catch {
-        // Silent fail: resume-flow не должен ломать запуск приложения
+        // Silent fail: стартовый flow не должен ломать запуск приложения
+      }
+
+      if (!isMounted) return;
+
+      if (startAppIntent?.type === 'daily') {
+        setCampaignLandingView(null);
+        setCampaignPreferredModuleId(null);
+
+        if (!settings.hasSeenHowTo) {
+          navigate('howto');
+          return;
+        }
+
+        startDailyGame();
+        return;
+      }
+
+      if (startAppIntent?.type === 'module') {
+        setCampaignLandingView('modules');
+        setCampaignPreferredModuleId(startAppIntent.moduleId);
+        navigate('levels');
+        return;
+      }
+
+      if (startAppIntent?.type === 'resume') {
+        if (!settings.hasSeenHowTo) {
+          navigate('howto');
+          return;
+        }
+
+        if (resumeSlug) {
+          setCampaignLandingView(null);
+          setCampaignPreferredModuleId(null);
+          setCampaignResumeSlug(null);
+          selectCategory(resumeSlug);
+          return;
+        }
+
+        navigate('gameMode');
+        return;
+      }
+
+      // Fallback: resume-first-flow для обычного старта без deep-link
+      if (resumeSlug && currentScreen === 'menu') {
+        navigate('gameMode');
       }
     })();
 
@@ -118,8 +202,14 @@ export default function App() {
     authState.isAuthenticated,
     authState.isLoading,
     shouldShowOnboarding,
+    settings.hasSeenHowTo,
+    startAppIntent,
     currentScreen,
     setCampaignResumeSlug,
+    setCampaignLandingView,
+    setCampaignPreferredModuleId,
+    startDailyGame,
+    selectCategory,
     navigate,
   ]);
 
@@ -138,7 +228,12 @@ export default function App() {
     }
 
     return currentScreen;
-  }, [authState.isAuthenticated, authState.isLoading, shouldShowOnboarding, currentScreen]);
+  }, [
+    authState.isAuthenticated,
+    authState.isCheckingSession,
+    shouldShowOnboarding,
+    currentScreen,
+  ]);
 
   // Прокручиваем страницу вверх при переходе на новый экран
   useEffect(() => {

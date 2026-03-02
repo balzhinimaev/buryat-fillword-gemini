@@ -110,6 +110,7 @@ const defaultGameState: GameState = {
   gameMode: 'campaign',
   campaignResumeSlug: null,
   campaignLandingView: null,
+  campaignPreferredModuleId: null,
   adminEditLevelNumber: null,
   adminEditDailyDate: null,
   adminCampaignMapLessonSlug: null,
@@ -188,7 +189,8 @@ const loadState = (): GameState => {
 // Сохранение состояния (без screenHistory — она runtime-only)
 const saveState = (state: GameState) => {
   try {
-    const { screenHistory, ...toSave } = state;
+    const toSave: Partial<GameState> = { ...state };
+    delete toSave.screenHistory;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch (e) {
     console.error('Failed to save game state:', e);
@@ -264,6 +266,10 @@ export const useGameStore = () => {
 
   const setCampaignLandingView = useCallback((view: 'chapters' | 'modules' | null) => {
     setState(prev => ({ ...prev, campaignLandingView: view }));
+  }, []);
+
+  const setCampaignPreferredModuleId = useCallback((moduleId: string | null) => {
+    setState(prev => ({ ...prev, campaignPreferredModuleId: moduleId }));
   }, []);
 
   // Выбор пакета уровней
@@ -630,6 +636,7 @@ export const useGameStore = () => {
     setGameMode,
     setCampaignResumeSlug,
     setCampaignLandingView,
+    setCampaignPreferredModuleId,
     selectLevelPack,
     selectEndlessLevel,
     startDailyGame,

@@ -77,6 +77,7 @@ export interface GameState {
   gameMode: GameMode; // текущий режим игры
   campaignResumeSlug: string | null; // slug уровня для сценария resume-first-flow
   campaignLandingView: 'chapters' | 'modules' | null; // какой раздел открыть в экране первой главы
+  campaignPreferredModuleId: string | null; // id модуля, который нужно открыть сразу при входе в «Спецмодули»
   adminEditLevelNumber: number | null; // номер уровня для редактора (null = создание нового)
   adminEditDailyDate: string | null; // дата для редактора филлворда дня (null = создание нового, 'YYYY-MM-DD' = редактирование)
   adminCampaignMapLessonSlug: string | null; // slug урока для редактора карт кампании

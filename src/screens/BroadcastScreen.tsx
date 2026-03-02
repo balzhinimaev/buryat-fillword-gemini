@@ -62,6 +62,12 @@ const COHORT_OPTIONS: CohortOption[] = [
   { value: 'premium', label: 'Telegram Premium', emoji: '⭐', description: 'Только Premium пользователи' },
   { value: 'active', label: 'Активные', emoji: '🟢', description: 'Активные за последние N дней', needsDays: true },
   { value: 'inactive', label: 'Неактивные', emoji: '💤', description: 'Неактивные за N дней', needsDays: true },
+  {
+    value: 'zero_star_inactive_24h',
+    label: '0⭐ неактивны >24ч',
+    emoji: '🧊',
+    description: 'Без прогресса и не заходили >24 часов',
+  },
   { value: 'language_keepers', label: 'Хранители языка', emoji: '🛡️', description: 'Участники программы хранителей' },
   { value: 'prelaunch', label: 'Прелонч', emoji: '🚀', description: 'Пользователи прелонча' },
 ];
@@ -253,6 +259,16 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
     return req;
   }, [message, cohortType, telegramIdsInput, role, days, showButton, buttonText, buttonUrl, isMiniApp]);
 
+  const getErrorMessage = useCallback((err: unknown, fallback: string): string => {
+    if (err && typeof err === 'object' && 'message' in err) {
+      const message = (err as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim().length > 0) {
+        return message;
+      }
+    }
+    return fallback;
+  }, []);
+
   // ─── Preview ───────────────────────────────────────────────────────
   const handlePreview = useCallback(async () => {
     const req = buildRequest();
@@ -263,13 +279,13 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
       setError(null);
       const result = await api.previewBroadcast(req);
       setPreview(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Preview failed:', err);
-      setError(err?.message || 'Не удалось получить превью');
+      setError(getErrorMessage(err, 'Не удалось получить превью'));
     } finally {
       setPreviewLoading(false);
     }
-  }, [buildRequest]);
+  }, [buildRequest, getErrorMessage]);
 
   // ─── Send ──────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
@@ -291,13 +307,13 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
       setShowButton(false);
       setButtonText('');
       setButtonUrl('');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Send failed:', err);
-      setError(err?.message || 'Не удалось отправить рассылку');
+      setError(getErrorMessage(err, 'Не удалось отправить рассылку'));
     } finally {
       setSending(false);
     }
-  }, [buildRequest]);
+  }, [buildRequest, getErrorMessage]);
 
   // ─── Load history ──────────────────────────────────────────────────
   const loadHistory = useCallback(async (page = 1) => {
@@ -307,7 +323,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
       setHistory(result.items);
       setHistoryTotal(result.total);
       setHistoryPage(page);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load history:', err);
     } finally {
       setHistoryLoading(false);
@@ -320,7 +336,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
       setDetailLoading(true);
       const result = await api.getBroadcastDetail(id);
       setDetailItem(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load detail:', err);
     } finally {
       setDetailLoading(false);

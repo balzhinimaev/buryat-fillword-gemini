@@ -165,6 +165,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const isAdmin = authState.user?.role === 'admin';
   const [totalVerifiedWords, setTotalVerifiedWords] = useState<number | null>(null);
   const [showDonateBtn, setShowDonateBtn] = useState(true);
+  const [hasUnplayedDaily, setHasUnplayedDaily] = useState(false);
 
   // Скрываем кнопку 💸 когда прокручено дальше шапки (~250px)
   const handleScroll = useCallback(() => {
@@ -189,6 +190,27 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
       .then((data) => setTotalVerifiedWords(data.verified))
       .catch(() => {});
   }, []);
+
+  // Есть ли «свежий» daily, который пользователь ещё не проходил
+  useEffect(() => {
+    if (!authState.isAuthenticated) return;
+
+    let mounted = true;
+
+    api.getDailyWordToday()
+      .then((daily) => {
+        if (!mounted) return;
+        setHasUnplayedDaily(daily.currentStars == null);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setHasUnplayedDaily(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [authState.isAuthenticated]);
 
   // Streak — берём из бэка или fallback на локальное
   const currentStreak = authState.user?.streak?.current ?? stats.currentStreak;
@@ -360,6 +382,49 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
     state.settings.hasSeenHowTo,
   ]);
 
+  const isColdUser = displayTotalStars <= 0 && currentStreak <= 0;
+  const allowDonateCta = !authState.isNewUser && !isColdUser;
+
+  const primaryAction = useMemo(() => {
+    if (!state.settings.hasSeenHowTo) {
+      return {
+        title: 'Начать обучение',
+        subtitle: 'Короткий вводный уровень',
+        onClick: () => navigate('howto'),
+      };
+    }
+
+    if (state.campaignResumeSlug) {
+      return {
+        title: 'Продолжить',
+        subtitle: 'Вернись к начатому уровню',
+        onClick: handleResumeCampaignFromGoal,
+      };
+    }
+
+    if (hasUnplayedDaily) {
+      return {
+        title: 'Филлворд дня',
+        subtitle: 'Новый daily уже ждёт тебя',
+        onClick: handleDailyGoalCta,
+      };
+    }
+
+    return {
+      title: 'Играть',
+      subtitle: `${stats.learnedWords.length} слов выучено`,
+      onClick: () => navigate('gameMode'),
+    };
+  }, [
+    handleDailyGoalCta,
+    handleResumeCampaignFromGoal,
+    hasUnplayedDaily,
+    navigate,
+    state.campaignResumeSlug,
+    state.settings.hasSeenHowTo,
+    stats.learnedWords.length,
+  ]);
+
   return (
     <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
       {/* Декоративный фон */}
@@ -385,30 +450,32 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
         {showDonateBtn && (
           <div className="fixed top-4 right-4 z-50 flex flex-col items-center gap-2">
             {/* Поддержать проект */}
-            <motion.button
-              onClick={() => navigate('support')}
-              className="cursor-pointer"
-              initial={{ opacity: 0, scale: 0, rotate: -30 }}
-              animate={{ opacity: 1, scale: 1, rotate: 0 }}
-              exit={{ opacity: 0, scale: 0, rotate: 30 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 12 }}
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <motion.span
-                className="text-3xl block drop-shadow-lg select-none"
-                animate={{
-                  y: [0, -4, 0],
-                  rotate: [0, -6, 6, -3, 0],
-                }}
-                transition={{
-                  y: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
-                  rotate: { duration: 3, repeat: Infinity, ease: 'easeInOut' },
-                }}
+            {allowDonateCta && (
+              <motion.button
+                onClick={() => navigate('support')}
+                className="cursor-pointer"
+                initial={{ opacity: 0, scale: 0, rotate: -30 }}
+                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                exit={{ opacity: 0, scale: 0, rotate: 30 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+                whileHover={{ scale: 1.15 }}
+                whileTap={{ scale: 0.9 }}
               >
-                💸
-              </motion.span>
-            </motion.button>
+                <motion.span
+                  className="text-3xl block drop-shadow-lg select-none"
+                  animate={{
+                    y: [0, -4, 0],
+                    rotate: [0, -6, 6, -3, 0],
+                  }}
+                  transition={{
+                    y: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+                    rotate: { duration: 3, repeat: Infinity, ease: 'easeInOut' },
+                  }}
+                >
+                  💸
+                </motion.span>
+              </motion.button>
+            )}
 
             {/* Телеграм-канал */}
             <motion.button
@@ -588,11 +655,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           transition={{ delay: 0.4 }}
           className="space-y-3"
         >
-          {/* Главная кнопка "Играть" */}
+          {/* Главная кнопка: resume / daily / play */}
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => navigate(state.settings.hasSeenHowTo ? 'gameMode' : 'howto')}
+            onClick={primaryAction.onClick}
             className="relative w-full p-5 rounded-2xl overflow-hidden group"
           >
             <div className={cn("absolute inset-0 transition-all duration-300", styles.buttons.play.gradient)} />
@@ -605,8 +672,8 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
                 <Play size={28} className="text-white ml-1" />
               </div>
               <div className="text-left flex-1">
-                <div className="font-bold text-xl text-white">Играть</div>
-                <div className="text-sm text-white/70">{stats.learnedWords.length} слов выучено</div>
+                <div className="font-bold text-xl text-white">{primaryAction.title}</div>
+                <div className="text-sm text-white/70">{primaryAction.subtitle}</div>
               </div>
             </div>
           </motion.button>
@@ -780,28 +847,30 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           </motion.button>
 
           {/* Поддержать проект */}
-          <motion.button
-            whileHover={{ scale: 1.02, y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('support')}
-            className={cn(
-              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
-              styles.buttons.card.background,
-              styles.buttons.card.border,
-              "hover:border-rose-500/50"
-            )}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.52 }}
-          >
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform bg-rose-500/15">
-              <Heart size={22} className="text-rose-500" />
-            </div>
-            <div className="text-left flex-1">
-              <div className={cn("font-semibold", styles.buttons.text.primary)}>Поддержать проект</div>
-              <div className={cn("text-sm", styles.buttons.text.muted)}>На развитие приложения</div>
-            </div>
-          </motion.button>
+          {allowDonateCta && (
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('support')}
+              className={cn(
+                "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                "hover:border-rose-500/50"
+              )}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.52 }}
+            >
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform bg-rose-500/15">
+                <Heart size={22} className="text-rose-500" />
+              </div>
+              <div className="text-left flex-1">
+                <div className={cn("font-semibold", styles.buttons.text.primary)}>Поддержать проект</div>
+                <div className={cn("text-sm", styles.buttons.text.muted)}>На развитие приложения</div>
+              </div>
+            </motion.button>
+          )}
 
           {/* Вопросы и ответы */}
           <motion.button
