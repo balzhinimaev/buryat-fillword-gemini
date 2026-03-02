@@ -62,6 +62,12 @@ const COHORT_OPTIONS: CohortOption[] = [
   { value: 'premium', label: 'Telegram Premium', emoji: '⭐', description: 'Только Premium пользователи' },
   { value: 'active', label: 'Активные', emoji: '🟢', description: 'Активные за последние N дней', needsDays: true },
   { value: 'inactive', label: 'Неактивные', emoji: '💤', description: 'Неактивные за N дней', needsDays: true },
+  {
+    value: 'zero_star_inactive_24h',
+    label: '0⭐ неактивны >24ч',
+    emoji: '🧊',
+    description: 'Без прогресса и не заходили >24 часов',
+  },
   { value: 'language_keepers', label: 'Хранители языка', emoji: '🛡️', description: 'Участники программы хранителей' },
   { value: 'prelaunch', label: 'Прелонч', emoji: '🚀', description: 'Пользователи прелонча' },
 ];

@@ -110,6 +110,7 @@ const defaultGameState: GameState = {
   gameMode: 'campaign',
   campaignResumeSlug: null,
   campaignLandingView: null,
+  campaignPreferredModuleId: null,
   adminEditLevelNumber: null,
   adminEditDailyDate: null,
   adminCampaignMapLessonSlug: null,
@@ -264,6 +265,10 @@ export const useGameStore = () => {
 
   const setCampaignLandingView = useCallback((view: 'chapters' | 'modules' | null) => {
     setState(prev => ({ ...prev, campaignLandingView: view }));
+  }, []);
+
+  const setCampaignPreferredModuleId = useCallback((moduleId: string | null) => {
+    setState(prev => ({ ...prev, campaignPreferredModuleId: moduleId }));
   }, []);
 
   // Выбор пакета уровней
@@ -630,6 +635,7 @@ export const useGameStore = () => {
     setGameMode,
     setCampaignResumeSlug,
     setCampaignLandingView,
+    setCampaignPreferredModuleId,
     selectLevelPack,
     selectEndlessLevel,
     startDailyGame,

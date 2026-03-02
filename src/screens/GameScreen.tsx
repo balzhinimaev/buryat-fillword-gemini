@@ -276,7 +276,7 @@ const LetterCell = React.memo(({
 
 export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const { state, navigate, goBack, completeEndlessLevel, addToLeaderboard, selectEndlessLevel, navigateToLevelEditor, updateSettings } = store;
-  const { state: authState } = useAuth();
+  const { state: authState, refreshUser } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
   
   // Определяем режим игры
@@ -327,6 +327,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     if (e instanceof Error && e.message) return e.message;
     return 'Ошибка запроса';
   };
+
+  const trackActivityNonBlocking = useCallback((type: string) => {
+    void api.trackActivity(type)
+      .then(() => {
+        void refreshUser();
+      })
+      .catch(() => {
+        // non-blocking
+      });
+  }, [refreshUser]);
 
   // load campaign level when slug changes
   useEffect(() => {
@@ -422,6 +432,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       const data = await api.getLevelModeLevel(endlessLevel);
       setLevelModeData(data);
       setLevelModeSessionId(data.sessionId);
+      trackActivityNonBlocking('level_started');
 
       // Маппим слова: API отдаёт поле "rus", а наш WordData использует "ru"
       const words: WordData[] = (data.words ?? [])
@@ -444,7 +455,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     } finally {
       setLevelModeLoading(false);
     }
-  }, [endlessLevel]);
+  }, [endlessLevel, trackActivityNonBlocking]);
 
   const initCampaignGame = useCallback(async (forceStart = false) => {
     if (!campaignSlug || !campaignLevel) return;
@@ -475,6 +486,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     try {
       const start = await api.startCampaignLevel(campaignSlug);
       setCampaignSessionId(start.sessionId);
+      trackActivityNonBlocking('campaign_level_started');
 
       // Нормализуем слова на клиенте (на всякий случай)
       const words: WordData[] = (campaignLevel.words ?? [])
@@ -528,7 +540,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     } finally {
       setIsCampaignStarting(false);
     }
-  }, [campaignSlug, campaignLevel, shouldAskTimerOnFirstLesson]);
+  }, [campaignSlug, campaignLevel, shouldAskTimerOnFirstLesson, trackActivityNonBlocking]);
 
   // Инициализация филлворда дня (server-driven)
   const initDailyGame = useCallback(async () => {
@@ -557,6 +569,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       const data = await api.getDailyWordToday();
       setDailyData(data);
       setDailySessionId(data.sessionId);
+      trackActivityNonBlocking('daily_started');
 
       // Маппим слова: API отдаёт поле "rus", наш WordData — "ru"
       const words: WordData[] = (data.words ?? [])
@@ -589,7 +602,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     } finally {
       setDailyLoading(false);
     }
-  }, []);
+  }, [trackActivityNonBlocking]);
 
   useEffect(() => {
     if (isEndlessMode) void initLevelModeGame();
@@ -716,6 +729,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
           mistakes: mistakes > 0 ? mistakes : undefined,
         });
         setDailyResult(result);
+        trackActivityNonBlocking('daily_completed');
         setTimeout(() => setShowWinModal(true), 500);
       } catch (e) {
         showToast(errorToMessage(e));
@@ -744,6 +758,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
           mistakes: mistakes > 0 ? mistakes : undefined,
         });
         setLevelModeResult(result);
+        trackActivityNonBlocking('level_completed');
 
         // Обновляем локальный прогресс для UI-совместимости
         completeEndlessLevel(
@@ -781,6 +796,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         mistakes: mistakes > 0 ? mistakes : undefined,
       });
       setCampaignResult(result);
+      trackActivityNonBlocking('campaign_level_completed');
 
       // Локальный лидерборд оставим как "игровой счёт", но идентификатором будет slug
       addToLeaderboard({
@@ -812,6 +828,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     addToLeaderboard,
     state.settings.playerName,
     showToast,
+    trackActivityNonBlocking,
   ]);
 
   // Таймаут уровня (кампания или level mode) — отправляем неполный результат

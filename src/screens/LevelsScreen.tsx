@@ -14,7 +14,14 @@ interface LevelsScreenProps {
 }
 
 export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
-  const { state, goBack, selectCategory, getLevelProgress, setCampaignLandingView } = store;
+  const {
+    state,
+    goBack,
+    selectCategory,
+    getLevelProgress,
+    setCampaignLandingView,
+    setCampaignPreferredModuleId,
+  } = store;
   const { theme } = useTheme();
   const [showModulesChapter, setShowModulesChapter] = useState(state.campaignLandingView === 'modules');
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
@@ -23,6 +30,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   const handleBack = useCallback(() => {
     if (showModulesChapter && selectedModuleId) {
       setSelectedModuleId(null);
+      setCampaignPreferredModuleId(null);
       return;
     }
 
@@ -32,18 +40,27 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
       // а не переключать его на «Первую главу».
       if (entryLandingViewRef.current === 'modules') {
         setCampaignLandingView(null);
+        setCampaignPreferredModuleId(null);
         goBack();
         return;
       }
 
       setShowModulesChapter(false);
       setCampaignLandingView('chapters');
+      setCampaignPreferredModuleId(null);
       return;
     }
 
     setCampaignLandingView(null);
+    setCampaignPreferredModuleId(null);
     goBack();
-  }, [goBack, selectedModuleId, setCampaignLandingView, showModulesChapter]);
+  }, [
+    goBack,
+    selectedModuleId,
+    setCampaignLandingView,
+    setCampaignPreferredModuleId,
+    showModulesChapter,
+  ]);
 
   useBackButton(handleBack);
 
@@ -114,6 +131,27 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     const mods = overview?.modules ?? [];
     return [...mods].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [overview]);
+
+  useEffect(() => {
+    const preferredId = state.campaignPreferredModuleId;
+    if (!preferredId) return;
+    if (!showModulesChapter) return;
+    if (selectedModuleId) return;
+
+    const exists = moduleSections.some((module) => module.id === preferredId);
+    if (exists) {
+      setSelectedModuleId(preferredId);
+      return;
+    }
+
+    setCampaignPreferredModuleId(null);
+  }, [
+    moduleSections,
+    selectedModuleId,
+    setCampaignPreferredModuleId,
+    showModulesChapter,
+    state.campaignPreferredModuleId,
+  ]);
 
   const moduleHasProgress = useCallback((module: CampaignOverviewModule): boolean => {
     return (module.levels ?? []).some(level => {
@@ -309,6 +347,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                             if (!module.id || moduleLocked) return;
                             void api.trackCampaignModuleOpened(module.id, 'levels_screen').catch(() => undefined);
                             setSelectedModuleId(module.id);
+                            setCampaignPreferredModuleId(module.id);
                           }}
                         />
 
@@ -379,6 +418,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                           difficulty={uiDifficulty}
                           onClick={() => {
                             setCampaignLandingView(null);
+                            setCampaignPreferredModuleId(null);
                             selectCategory(lvl.slug);
                           }}
                         />
@@ -478,6 +518,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                         difficulty={uiDifficulty}
                         onClick={() => {
                           setCampaignLandingView(null);
+                          setCampaignPreferredModuleId(null);
                           selectCategory(lvl.slug);
                         }}
                       />
