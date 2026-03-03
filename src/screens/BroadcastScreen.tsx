@@ -474,6 +474,8 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
 
   const labelClass = cn('text-xs font-medium mb-1.5 block', isDark ? 'text-white/60' : 'text-stone-600');
 
+  const campaignCtaLabel = campaignReport ? 'Обновить данные' : 'Показать воронку';
+
   // ═════════════════════════════════════════════════════════════════
   // COMPOSE VIEW
   // ═════════════════════════════════════════════════════════════════
@@ -768,7 +770,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
         )}
       >
         <Send size={18} />
-        Отправить рассылку
+        Запустить рассылку
       </motion.button>
 
       {/* Confirm Modal */}
@@ -840,7 +842,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
                   )}
                 >
                   {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                  Отправить
+                  Запустить
                 </button>
               </div>
             </motion.div>
@@ -1131,7 +1133,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
                 )}
               >
                 {campaignLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Запросить
+                {campaignCtaLabel}
               </button>
             </div>
 
@@ -1158,6 +1160,14 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
                   className={cn(inputClass, 'h-9')}
                 />
               </div>
+            </div>
+
+            <div className={cn(
+              'text-[10px] rounded-lg px-2 py-1',
+              isDark ? 'bg-white/5 text-white/40' : 'bg-stone-100 text-stone-500'
+            )}>
+              Покажем воронку: sent → open → start → complete
+              <span className="ml-1">(за {campaignHours}ч, окно конверсии {campaignConversionHours}ч)</span>
             </div>
 
             {campaignIdFromButton && (
@@ -1275,7 +1285,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
             )}
           >
             <Send size={12} />
-            Новая рассылка
+            Создать рассылку
           </button>
           <button
             onClick={() => setViewMode('history')}
