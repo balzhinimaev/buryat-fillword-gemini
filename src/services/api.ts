@@ -1112,6 +1112,32 @@ export interface IngestAnalyticsEventsResponse {
   duplicates: number;
 }
 
+export interface CampaignPerformanceResponse {
+  campaignId: string;
+  windowHours: number;
+  conversionWindowHours: number;
+  from: string;
+  to: string;
+  events: {
+    sent: number;
+    opened: number;
+    started: number;
+    completed: number;
+  };
+  users: {
+    sent: number;
+    opened: number;
+    started: number;
+    completed: number;
+  };
+  rates: {
+    openFromSent: number;
+    startFromOpened: number;
+    completeFromOpened: number;
+    completeFromSent: number;
+  };
+}
+
 export async function trackAnalyticsEvents(events: AnalyticsEventInput[]): Promise<IngestAnalyticsEventsResponse> {
   if (events.length === 0) {
     return { accepted: 0, inserted: 0, duplicates: 0 };
@@ -1120,6 +1146,22 @@ export async function trackAnalyticsEvents(events: AnalyticsEventInput[]): Promi
   return apiRequest<IngestAnalyticsEventsResponse>('/analytics/events', {
     method: 'POST',
     body: JSON.stringify({ events }),
+  });
+}
+
+export async function getCampaignPerformance(
+  campaignId: string,
+  hours = 72,
+  conversionHours = 24,
+): Promise<CampaignPerformanceResponse> {
+  const params = new URLSearchParams({
+    campaignId,
+    hours: String(hours),
+    conversionHours: String(conversionHours),
+  });
+
+  return apiRequest<CampaignPerformanceResponse>(`/analytics/campaign?${params.toString()}`, {
+    method: 'GET',
   });
 }
 
@@ -1999,6 +2041,7 @@ export const api = {
 
   // Analytics
   trackAnalyticsEvents,
+  getCampaignPerformance,
 
   // Campaign Admin
   getCampaignAdminChapters,

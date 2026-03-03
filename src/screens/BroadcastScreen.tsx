@@ -38,6 +38,7 @@ import {
   type BroadcastItem,
   type BroadcastPreviewResponse,
   type BroadcastStatus,
+  type CampaignPerformanceResponse,
 } from '../services/api';
 
 interface BroadcastScreenProps {
@@ -211,6 +212,13 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [pollingId, setPollingId] = useState<string | null>(null);
 
+  // ─── Campaign analytics state ─────────────────────────────────────
+  const [campaignIdInput, setCampaignIdInput] = useState('');
+  const [campaignHours, setCampaignHours] = useState(72);
+  const [campaignConversionHours, setCampaignConversionHours] = useState(24);
+  const [campaignReport, setCampaignReport] = useState<CampaignPerformanceResponse | null>(null);
+  const [campaignLoading, setCampaignLoading] = useState(false);
+
   // ─── Error ─────────────────────────────────────────────────────────
   const [error, setError] = useState<string | null>(null);
 
@@ -267,6 +275,24 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
       }
     }
     return fallback;
+  }, []);
+
+  const extractCampaignIdFromUrl = useCallback((url?: string): string | null => {
+    if (!url || !url.trim()) return null;
+
+    try {
+      const parsed = new URL(url);
+      const id = parsed.searchParams.get('campaign_id') || parsed.searchParams.get('campaignId');
+      return id?.trim() || null;
+    } catch {
+      const match = url.match(/[?&](campaign_id|campaignId)=([^&#]+)/i);
+      if (!match?.[2]) return null;
+      try {
+        return decodeURIComponent(match[2]).trim() || null;
+      } catch {
+        return match[2].trim() || null;
+      }
+    }
   }, []);
 
   // ─── Preview ───────────────────────────────────────────────────────
@@ -343,6 +369,32 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
     }
   }, []);
 
+  const loadCampaignAnalytics = useCallback(async (campaignIdParam?: string) => {
+    const campaignId = (campaignIdParam || campaignIdInput).trim();
+    if (!campaignId) {
+      setError('Укажите campaign_id для отчёта');
+      return;
+    }
+
+    try {
+      setCampaignLoading(true);
+      setError(null);
+
+      const result = await api.getCampaignPerformance(
+        campaignId,
+        Math.max(1, campaignHours),
+        Math.max(1, campaignConversionHours),
+      );
+
+      setCampaignReport(result);
+    } catch (err: unknown) {
+      console.error('Failed to load campaign analytics:', err);
+      setError(getErrorMessage(err, 'Не удалось загрузить аналитику кампании'));
+    } finally {
+      setCampaignLoading(false);
+    }
+  }, [campaignIdInput, campaignHours, campaignConversionHours, getErrorMessage]);
+
   // Poll for in_progress broadcasts
   useEffect(() => {
     if (!pollingId || !detailItem) return;
@@ -362,6 +414,15 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
       loadHistory(1);
     }
   }, [viewMode, loadHistory]);
+
+  // Prefill campaign_id from selected broadcast detail (if available)
+  useEffect(() => {
+    if (!detailItem) return;
+
+    const idFromButton = extractCampaignIdFromUrl(detailItem.cohortParams?.button?.url);
+    setCampaignIdInput(idFromButton || '');
+    setCampaignReport(null);
+  }, [detailItem, extractCampaignIdFromUrl]);
 
   // ─── Insert HTML tag ──────────────────────────────────────────────
   const handleInsertTag = useCallback((before: string, after: string) => {
@@ -910,6 +971,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
     const successRate = d.totalRecipients > 0
       ? ((d.sentCount / d.totalRecipients) * 100).toFixed(1)
       : '0';
+    const campaignIdFromButton = extractCampaignIdFromUrl(d.cohortParams?.button?.url);
 
     return (
       <div className="space-y-4">
@@ -1039,6 +1101,105 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
               [{d.cohortParams.button.isMiniApp ? '🔲 ' : '🔗 '}{d.cohortParams.button.text}]
               <div className={cn('text-[10px] font-normal mt-0.5', isDark ? 'text-blue-400/50' : 'text-blue-500/70')}>
                 {d.cohortParams.button.url}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Campaign analytics */}
+        <div className={cn(cardClass, 'p-4')}>
+          <SectionTitle icon={<Info size={16} />} title="Эффективность кампании" isDark={isDark} />
+
+          <div className="space-y-2">
+            <label className={labelClass}>campaign_id</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={campaignIdInput}
+                onChange={(e) => setCampaignIdInput(e.target.value)}
+                placeholder="reactiv_manual_20260303_1940"
+                className={cn(inputClass, 'h-10')}
+              />
+              <button
+                onClick={() => loadCampaignAnalytics()}
+                disabled={campaignLoading || !campaignIdInput.trim()}
+                className={cn(
+                  'h-10 px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap',
+                  campaignLoading || !campaignIdInput.trim()
+                    ? 'bg-stone-400/20 text-stone-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:opacity-90'
+                )}
+              >
+                {campaignLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                Запросить
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className={labelClass}>Окно, часов</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={720}
+                  value={campaignHours}
+                  onChange={(e) => setCampaignHours(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                  className={cn(inputClass, 'h-9')}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Конверсия, часов</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={campaignConversionHours}
+                  onChange={(e) => setCampaignConversionHours(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                  className={cn(inputClass, 'h-9')}
+                />
+              </div>
+            </div>
+
+            {campaignIdFromButton && (
+              <div className={cn(
+                'text-[10px] rounded-lg px-2 py-1',
+                isDark ? 'bg-white/5 text-white/40' : 'bg-stone-100 text-stone-500'
+              )}>
+                Из ссылки рассылки: <span className="font-semibold">{campaignIdFromButton}</span>
+              </div>
+            )}
+          </div>
+
+          {campaignReport && (
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { label: 'Sent', value: campaignReport.users.sent, color: isDark ? 'text-slate-300' : 'text-slate-700' },
+                  { label: 'Open', value: campaignReport.users.opened, color: isDark ? 'text-blue-300' : 'text-blue-700' },
+                  { label: 'Start', value: campaignReport.users.started, color: isDark ? 'text-violet-300' : 'text-violet-700' },
+                  { label: 'Complete', value: campaignReport.users.completed, color: isDark ? 'text-emerald-300' : 'text-emerald-700' },
+                ].map((item) => (
+                  <div key={item.label} className={cn('rounded-xl p-2 text-center', isDark ? 'bg-white/5' : 'bg-stone-50')}>
+                    <div className={cn('text-base font-bold', item.color)}>{item.value}</div>
+                    <div className={cn('text-[10px]', isDark ? 'text-white/40' : 'text-stone-500')}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Open / Sent', value: campaignReport.rates.openFromSent },
+                  { label: 'Start / Open', value: campaignReport.rates.startFromOpened },
+                  { label: 'Complete / Open', value: campaignReport.rates.completeFromOpened },
+                  { label: 'Complete / Sent', value: campaignReport.rates.completeFromSent },
+                ].map((rate) => (
+                  <div key={rate.label} className={cn('rounded-lg px-2 py-1.5', isDark ? 'bg-white/5' : 'bg-stone-50')}>
+                    <div className={cn('text-[10px]', isDark ? 'text-white/40' : 'text-stone-500')}>{rate.label}</div>
+                    <div className={cn('text-sm font-bold', isDark ? 'text-white' : 'text-stone-900')}>
+                      {rate.value.toFixed(1)}%
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
