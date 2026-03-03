@@ -1868,6 +1868,32 @@ export async function submitDailyWord(body: DailyWordSubmitRequest): Promise<Dai
   });
 }
 
+export interface DailyWordLeaderboardEntry {
+  rank: number;
+  userId: string;
+  name: string;
+  telegramUsername?: string;
+  stars: number;
+  bestTimeSeconds?: number;
+  firstCompletedAt?: string;
+  isCurrentUser: boolean;
+}
+
+export interface DailyWordLeaderboardResponse {
+  date: string;
+  totalParticipants: number;
+  myRank?: number;
+  myBestResult?: DailyWordLeaderboardEntry;
+  entries: DailyWordLeaderboardEntry[];
+}
+
+export async function getDailyWordTodayLeaderboard(limit = 50): Promise<DailyWordLeaderboardResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return apiRequest<DailyWordLeaderboardResponse>(`/daily-word/today/leaderboard?${params.toString()}`, {
+    method: 'GET',
+  });
+}
+
 // =========================
 // Admin: Daily Word (Филлворд дня)
 // =========================
@@ -2088,6 +2114,7 @@ export const api = {
 
   // Daily Word (player)
   getDailyWordToday,
+  getDailyWordTodayLeaderboard,
   submitDailyWord,
 
   // Admin: Daily Word
