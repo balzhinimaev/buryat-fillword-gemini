@@ -1890,6 +1890,33 @@ export interface DailyWordUpdateRequest {
   wordPlacements?: DailyWordAdminPlacement[];
 }
 
+export interface GenerateDailyWordGridRequest {
+  gridSize: number;
+  minWordLength?: number;
+  maxWordLength?: number;
+  minWords?: number;
+  maxWords?: number;
+  difficultyMin?: number;
+  difficultyMax?: number;
+  attempts?: number;
+}
+
+export interface GeneratedDailyWordGridWord {
+  _id: string;
+  bur: string;
+  ru: string;
+  length: number;
+}
+
+export interface GeneratedDailyWordGridResponse {
+  gridSize: number;
+  targetCells: number;
+  totalLetters: number;
+  words: GeneratedDailyWordGridWord[];
+  grid: string[][];
+  wordPlacements: DailyWordAdminPlacement[];
+}
+
 export async function getDailyWordList(): Promise<DailyWordItem[]> {
   return apiRequest<DailyWordItem[]>('/daily-word/admin/list', { method: 'GET' });
 }
@@ -1900,6 +1927,15 @@ export async function getDailyWordByDate(date: string): Promise<DailyWordDetailR
 
 export async function createDailyWord(data: DailyWordCreateRequest): Promise<DailyWordItem> {
   return apiRequest<DailyWordItem>('/daily-word/admin', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function generateDailyWordGrid(
+  data: GenerateDailyWordGridRequest,
+): Promise<GeneratedDailyWordGridResponse> {
+  return apiRequest<GeneratedDailyWordGridResponse>('/daily-word/admin/generate-grid', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -2015,6 +2051,7 @@ export const api = {
   getDailyWordList,
   getDailyWordByDate,
   createDailyWord,
+  generateDailyWordGrid,
   updateDailyWord,
   deleteDailyWord,
 
