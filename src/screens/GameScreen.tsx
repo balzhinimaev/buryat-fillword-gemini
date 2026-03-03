@@ -23,7 +23,7 @@ import { generateServerLevel, generateCampaignLevel, findWordByPath, isPalindrom
 import type { Coord, CellStatus, WordData } from '../types';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
-import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, type LevelModeLevelResponse, type LevelModeSubmitResponse, type DailyWordTodayResponse, type DailyWordSubmitResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
+import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, type LevelModeLevelResponse, type LevelModeSubmitResponse, type DailyWordTodayResponse, type DailyWordSubmitResponse, type DailyWordLeaderboardResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
 import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { useAuth } from '../store/authStore';
 
@@ -318,6 +318,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [dailySessionId, setDailySessionId] = useState<string | null>(null);
   const [dailyResult, setDailyResult] = useState<DailyWordSubmitResponse | null>(null);
   const [isDailySubmitting, setIsDailySubmitting] = useState(false);
+  const [dailyResultTab, setDailyResultTab] = useState<'summary' | 'leaderboard'>('summary');
+  const [dailyLeaderboard, setDailyLeaderboard] = useState<DailyWordLeaderboardResponse | null>(null);
+  const [dailyLeaderboardLoading, setDailyLeaderboardLoading] = useState(false);
+  const [dailyLeaderboardError, setDailyLeaderboardError] = useState<string | null>(null);
 
   const submitInFlightRef = useRef(false);
 
@@ -347,6 +351,26 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       },
     });
   }, [trackActivityNonBlocking]);
+
+  const loadDailyLeaderboard = useCallback(async () => {
+    try {
+      setDailyLeaderboardLoading(true);
+      setDailyLeaderboardError(null);
+      const leaderboard = await api.getDailyWordTodayLeaderboard(50);
+      setDailyLeaderboard(leaderboard);
+    } catch (e) {
+      const apiError = e as Partial<ApiError>;
+      if (typeof apiError.message === 'string' && apiError.message.length > 0) {
+        setDailyLeaderboardError(apiError.message);
+      } else if (e instanceof Error && e.message) {
+        setDailyLeaderboardError(e.message);
+      } else {
+        setDailyLeaderboardError('Не удалось загрузить рейтинг дня');
+      }
+    } finally {
+      setDailyLeaderboardLoading(false);
+    }
+  }, []);
 
   // load campaign level when slug changes
   useEffect(() => {
@@ -561,6 +585,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     setDailyData(null);
     setDailySessionId(null);
     setDailyResult(null);
+    setDailyResultTab('summary');
+    setDailyLeaderboard(null);
+    setDailyLeaderboardError(null);
     setIsDailySubmitting(false);
     submitInFlightRef.current = false;
 
@@ -679,6 +706,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [showWinModal, showTimerOnboardingModal, isEndlessMode, isDailyMode, levelModeSessionId, levelModeLoading, isLevelModeSubmitting, dailySessionId, dailyLoading, isDailySubmitting, isCampaignMode, campaignSessionId, isCampaignStarting, isCampaignSubmitting]);
+
+  // Лидерборд дня на экране результата
+  useEffect(() => {
+    if (!showWinModal || !isDailyMode) return;
+
+    setDailyResultTab('summary');
+    void loadDailyLeaderboard();
+  }, [showWinModal, isDailyMode, loadDailyLeaderboard]);
 
   // Форматирование времени
   const formatTime = (seconds: number) => {
@@ -1895,48 +1930,144 @@ ${levelInfo}
                     </div>
                   </motion.div>
                   
-                  {/* Список найденных / пропущенных слов (только daily) */}
-                  {isDailyMode && dailyResult && (dailyResult.validFoundWords?.length || dailyResult.missedWords?.length) && (
+                  {/* Daily: итоги + рейтинг дня */}
+                  {isDailyMode && dailyResult && (
                     <motion.div
                       className="relative z-10 px-5 pb-2"
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.4 }}
                     >
-                      <div className={cn(
-                        "rounded-xl border overflow-hidden text-xs",
-                        styles.winModal.statCard.background,
-                        styles.winModal.statCard.border
-                      )}>
-                        {/* Найденные слова */}
-                        {dailyResult.validFoundWords?.length > 0 && (
-                          <div className="px-3 pt-2 pb-1">
-                            <div className={cn("text-[10px] uppercase tracking-wider mb-1 font-semibold", styles.winModal.statCard.label)}>
-                              Найдено ✓
-                            </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                              {dailyResult.validFoundWords.map((w, i) => (
-                                <span key={i} className={cn("tabular-nums", styles.winModal.statCard.valueWords)}>
-                                  {w.bur} <span className={cn("opacity-60", styles.winModal.statCard.label)}>— {w.rus}</span>
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {/* Пропущенные слова — только русский */}
-                        {dailyResult.missedWords && dailyResult.missedWords.length > 0 && (
-                          <div className={cn("px-3 pb-2", dailyResult.validFoundWords?.length ? "pt-1" : "pt-2")}>
-                            <div className={cn("text-[10px] uppercase tracking-wider mb-1 font-semibold opacity-60", styles.winModal.statCard.label)}>
-                              Не найдено ✗
-                            </div>
-                            <div className={cn("flex flex-wrap gap-x-3 gap-y-0.5 opacity-70", styles.winModal.statCard.valueDefault)}>
-                              {dailyResult.missedWords.map((w, i) => (
-                                <span key={i}>{w.rus}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          onClick={() => setDailyResultTab('summary')}
+                          className={cn(
+                            'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                            dailyResultTab === 'summary'
+                              ? (isDark ? 'bg-violet-500/30 text-violet-200' : 'bg-violet-100 text-violet-700')
+                              : (isDark ? 'bg-white/5 text-white/50 hover:bg-white/10' : 'bg-stone-100 text-stone-500 hover:bg-stone-200')
+                          )}
+                        >
+                          Итоги
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDailyResultTab('leaderboard');
+                            if (!dailyLeaderboard && !dailyLeaderboardLoading) {
+                              void loadDailyLeaderboard();
+                            }
+                          }}
+                          className={cn(
+                            'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                            dailyResultTab === 'leaderboard'
+                              ? (isDark ? 'bg-violet-500/30 text-violet-200' : 'bg-violet-100 text-violet-700')
+                              : (isDark ? 'bg-white/5 text-white/50 hover:bg-white/10' : 'bg-stone-100 text-stone-500 hover:bg-stone-200')
+                          )}
+                        >
+                          Рейтинг дня
+                        </button>
                       </div>
+
+                      {dailyResultTab === 'summary' ? (
+                        <div className={cn(
+                          'rounded-xl border overflow-hidden text-xs',
+                          styles.winModal.statCard.background,
+                          styles.winModal.statCard.border
+                        )}>
+                          {dailyResult.validFoundWords?.length > 0 && (
+                            <div className="px-3 pt-2 pb-1">
+                              <div className={cn('text-[10px] uppercase tracking-wider mb-1 font-semibold', styles.winModal.statCard.label)}>
+                                Найдено ✓
+                              </div>
+                              <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                                {dailyResult.validFoundWords.map((w, i) => (
+                                  <span key={i} className={cn('tabular-nums', styles.winModal.statCard.valueWords)}>
+                                    {w.bur} <span className={cn('opacity-60', styles.winModal.statCard.label)}>— {w.rus}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {dailyResult.missedWords && dailyResult.missedWords.length > 0 && (
+                            <div className={cn('px-3 pb-2', dailyResult.validFoundWords?.length ? 'pt-1' : 'pt-2')}>
+                              <div className={cn('text-[10px] uppercase tracking-wider mb-1 font-semibold opacity-60', styles.winModal.statCard.label)}>
+                                Не найдено ✗
+                              </div>
+                              <div className={cn('flex flex-wrap gap-x-3 gap-y-0.5 opacity-70', styles.winModal.statCard.valueDefault)}>
+                                {dailyResult.missedWords.map((w, i) => (
+                                  <span key={i}>{w.rus}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className={cn(
+                          'rounded-xl border overflow-hidden text-xs',
+                          styles.winModal.statCard.background,
+                          styles.winModal.statCard.border
+                        )}>
+                          {dailyLeaderboardLoading ? (
+                            <div className="px-3 py-4 flex items-center justify-center gap-2">
+                              <Clock size={14} className={cn('animate-spin', styles.winModal.statCard.label)} />
+                              <span className={styles.winModal.statCard.label}>Загружаем рейтинг…</span>
+                            </div>
+                          ) : dailyLeaderboardError ? (
+                            <div className="px-3 py-3">
+                              <div className={cn('text-[11px]', isDark ? 'text-red-300' : 'text-red-600')}>{dailyLeaderboardError}</div>
+                              <button
+                                onClick={() => void loadDailyLeaderboard()}
+                                className={cn(
+                                  'mt-2 px-2 py-1 rounded-md text-[11px] font-semibold',
+                                  isDark ? 'bg-white/10 text-white/70 hover:bg-white/15' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                                )}
+                              >
+                                Обновить
+                              </button>
+                            </div>
+                          ) : dailyLeaderboard ? (
+                            <>
+                              <div className="px-3 pt-2 pb-1">
+                                <div className={cn('text-[10px] uppercase tracking-wider', styles.winModal.statCard.label)}>
+                                  Участников сегодня: <span className="font-semibold">{dailyLeaderboard.totalParticipants}</span>
+                                  {dailyLeaderboard.myRank ? (
+                                    <span className="ml-2">• Ваше место: <span className="font-semibold">#{dailyLeaderboard.myRank}</span></span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div className="max-h-40 overflow-y-auto px-2 pb-2 space-y-1">
+                                {dailyLeaderboard.entries.map((row) => (
+                                  <div
+                                    key={`${row.userId}-${row.rank}`}
+                                    className={cn(
+                                      'rounded-lg px-2 py-1.5 flex items-center gap-2',
+                                      row.isCurrentUser
+                                        ? (isDark ? 'bg-violet-500/20' : 'bg-violet-100')
+                                        : (isDark ? 'bg-white/5' : 'bg-stone-50')
+                                    )}
+                                  >
+                                    <div className={cn('w-6 text-center font-bold text-[11px]', styles.winModal.statCard.label)}>
+                                      #{row.rank}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className={cn('text-[11px] font-semibold truncate', styles.winModal.statCard.valueDefault)}>
+                                        {row.name}{row.isCurrentUser ? ' (вы)' : ''}
+                                      </div>
+                                      <div className={cn('text-[10px] opacity-70 tabular-nums', styles.winModal.statCard.label)}>
+                                        {row.stars}★{typeof row.bestTimeSeconds === 'number' ? ` • ${formatTime(row.bestTimeSeconds)}` : ''}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="px-3 py-3">
+                              <div className={styles.winModal.statCard.label}>Данные рейтинга пока не готовы.</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </motion.div>
                   )}
 
