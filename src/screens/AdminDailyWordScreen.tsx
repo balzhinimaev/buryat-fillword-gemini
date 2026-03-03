@@ -235,6 +235,7 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [autoGenerating, setAutoGenerating] = useState(false);
   const [existingItem, setExistingItem] = useState<DailyWordDetailResponse | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -399,6 +400,55 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
     }
     setSelectedWords(prev => prev.filter(w => w._id !== id));
   }, [placements, drawingWordId, drawingPath]);
+
+  const handleAutoGenerateGrid = useCallback(async () => {
+    if (gridSize === '' || gridSize < 4 || gridSize > 10) {
+      showToast('Сначала укажите корректный размер сетки (4-10)', 'error');
+      return;
+    }
+
+    const gs = gridSize as number;
+    const targetCells = gs * gs;
+    const minWords = Math.max(4, Math.floor(targetCells / 8));
+    const maxWords = Math.max(minWords, Math.min(18, Math.floor(targetCells / 2)));
+
+    setAutoGenerating(true);
+
+    try {
+      const generated = await api.generateDailyWordGrid({
+        gridSize: gs,
+        minWordLength: 2,
+        maxWordLength: Math.min(targetCells, gs + 4),
+        minWords,
+        maxWords,
+        difficultyMin: 1,
+        difficultyMax: 7,
+        attempts: 180,
+      });
+
+      setSelectedWords(
+        generated.words.map((w) => ({
+          _id: w._id,
+          bur: w.bur,
+          ru: w.ru,
+        })),
+      );
+      setEditorGrid(generated.grid);
+      setPlacements(new Map(generated.wordPlacements.map((wp) => [wp.wordId, wp.path])));
+      setDrawingWordId(null);
+      setDrawingPath([]);
+
+      showToast(
+        `Сгенерировано: ${generated.words.length} слов, ${generated.totalLetters}/${generated.targetCells} букв`,
+        'success',
+      );
+    } catch (err) {
+      const msg = (err as { message?: string })?.message || 'Не удалось автосгенерировать сетку';
+      showToast(msg, 'error');
+    } finally {
+      setAutoGenerating(false);
+    }
+  }, [gridSize, showToast]);
 
   // ─── Grid editor logic ──────────────────────────────────────────
   const totalLetters = useMemo(
@@ -889,22 +939,39 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
             Слова
           </label>
 
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 gap-2">
             <span className={cn('text-xs font-medium', isDark ? 'text-white/50' : 'text-stone-500')}>
               Выбрано слов: {selectedWords.length}
             </span>
-            <button
-              onClick={() => setShowWordSearch(true)}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                isDark
-                  ? 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30'
-                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-              )}
-            >
-              <Search size={12} />
-              Найти слова
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleAutoGenerateGrid}
+                disabled={autoGenerating || gridSize === ''}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                  autoGenerating || gridSize === ''
+                    ? isDark ? 'bg-white/10 text-white/30' : 'bg-stone-100 text-stone-300'
+                    : isDark
+                      ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
+                      : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                )}
+              >
+                {autoGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                Автоподбор
+              </button>
+              <button
+                onClick={() => setShowWordSearch(true)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                  isDark
+                    ? 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30'
+                    : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                )}
+              >
+                <Search size={12} />
+                Найти слова
+              </button>
+            </div>
           </div>
 
           {selectedWords.length === 0 ? (
