@@ -1166,7 +1166,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
               'text-[10px] rounded-lg px-2 py-1',
               isDark ? 'bg-white/5 text-white/40' : 'bg-stone-100 text-stone-500'
             )}>
-              Покажем воронку: sent → open → start → complete
+              Покажем воронку: отправлено → открыли → начали игру → завершили
               <span className="ml-1">(за {campaignHours}ч, окно конверсии {campaignConversionHours}ч)</span>
             </div>
 
@@ -1184,10 +1184,10 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
             <div className="mt-3 space-y-3">
               <div className="grid grid-cols-4 gap-2">
                 {[
-                  { label: 'Sent', value: campaignReport.users.sent, color: isDark ? 'text-slate-300' : 'text-slate-700' },
-                  { label: 'Open', value: campaignReport.users.opened, color: isDark ? 'text-blue-300' : 'text-blue-700' },
-                  { label: 'Start', value: campaignReport.users.started, color: isDark ? 'text-violet-300' : 'text-violet-700' },
-                  { label: 'Complete', value: campaignReport.users.completed, color: isDark ? 'text-emerald-300' : 'text-emerald-700' },
+                  { label: 'Отправлено', value: campaignReport.users.sent, color: isDark ? 'text-slate-300' : 'text-slate-700' },
+                  { label: 'Открыли', value: campaignReport.users.opened, color: isDark ? 'text-blue-300' : 'text-blue-700' },
+                  { label: 'Начали игру', value: campaignReport.users.started, color: isDark ? 'text-violet-300' : 'text-violet-700' },
+                  { label: 'Завершили', value: campaignReport.users.completed, color: isDark ? 'text-emerald-300' : 'text-emerald-700' },
                 ].map((item) => (
                   <div key={item.label} className={cn('rounded-xl p-2 text-center', isDark ? 'bg-white/5' : 'bg-stone-50')}>
                     <div className={cn('text-base font-bold', item.color)}>{item.value}</div>
@@ -1198,10 +1198,10 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
 
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { label: 'Open / Sent', value: campaignReport.rates.openFromSent },
-                  { label: 'Start / Open', value: campaignReport.rates.startFromOpened },
-                  { label: 'Complete / Open', value: campaignReport.rates.completeFromOpened },
-                  { label: 'Complete / Sent', value: campaignReport.rates.completeFromSent },
+                  { label: 'Открытия от отправленных', value: campaignReport.rates.openFromSent },
+                  { label: 'Старты от открытий', value: campaignReport.rates.startFromOpened },
+                  { label: 'Завершения от открытий', value: campaignReport.rates.completeFromOpened },
+                  { label: 'Завершения от отправленных', value: campaignReport.rates.completeFromSent },
                 ].map((rate) => (
                   <div key={rate.label} className={cn('rounded-lg px-2 py-1.5', isDark ? 'bg-white/5' : 'bg-stone-50')}>
                     <div className={cn('text-[10px]', isDark ? 'text-white/40' : 'text-stone-500')}>{rate.label}</div>
