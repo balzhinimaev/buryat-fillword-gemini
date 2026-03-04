@@ -1789,6 +1789,30 @@ export interface AdminLevelCreateRequest {
   isActive?: boolean;
 }
 
+export interface GenerateAdminLevelWordsRequest {
+  gridSize: number;
+  maxDifficulty?: number;
+  minWordLength?: number;
+  maxWordLength?: number;
+  minWords?: number;
+  maxWords?: number;
+  attempts?: number;
+}
+
+export interface GeneratedAdminLevelWord {
+  _id: string;
+  bur: string;
+  ru: string;
+  length: number;
+}
+
+export interface GenerateAdminLevelWordsResponse {
+  gridSize: number;
+  targetLetters: number;
+  totalLetters: number;
+  words: GeneratedAdminLevelWord[];
+}
+
 export type AdminLevelUpdateRequest = Omit<Partial<AdminLevelCreateRequest>, 'levelNumber'>;
 
 export async function getAdminLevels(): Promise<AdminLevel[]> {
@@ -1797,6 +1821,15 @@ export async function getAdminLevels(): Promise<AdminLevel[]> {
 
 export async function createAdminLevel(data: AdminLevelCreateRequest): Promise<AdminLevel> {
   return apiRequest<AdminLevel>('/level-mode/admin/levels', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function generateAdminLevelWords(
+  data: GenerateAdminLevelWordsRequest,
+): Promise<GenerateAdminLevelWordsResponse> {
+  return apiRequest<GenerateAdminLevelWordsResponse>('/level-mode/admin/generate-words', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -2134,6 +2167,7 @@ export const api = {
   // Admin: Level Mode
   getAdminLevels,
   createAdminLevel,
+  generateAdminLevelWords,
   updateAdminLevel,
   deleteAdminLevel,
 
