@@ -328,8 +328,25 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const errorToMessage = (e: unknown): string => {
     if (!e) return 'Ошибка запроса';
     const apiError = e as Partial<ApiError>;
-    if (typeof apiError.message === 'string' && apiError.message.length > 0) return apiError.message;
-    if (e instanceof Error && e.message) return e.message;
+
+    if (apiError.statusCode === 401) {
+      return 'Обновляем сессию… попробуйте ещё раз через пару секунд.';
+    }
+
+    if (typeof apiError.message === 'string' && apiError.message.length > 0) {
+      if (apiError.message.toLowerCase() === 'unauthorized') {
+        return 'Обновляем сессию… попробуйте ещё раз через пару секунд.';
+      }
+      return apiError.message;
+    }
+
+    if (e instanceof Error && e.message) {
+      if (e.message.toLowerCase() === 'unauthorized') {
+        return 'Обновляем сессию… попробуйте ещё раз через пару секунд.';
+      }
+      return e.message;
+    }
+
     return 'Ошибка запроса';
   };
 

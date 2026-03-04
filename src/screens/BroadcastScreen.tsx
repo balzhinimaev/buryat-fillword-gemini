@@ -268,10 +268,20 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ store }) => {
   }, [message, cohortType, telegramIdsInput, role, days, showButton, buttonText, buttonUrl, isMiniApp]);
 
   const getErrorMessage = useCallback((err: unknown, fallback: string): string => {
-    if (err && typeof err === 'object' && 'message' in err) {
-      const message = (err as { message?: unknown }).message;
-      if (typeof message === 'string' && message.trim().length > 0) {
-        return message;
+    if (err && typeof err === 'object') {
+      const statusCode = (err as { statusCode?: unknown }).statusCode;
+      if (statusCode === 401) {
+        return 'Сессия обновляется… попробуйте ещё раз через пару секунд.';
+      }
+
+      if ('message' in err) {
+        const message = (err as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim().length > 0) {
+          if (message.toLowerCase() === 'unauthorized') {
+            return 'Сессия обновляется… попробуйте ещё раз через пару секунд.';
+          }
+          return message;
+        }
       }
     }
     return fallback;

@@ -180,6 +180,10 @@ const normalizeAuthErrorMessage = (error: unknown, fallback: string): string => 
     return 'Нет соединения с сервером. Проверьте интернет и попробуйте снова.';
   }
 
+  if (message.toLowerCase() === 'unauthorized') {
+    return 'Сессия устарела. Сейчас переподключимся автоматически…';
+  }
+
   return message;
 };
 
