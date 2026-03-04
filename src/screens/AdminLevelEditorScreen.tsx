@@ -263,6 +263,7 @@ export const AdminLevelEditorScreen: React.FC<AdminLevelEditorScreenProps> = ({ 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [manualAutoFillLoading, setManualAutoFillLoading] = useState(false);
   const [existingLevel, setExistingLevel] = useState<AdminLevel | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -436,6 +437,48 @@ export const AdminLevelEditorScreen: React.FC<AdminLevelEditorScreenProps> = ({ 
   const removeWord = useCallback((id: string) => {
     setSelectedWords((prev) => prev.filter((w) => w._id !== id));
   }, []);
+
+  const handleAutoFillManualWords = useCallback(async () => {
+    if (gridSize === '' || gridSize < 4 || gridSize > 10) {
+      showToast('Сначала укажите размер сетки 4-10', 'error');
+      return;
+    }
+
+    setManualAutoFillLoading(true);
+
+    try {
+      const gs = gridSize as number;
+      const targetLetters = gs * gs;
+      const minWords = Math.max(4, Math.floor(targetLetters / 8));
+      const fallbackMaxWords = Math.max(minWords, Math.min(20, Math.floor(targetLetters / 2)));
+      const maxWords = wordCount !== '' && wordCount >= minWords
+        ? Math.min(20, wordCount)
+        : fallbackMaxWords;
+
+      const result = await api.generateAdminLevelWords({
+        gridSize: gs,
+        maxDifficulty: maxDifficulty === '' ? 10 : maxDifficulty,
+        minWordLength: 2,
+        maxWordLength: Math.min(targetLetters, gs + 4),
+        minWords,
+        maxWords,
+        attempts: 180,
+      });
+
+      setSelectedWords(result.words.map((w) => ({
+        _id: w._id,
+        bur: w.bur,
+        ru: w.ru,
+      })));
+
+      showToast(`Подобрано ${result.words.length} слов (${result.totalLetters}/${result.targetLetters} букв)`, 'success');
+    } catch (err) {
+      const msg = (err as { message?: string })?.message || 'Не удалось автоподобрать слова';
+      showToast(msg, 'error');
+    } finally {
+      setManualAutoFillLoading(false);
+    }
+  }, [gridSize, wordCount, maxDifficulty, showToast]);
 
   // ─── Save ────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
@@ -889,24 +932,43 @@ export const AdminLevelEditorScreen: React.FC<AdminLevelEditorScreenProps> = ({ 
             >
               {/* Selected words */}
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-2 gap-2">
                   <span
                     className={cn('text-xs font-medium', isDark ? 'text-white/50' : 'text-stone-500')}
                   >
                     Выбрано слов: {selectedWords.length}
                   </span>
-                  <button
-                    onClick={() => setShowWordSearch(true)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                      isDark
-                        ? 'bg-violet-500/20 text-violet-300 hover:bg-violet-500/30'
-                        : 'bg-violet-100 text-violet-700 hover:bg-violet-200'
-                    )}
-                  >
-                    <Search size={12} />
-                    Найти слова
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleAutoFillManualWords}
+                      disabled={manualAutoFillLoading || gridSize === ''}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                        manualAutoFillLoading || gridSize === ''
+                          ? isDark
+                            ? 'bg-white/10 text-white/30 cursor-not-allowed'
+                            : 'bg-stone-100 text-stone-300 cursor-not-allowed'
+                          : isDark
+                            ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
+                            : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                      )}
+                    >
+                      {manualAutoFillLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                      Заполнить
+                    </button>
+                    <button
+                      onClick={() => setShowWordSearch(true)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                        isDark
+                          ? 'bg-violet-500/20 text-violet-300 hover:bg-violet-500/30'
+                          : 'bg-violet-100 text-violet-700 hover:bg-violet-200'
+                      )}
+                    >
+                      <Search size={12} />
+                      Найти слова
+                    </button>
+                  </div>
                 </div>
 
                 {selectedWords.length === 0 ? (
