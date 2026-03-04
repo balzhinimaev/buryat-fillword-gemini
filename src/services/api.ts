@@ -4,6 +4,19 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://burlive.ru/api';
 // Событие для уведомления о необходимости переавторизации
 export const AUTH_REQUIRED_EVENT = 'auth:required';
 
+let lastAuthRequiredDispatchAt = 0;
+const AUTH_REQUIRED_DISPATCH_COOLDOWN_MS = 3000;
+
+const dispatchAuthRequiredIfNeeded = () => {
+  const now = Date.now();
+  if (now - lastAuthRequiredDispatchAt < AUTH_REQUIRED_DISPATCH_COOLDOWN_MS) {
+    return;
+  }
+
+  lastAuthRequiredDispatchAt = now;
+  window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
+};
+
 // Типы для онбординга
 export type AgeRange = '18-24' | '25-34' | '35-44' | '45+' | 'prefer_not_to_say';
 export type BuriatLevel = 'beginner' | 'intermediate' | 'advanced' | 'native' | 'skip';
@@ -567,12 +580,14 @@ async function apiRequest<T>(
       statusCode: response.status,
       message: response.statusText,
     }));
-    
+
     // Если 401 и это не retry - пробуем обновить токен
     // НЕ пытаемся обновить токен если сам запрос /auth/refresh вернул 401
     const isAuthRefreshEndpoint = endpoint === '/auth/refresh';
-    
-    if (error.statusCode === 401 && !isRetry && tokens?.refresh_token && !isAuthRefreshEndpoint) {
+    const isUnauthorized = error.statusCode === 401;
+    let authRecoveryTriggered = false;
+
+    if (isUnauthorized && !isRetry && tokens?.refresh_token && !isAuthRefreshEndpoint) {
       try {
         console.log('🔄 Пробуем обновить токен...');
         const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
@@ -597,7 +612,8 @@ async function apiRequest<T>(
         if (refreshStatus === 401 || refreshStatus === 403) {
           console.log('🔒 Refresh token недействителен, очищаем токены и запрашиваем переавторизацию...');
           clearStoredTokens();
-          window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
+          dispatchAuthRequiredIfNeeded();
+          authRecoveryTriggered = true;
         } else {
           // Временные сетевые/серверные ошибки: не теряем сессию принудительно.
           console.log('⏳ Временная ошибка refresh, сохраняем текущие токены');
@@ -607,13 +623,22 @@ async function apiRequest<T>(
         // При сетевом сбое не сбрасываем сессию.
       }
     }
-    
-    // Если /auth/refresh сам вернул 401 - просто очищаем токены (событие будет отправлено вызывающим кодом)
-    if (error.statusCode === 401 && isAuthRefreshEndpoint) {
+
+    // Если /auth/refresh сам вернул 401 - очищаем токены
+    if (isUnauthorized && isAuthRefreshEndpoint) {
       console.log('🔒 Refresh token недействителен, очищаем токены...');
       clearStoredTokens();
     }
-    
+
+    // Fallback: если пришёл 401 и recovery ещё не запущен, всё равно инициируем переавторизацию
+    if (isUnauthorized && !isAuthRefreshEndpoint && !authRecoveryTriggered) {
+      dispatchAuthRequiredIfNeeded();
+      throw {
+        ...error,
+        message: 'Сессия обновляется… Подождите пару секунд и повторите действие.',
+      } as ApiError;
+    }
+
     throw error;
   }
 
