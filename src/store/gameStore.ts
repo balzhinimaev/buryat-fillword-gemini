@@ -234,6 +234,24 @@ export const useGameStore = () => {
     });
   }, []);
 
+  // Замена текущего экрана без добавления в историю.
+  // Если верхушка истории уже равна целевому экрану — удаляем её,
+  // чтобы избежать циклов вида A -> B -> A по кнопке "назад".
+  const replaceScreen = useCallback((screen: Screen) => {
+    setState(prev => {
+      const history = [...prev.screenHistory];
+      if (history[history.length - 1] === screen) {
+        history.pop();
+      }
+
+      return {
+        ...prev,
+        screenHistory: history,
+        currentScreen: screen,
+      };
+    });
+  }, []);
+
   // Навигация к детальной странице слова
   const navigateToWord = useCallback((wordId: string) => {
     setState(prev => ({
@@ -631,6 +649,7 @@ export const useGameStore = () => {
     state,
     navigate,
     goBack,
+    replaceScreen,
     navigateToWord,
     selectCategory,
     setGameMode,

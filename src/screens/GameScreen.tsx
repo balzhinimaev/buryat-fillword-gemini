@@ -276,7 +276,7 @@ const LetterCell = React.memo(({
 
 
 export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
-  const { state, navigate, goBack, completeEndlessLevel, addToLeaderboard, selectEndlessLevel, navigateToLevelEditor, updateSettings } = store;
+  const { state, navigate, goBack, replaceScreen, completeEndlessLevel, addToLeaderboard, selectEndlessLevel, navigateToLevelEditor, updateSettings } = store;
   const { state: authState, refreshUser } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
   
@@ -1325,12 +1325,12 @@ ${levelInfo}
   const handleBack = useCallback((entrypoint: 'header_back' | 'error_back' | 'win_back' = 'header_back') => {
     if (isDailyMode) {
       trackDailyAbandonedIfNeeded(entrypoint);
-      navigate('gameMode');
+      replaceScreen('gameMode');
       return;
     }
 
     goBack();
-  }, [goBack, isDailyMode, navigate, trackDailyAbandonedIfNeeded]);
+  }, [goBack, isDailyMode, replaceScreen, trackDailyAbandonedIfNeeded]);
 
   // Проверка на валидность данных для игры
   if (isCampaignMode) {
