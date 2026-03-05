@@ -339,6 +339,17 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
     }
 
     if (dailyGoalCompleted) {
+      if (isDailyNudgeDismissedToday) {
+        return {
+          title: 'Цель дня выполнена',
+          progress: '1/1 выполнено',
+          cta: 'Продолжить игру',
+          iconDone: true,
+          hint: 'Сегодня без daily — выбери любой удобный режим',
+          onClick: () => navigate('gameMode'),
+        };
+      }
+
       return {
         title: 'Цель дня выполнена',
         progress: '1/1 выполнено',
@@ -394,6 +405,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
     handleDailyGoalCta,
     handleResumeCampaignFromGoal,
     handleStartCampaignFromWidget,
+    isDailyNudgeDismissedToday,
     navigate,
     state.campaignResumeSlug,
     state.settings.hasSeenHowTo,
