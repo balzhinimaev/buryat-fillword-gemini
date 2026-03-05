@@ -294,6 +294,7 @@ const TabButton: React.FC<TabButtonProps> = ({ label, active, onClick, isDark, c
 // ═════════════════════════════════════════════════════════════════════
 
 type WordTab = 'pending' | 'verified' | 'rejected';
+const ANALYTICS_DAY_OPTIONS = [7, 14, 30] as const;
 
 export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
   const { goBack, navigate } = store;
@@ -311,6 +312,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
   const [wordsLoading, setWordsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analyticsDays, setAnalyticsDays] = useState<number>(14);
   const [analyticsDaily, setAnalyticsDaily] = useState<AnalyticsDailyKpiResponse[]>([]);
   const [engagement, setEngagement] = useState<AnalyticsAdminEngagementResponse | null>(null);
 
@@ -322,8 +324,8 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
       const [ws, ps, dailyKpi, engagementSummary] = await Promise.all([
         api.getWordsStats(),
         api.getProjectStats(),
-        api.getAnalyticsDaily(14),
-        api.getAnalyticsAdminEngagement(14),
+        api.getAnalyticsDaily(analyticsDays),
+        api.getAnalyticsAdminEngagement(analyticsDays),
       ]);
       setWordsStats(ws);
       setProjectStats(ps);
@@ -335,7 +337,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [analyticsDays]);
 
   // ─── Load words by tab ────────────────────────────────────────────
   const loadWords = useCallback(async (tab: WordTab) => {
@@ -556,12 +558,26 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
             title="Growth & Analytics"
             isDark={isDark}
             action={
-              <span className={cn(
-                "text-xs",
-                isDark ? "text-white/30" : "text-stone-400"
-              )}>
-                14 дней
-              </span>
+              <div className="flex items-center gap-1">
+                {ANALYTICS_DAY_OPTIONS.map((days) => {
+                  const active = analyticsDays === days;
+                  return (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => setAnalyticsDays(days)}
+                      className={cn(
+                        "px-2 py-1 rounded-md text-[11px] font-medium transition-colors",
+                        active
+                          ? (isDark ? "bg-violet-500/30 text-violet-200" : "bg-violet-100 text-violet-700")
+                          : (isDark ? "bg-white/5 text-white/50 hover:bg-white/10" : "bg-stone-100 text-stone-500 hover:bg-stone-200")
+                      )}
+                    >
+                      {days}д
+                    </button>
+                  );
+                })}
+              </div>
             }
           />
 
@@ -625,7 +641,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
                   <div>
                     <div className={cn("text-xs mb-2", isDark ? "text-white/50" : "text-stone-500")}>Динамика daily (opened/started/completed/abandoned)</div>
                     <div className="space-y-1.5">
-                      {engagement.timeline.slice(-7).map((row) => (
+                      {engagement.timeline.slice(-analyticsDays).map((row) => (
                         <div key={row.date} className="flex items-center gap-2">
                           <span className={cn("text-[10px] w-16 shrink-0", isDark ? "text-white/40" : "text-stone-500")}>{row.date.slice(5)}</span>
                           <div className="flex-1 flex items-center gap-1">
