@@ -1167,6 +1167,62 @@ export interface CampaignPerformanceResponse {
   };
 }
 
+export interface AnalyticsDailyKpiResponse {
+  date: string;
+  dau: number;
+  newUsers: number;
+  d1Retention: number;
+  d7Retention: number;
+  reactivation: {
+    sent: number;
+    opened24h: number;
+    started24h: number;
+    completed24h: number;
+  };
+  funnel: {
+    appOpen: number;
+    gameStart: number;
+    gameComplete: number;
+  };
+  computedAt: string;
+}
+
+export interface AnalyticsAdminEngagementTimelinePoint {
+  date: string;
+  dailyOpened: number;
+  dailyStarted: number;
+  dailyCompleted: number;
+  dailyAbandoned: number;
+  modeSelections: number;
+  dailyNudgeDismissed: number;
+}
+
+export interface AnalyticsAdminEngagementResponse {
+  days: number;
+  from: string;
+  to: string;
+  totals: {
+    dailyOpened: number;
+    dailyStarted: number;
+    dailyCompleted: number;
+    dailyAbandoned: number;
+    dailyNudgeDismissed: number;
+    modeSelections: number;
+  };
+  rates: {
+    dailyAbandonedFromOpened: number;
+    dailyAbandonedFromStarted: number;
+    dailyCompletionFromStarted: number;
+  };
+  timeline: AnalyticsAdminEngagementTimelinePoint[];
+  modeSelectionBreakdown: Array<{ mode: string; count: number }>;
+  dailyAbandonmentInsights: {
+    avgProgressPercent: number;
+    avgTimeSeconds: number;
+    topEntrypoints: Array<{ entrypoint: string; count: number }>;
+  };
+}
+
 export async function trackAnalyticsEvents(events: AnalyticsEventInput[]): Promise<IngestAnalyticsEventsResponse> {
   if (events.length === 0) {
     return { accepted: 0, inserted: 0, duplicates: 0 };
@@ -1190,6 +1246,20 @@ export async function getCampaignPerformance(
   });
 
   return apiRequest<CampaignPerformanceResponse>(`/analytics/campaign?${params.toString()}`, {
+    method: 'GET',
+  });
+}
+
+export async function getAnalyticsDaily(limit = 14): Promise<AnalyticsDailyKpiResponse[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return apiRequest<AnalyticsDailyKpiResponse[]>(`/analytics/daily?${params.toString()}`, {
+    method: 'GET',
+  });
+}
+
+export async function getAnalyticsAdminEngagement(days = 14): Promise<AnalyticsAdminEngagementResponse> {
+  const params = new URLSearchParams({ days: String(days) });
+  return apiRequest<AnalyticsAdminEngagementResponse>(`/analytics/admin/engagement?${params.toString()}`, {
     method: 'GET',
   });
 }
@@ -2130,6 +2200,8 @@ export const api = {
   // Analytics
   trackAnalyticsEvents,
   getCampaignPerformance,
+  getAnalyticsDaily,
+  getAnalyticsAdminEngagement,
 
   // Campaign Admin
   getCampaignAdminChapters,

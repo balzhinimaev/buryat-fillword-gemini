@@ -36,6 +36,8 @@ import {
   type ProjectStats,
   type ApiWord,
   type ApiWordsResponse,
+  type AnalyticsDailyKpiResponse,
+  type AnalyticsAdminEngagementResponse,
 } from '../services/api';
 
 interface AdminScreenProps {
@@ -309,18 +311,24 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
   const [wordsLoading, setWordsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analyticsDaily, setAnalyticsDaily] = useState<AnalyticsDailyKpiResponse[]>([]);
+  const [engagement, setEngagement] = useState<AnalyticsAdminEngagementResponse | null>(null);
 
   // ─── Load stats ───────────────────────────────────────────────────
   const loadStats = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [ws, ps] = await Promise.all([
+      const [ws, ps, dailyKpi, engagementSummary] = await Promise.all([
         api.getWordsStats(),
         api.getProjectStats(),
+        api.getAnalyticsDaily(14),
+        api.getAnalyticsAdminEngagement(14),
       ]);
       setWordsStats(ws);
       setProjectStats(ps);
+      setAnalyticsDaily(dailyKpi);
+      setEngagement(engagementSummary);
     } catch (err) {
       console.error('Failed to load admin stats:', err);
       setError('Не удалось загрузить статистику');
@@ -396,6 +404,16 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
   const handleTabChange = (tab: WordTab) => {
     setActiveTab(tab);
   };
+
+  const latestKpi = analyticsDaily[0] ?? null;
+  const completionRate = latestKpi && latestKpi.funnel.gameStart > 0
+    ? Math.round((latestKpi.funnel.gameComplete / latestKpi.funnel.gameStart) * 10000) / 100
+    : 0;
+
+  const chartMaxValue = Math.max(
+    1,
+    ...(engagement?.timeline ?? []).map((row) => Math.max(row.dailyOpened, row.dailyStarted, row.dailyCompleted, row.dailyAbandoned)),
+  );
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col", theme.backgrounds.primaryGradient)}>
@@ -528,6 +546,135 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
                 isDark={isDark}
               />
             </div>
+          )}
+        </section>
+
+        {/* ═══ Growth & Analytics ═══ */}
+        <section>
+          <SectionHeader
+            icon={<Activity size={16} />}
+            title="Growth & Analytics"
+            isDark={isDark}
+            action={
+              <span className={cn(
+                "text-xs",
+                isDark ? "text-white/30" : "text-stone-400"
+              )}>
+                14 дней
+              </span>
+            }
+          />
+
+          {loading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 size={20} className={cn("animate-spin", isDark ? "text-white/30" : "text-stone-400")} />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <StatCard
+                  icon={<Users size={16} className="text-white" />}
+                  label="DAU (сегодня)"
+                  value={latestKpi?.dau ?? '—'}
+                  color={isDark ? "bg-indigo-500/30" : "bg-indigo-100"}
+                  isDark={isDark}
+                />
+                <StatCard
+                  icon={<BarChart3 size={16} className="text-white" />}
+                  label="Новые (сегодня)"
+                  value={latestKpi?.newUsers ?? '—'}
+                  color={isDark ? "bg-teal-500/30" : "bg-teal-100"}
+                  isDark={isDark}
+                />
+                <StatCard
+                  icon={<CheckCircle2 size={16} className="text-white" />}
+                  label="D1 retention"
+                  value={latestKpi ? `${latestKpi.d1Retention}%` : '—'}
+                  color={isDark ? "bg-emerald-500/30" : "bg-emerald-100"}
+                  isDark={isDark}
+                />
+                <StatCard
+                  icon={<Clock size={16} className="text-white" />}
+                  label="Completion/start"
+                  value={latestKpi ? `${completionRate}%` : '—'}
+                  color={isDark ? "bg-amber-500/30" : "bg-amber-100"}
+                  isDark={isDark}
+                />
+              </div>
+
+              {engagement && (
+                <div className={cn(
+                  "p-4 rounded-2xl border space-y-3",
+                  isDark ? "bg-white/5 border-white/10" : "bg-white border-stone-200"
+                )}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className={cn("text-xs", isDark ? "text-white/50" : "text-stone-500")}>Daily abandon from started</div>
+                      <div className={cn("text-lg font-bold", isDark ? "text-white" : "text-stone-900")}>
+                        {engagement.rates.dailyAbandonedFromStarted}%
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={cn("text-xs", isDark ? "text-white/50" : "text-stone-500")}>Нажали «не хочу daily»</div>
+                      <div className={cn("text-lg font-bold", isDark ? "text-white" : "text-stone-900")}>
+                        {engagement.totals.dailyNudgeDismissed}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className={cn("text-xs mb-2", isDark ? "text-white/50" : "text-stone-500")}>Динамика daily (opened/started/completed/abandoned)</div>
+                    <div className="space-y-1.5">
+                      {engagement.timeline.slice(-7).map((row) => (
+                        <div key={row.date} className="flex items-center gap-2">
+                          <span className={cn("text-[10px] w-16 shrink-0", isDark ? "text-white/40" : "text-stone-500")}>{row.date.slice(5)}</span>
+                          <div className="flex-1 flex items-center gap-1">
+                            <div className="h-1.5 rounded bg-sky-500/80" style={{ width: `${(row.dailyOpened / chartMaxValue) * 100}%` }} />
+                            <div className="h-1.5 rounded bg-violet-500/80" style={{ width: `${(row.dailyStarted / chartMaxValue) * 100}%` }} />
+                            <div className="h-1.5 rounded bg-emerald-500/80" style={{ width: `${(row.dailyCompleted / chartMaxValue) * 100}%` }} />
+                            <div className="h-1.5 rounded bg-rose-500/80" style={{ width: `${(row.dailyAbandoned / chartMaxValue) * 100}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className={cn("text-[10px] mt-2", isDark ? "text-white/35" : "text-stone-500")}>
+                      Sky=open · Violet=start · Green=complete · Red=abandon
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className={cn("text-xs mb-1", isDark ? "text-white/50" : "text-stone-500")}>Топ режимы</div>
+                      <div className="space-y-1">
+                        {engagement.modeSelectionBreakdown.slice(0, 3).map((row) => (
+                          <div key={row.mode} className="flex items-center justify-between text-xs">
+                            <span className={cn("truncate", isDark ? "text-white/70" : "text-stone-700")}>{row.mode}</span>
+                            <span className={cn("font-semibold", isDark ? "text-white" : "text-stone-900")}>{row.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className={cn("text-xs mb-1", isDark ? "text-white/50" : "text-stone-500")}>Отказы от daily</div>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className={cn(isDark ? "text-white/60" : "text-stone-600")}>Средний прогресс</span>
+                          <span className={cn("font-semibold", isDark ? "text-white" : "text-stone-900")}>
+                            {engagement.dailyAbandonmentInsights.avgProgressPercent}%
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className={cn(isDark ? "text-white/60" : "text-stone-600")}>Среднее время</span>
+                          <span className={cn("font-semibold", isDark ? "text-white" : "text-stone-900")}>
+                            {engagement.dailyAbandonmentInsights.avgTimeSeconds}с
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </section>
 
