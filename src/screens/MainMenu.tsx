@@ -413,9 +413,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 
     if (hasUnplayedDaily) {
       return {
-        title: 'Филлворд дня',
-        subtitle: 'Новый daily уже ждёт тебя',
-        onClick: handleDailyGoalCta,
+        title: 'Играть',
+        subtitle: 'Выбери режим: daily, кампания или уровни',
+        onClick: () => navigate('gameMode'),
       };
     }
 
@@ -425,7 +425,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
       onClick: () => navigate('gameMode'),
     };
   }, [
-    handleDailyGoalCta,
     handleResumeCampaignFromGoal,
     hasUnplayedDaily,
     navigate,
@@ -664,7 +663,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           transition={{ delay: 0.4 }}
           className="space-y-3"
         >
-          {/* Главная кнопка: resume / daily / play */}
+          {/* Главная кнопка: обучение / resume / выбор режима */}
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
