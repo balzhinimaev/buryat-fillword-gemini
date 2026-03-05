@@ -235,6 +235,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const dismissDailyNudgeForToday = useCallback(() => {
     setDailyNudgeDismissedForDate(todayKey);
     setIsDailyNudgeDismissedToday(true);
+    trackAnalyticsEventNonBlocking('daily_nudge_dismissed', {
+      ctx: {
+        source: 'menu',
+      },
+      props: {
+        date: todayKey,
+      },
+    });
   }, [todayKey]);
 
   const lastActiveRaw = authState.user?.streak?.lastActiveDate ?? stats.lastPlayedDate;
@@ -319,6 +327,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
       navigate('howto');
       return;
     }
+
+    trackAnalyticsEventNonBlocking('daily_opened', {
+      ctx: {
+        source: 'menu',
+      },
+      props: {
+        entrypoint: 'daily_goal_card',
+      },
+    });
 
     startDailyGame();
   }, [navigate, startDailyGame, state.settings.hasSeenHowTo]);

@@ -1287,6 +1287,51 @@ ${levelInfo}
     return 0;
   };
 
+  const trackDailyAbandonedIfNeeded = useCallback((entrypoint: 'header_back' | 'error_back' | 'win_back') => {
+    if (!isDailyMode) return;
+
+    const hasDailySession = Boolean(dailySessionId || dailyData?.date);
+    const isDailyCompleted = Boolean(dailyResult || showWinModal);
+
+    if (!hasDailySession || isDailyCompleted) return;
+
+    trackAnalyticsEventNonBlocking('daily_abandoned', {
+      ctx: {
+        source: 'menu',
+      },
+      sessionId: dailySessionId ?? undefined,
+      props: {
+        entrypoint,
+        foundWords: foundWordIds.size,
+        totalWords: placedWords.length,
+        timeSeconds: time,
+        mistakes,
+        isSubmitting: isDailySubmitting,
+      },
+    });
+  }, [
+    dailyData?.date,
+    dailyResult,
+    dailySessionId,
+    foundWordIds.size,
+    isDailyMode,
+    isDailySubmitting,
+    mistakes,
+    placedWords.length,
+    showWinModal,
+    time,
+  ]);
+
+  const handleBack = useCallback((entrypoint: 'header_back' | 'error_back' | 'win_back' = 'header_back') => {
+    if (isDailyMode) {
+      trackDailyAbandonedIfNeeded(entrypoint);
+      navigate('gameMode');
+      return;
+    }
+
+    goBack();
+  }, [goBack, isDailyMode, navigate, trackDailyAbandonedIfNeeded]);
+
   // Проверка на валидность данных для игры
   if (isCampaignMode) {
     if (!campaignSlug) {
@@ -1430,10 +1475,10 @@ ${levelInfo}
               Повторить
             </button>
             <button
-              onClick={goBack}
+              onClick={() => handleBack('error_back')}
               className={cn("px-4 py-2 rounded-xl transition-colors", styles.headerButton.background, styles.headerButton.backgroundHover, styles.headerButton.text)}
             >
-              Назад
+              К выбору режима
             </button>
           </div>
         </div>
@@ -1448,11 +1493,6 @@ ${levelInfo}
       </div>
     );
   }
-  
-  // Функция навигации "назад" — возвращает на предыдущий экран
-  const handleBack = () => {
-    goBack();
-  };
   
   // Заголовок для текущего уровня
   const levelTitle = isDailyMode
@@ -1477,7 +1517,7 @@ ${levelInfo}
       <header className={cn("p-4 z-20", styles.header.background, styles.header.border)}>
         <div className="flex justify-between items-center mb-3">
           <button 
-            onClick={handleBack}
+            onClick={() => handleBack()}
             className={cn(
               "p-2 rounded-xl transition-all duration-200",
               styles.headerButton.background,
@@ -2098,7 +2138,7 @@ ${levelInfo}
                     {/* Кнопка следующего уровня / назад для daily */}
                     {isDailyMode ? (
                       <button
-                        onClick={goBack}
+                        onClick={() => handleBack('win_back')}
                         className={cn(
                           "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
                           `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
@@ -2220,7 +2260,7 @@ ${levelInfo}
                     )}
 
                     <button 
-                      onClick={handleBack}
+                      onClick={() => handleBack()}
                       className={cn(
                         "w-full py-2 text-sm font-medium transition-colors",
                         styles.winModal.backLink.text,

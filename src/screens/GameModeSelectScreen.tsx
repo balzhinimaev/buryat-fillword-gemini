@@ -91,8 +91,23 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
     return allLevels.find(level => level.slug === resumeLevelSlug) ?? null;
   }, [resumeLevelSlug, campaignOverview]);
 
+  const trackModeSelectedFromMenu = useCallback((mode: string, props?: Record<string, unknown>) => {
+    trackAnalyticsEventNonBlocking('mode_selected_from_menu', {
+      ctx: {
+        source: 'menu',
+      },
+      props: {
+        mode,
+        ...props,
+      },
+    });
+  }, []);
+
   const handleResumeFirstLevel = useCallback(() => {
     if (!resumeLevelSlug) return;
+    trackModeSelectedFromMenu('campaign_resume', {
+      slug: resumeLevelSlug,
+    });
     trackAnalyticsEventNonBlocking('resume_clicked', {
       ctx: {
         source: 'menu',
@@ -103,7 +118,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
     });
     setCampaignResumeSlug(null);
     selectCategory(resumeLevelSlug);
-  }, [resumeLevelSlug, selectCategory, setCampaignResumeSlug]);
+  }, [resumeLevelSlug, selectCategory, setCampaignResumeSlug, trackModeSelectedFromMenu]);
 
   // ─── Countdown до «Второй главы» ───
   // 11 февраля 20:00 по Улан-Удэ (UTC+8)
@@ -177,8 +192,17 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
   const dailyStars = dailyData?.currentStars ?? null;
 
   const handleDailyPlay = useCallback(() => {
+    trackModeSelectedFromMenu('daily');
+    trackAnalyticsEventNonBlocking('daily_opened', {
+      ctx: {
+        source: 'menu',
+      },
+      props: {
+        entrypoint: 'mode_select',
+      },
+    });
     store.startDailyGame();
-  }, [store]);
+  }, [store, trackModeSelectedFromMenu]);
 
   return (
     <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
@@ -516,6 +540,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 handleResumeFirstLevel();
                 return;
               }
+              trackModeSelectedFromMenu('campaign_chapters');
               setCampaignLandingView('chapters');
               navigate('levels');
             }}
@@ -583,6 +608,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => {
+                trackModeSelectedFromMenu('campaign_modules');
                 setCampaignLandingView('modules');
                 navigate('levels');
               }}
@@ -690,7 +716,13 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                   transition={{ delay: 0.3 + index * 0.1 }}
                   whileHover={unlocked ? { scale: 1.02, y: -2 } : {}}
                   whileTap={unlocked ? { scale: 0.98 } : {}}
-                  onClick={() => unlocked && selectLevelPack(pack.id)}
+                  onClick={() => {
+                    if (!unlocked) return;
+                    trackModeSelectedFromMenu('level_mode', {
+                      packId: pack.id,
+                    });
+                    selectLevelPack(pack.id);
+                  }}
                   disabled={!unlocked}
                   className={cn(
                     "relative w-full p-4 rounded-2xl border transition-all text-left overflow-hidden",
