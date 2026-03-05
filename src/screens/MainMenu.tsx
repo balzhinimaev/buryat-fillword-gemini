@@ -31,6 +31,7 @@ interface MainMenuProps {
 }
 
 const STREAK_REWARD_MILESTONES = [3, 7, 14, 30] as const;
+const DAILY_NUDGE_DISMISS_STORAGE_KEY = 'buryat_fillword_daily_nudge_dismissed_date';
 
 // Декоративный элемент - традиционный орнамент
 const Ornament: React.FC<{ className?: string }> = ({ className }) => (
@@ -229,6 +230,21 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const displayTotalStars = authState.user?.campaignStats?.totalStars ?? stats.totalStars;
 
   const todayKey = useMemo(() => dateToLocalKey(new Date()), []);
+  const [isDailyNudgeDismissedToday, setIsDailyNudgeDismissedToday] = useState(() => isDailyNudgeDismissedForDate(todayKey));
+
+  const dismissDailyNudgeForToday = useCallback(() => {
+    setDailyNudgeDismissedForDate(todayKey);
+    setIsDailyNudgeDismissedToday(true);
+    trackAnalyticsEventNonBlocking('daily_nudge_dismissed', {
+      ctx: {
+        source: 'menu',
+      },
+      props: {
+        date: todayKey,
+      },
+    });
+  }, [todayKey]);
+
   const lastActiveRaw = authState.user?.streak?.lastActiveDate ?? stats.lastPlayedDate;
   const lastActiveKey = useMemo(() => parseDateToLocalKey(lastActiveRaw), [lastActiveRaw]);
   const dailyGoalCompleted = Boolean(lastActiveKey && lastActiveKey === todayKey);
@@ -312,6 +328,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
       return;
     }
 
+    trackAnalyticsEventNonBlocking('daily_opened', {
+      ctx: {
+        source: 'menu',
+      },
+      props: {
+        entrypoint: 'daily_goal_card',
+      },
+    });
+
     startDailyGame();
   }, [navigate, startDailyGame, state.settings.hasSeenHowTo]);
 
@@ -331,6 +356,17 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
     }
 
     if (dailyGoalCompleted) {
+      if (isDailyNudgeDismissedToday) {
+        return {
+          title: 'Цель дня выполнена',
+          progress: '1/1 выполнено',
+          cta: 'Продолжить игру',
+          iconDone: true,
+          hint: 'Сегодня без daily — выбери любой удобный режим',
+          onClick: () => navigate('gameMode'),
+        };
+      }
+
       return {
         title: 'Цель дня выполнена',
         progress: '1/1 выполнено',
@@ -386,6 +422,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
     handleDailyGoalCta,
     handleResumeCampaignFromGoal,
     handleStartCampaignFromWidget,
+    isDailyNudgeDismissedToday,
     navigate,
     state.campaignResumeSlug,
     state.settings.hasSeenHowTo,
@@ -411,11 +448,11 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
       };
     }
 
-    if (hasUnplayedDaily) {
+    if (hasUnplayedDaily && !isDailyNudgeDismissedToday) {
       return {
-        title: 'Филлворд дня',
-        subtitle: 'Новый daily уже ждёт тебя',
-        onClick: handleDailyGoalCta,
+        title: 'Играть',
+        subtitle: 'Выбери режим: daily, кампания или уровни',
+        onClick: () => navigate('gameMode'),
       };
     }
 
@@ -425,9 +462,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
       onClick: () => navigate('gameMode'),
     };
   }, [
-    handleDailyGoalCta,
     handleResumeCampaignFromGoal,
     hasUnplayedDaily,
+    isDailyNudgeDismissedToday,
     navigate,
     state.campaignResumeSlug,
     state.settings.hasSeenHowTo,
@@ -664,7 +701,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
           transition={{ delay: 0.4 }}
           className="space-y-3"
         >
-          {/* Главная кнопка: resume / daily / play */}
+          {/* Главная кнопка: обучение / resume / выбор режима */}
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
@@ -686,6 +723,23 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
               </div>
             </div>
           </motion.button>
+
+          {hasUnplayedDaily && !isDailyNudgeDismissedToday && state.settings.hasSeenHowTo && !state.campaignResumeSlug && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={dismissDailyNudgeForToday}
+                className={cn(
+                  'px-2 py-1 rounded-md text-xs transition-colors',
+                  isDark
+                    ? 'text-white/60 hover:text-white hover:bg-white/10'
+                    : 'text-stone-500 hover:text-stone-700 hover:bg-black/5'
+                )}
+              >
+                Не хочу ежедневник сегодня
+              </button>
+            </div>
+          )}
 
           {/* Статистика и Рекорды */}
           <div className="grid grid-cols-2 gap-3">
@@ -941,6 +995,22 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 };
 
 // Helpers
+
+function isDailyNudgeDismissedForDate(todayKey: string): boolean {
+  try {
+    return localStorage.getItem(DAILY_NUDGE_DISMISS_STORAGE_KEY) === todayKey;
+  } catch {
+    return false;
+  }
+}
+
+function setDailyNudgeDismissedForDate(todayKey: string): void {
+  try {
+    localStorage.setItem(DAILY_NUDGE_DISMISS_STORAGE_KEY, todayKey);
+  } catch {
+    // ignore write errors
+  }
+}
 
 function dateToLocalKey(date: Date): string {
   const year = date.getFullYear();
