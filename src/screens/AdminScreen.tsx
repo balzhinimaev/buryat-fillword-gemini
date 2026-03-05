@@ -295,6 +295,13 @@ const TabButton: React.FC<TabButtonProps> = ({ label, active, onClick, isDark, c
 
 type WordTab = 'pending' | 'verified' | 'rejected';
 const ANALYTICS_DAY_OPTIONS = [7, 14, 30] as const;
+const ANALYTICS_DAYS_STORAGE_KEY = 'buryat_fillword_admin_analytics_days';
+
+const isAnalyticsDaysOption = (
+  value: number,
+): value is (typeof ANALYTICS_DAY_OPTIONS)[number] => {
+  return ANALYTICS_DAY_OPTIONS.includes(value as (typeof ANALYTICS_DAY_OPTIONS)[number]);
+};
 
 export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
   const { goBack, navigate } = store;
@@ -312,7 +319,15 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
   const [wordsLoading, setWordsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [analyticsDays, setAnalyticsDays] = useState<number>(14);
+  const [analyticsDays, setAnalyticsDays] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(ANALYTICS_DAYS_STORAGE_KEY);
+      const parsed = Number(raw);
+      return isAnalyticsDaysOption(parsed) ? parsed : 14;
+    } catch {
+      return 14;
+    }
+  });
   const [analyticsDaily, setAnalyticsDaily] = useState<AnalyticsDailyKpiResponse[]>([]);
   const [engagement, setEngagement] = useState<AnalyticsAdminEngagementResponse | null>(null);
 
@@ -365,6 +380,14 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
   useEffect(() => {
     loadWords(activeTab);
   }, [activeTab, loadWords]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ANALYTICS_DAYS_STORAGE_KEY, String(analyticsDays));
+    } catch {
+      // ignore storage errors
+    }
+  }, [analyticsDays]);
 
   // ─── Admin actions ────────────────────────────────────────────────
   const handleApprove = useCallback(async (wordId: string) => {
