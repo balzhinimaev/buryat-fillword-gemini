@@ -64,6 +64,9 @@ export interface EmailOtpRequestResponse {
 
 export interface RefreshResponse {
   access_token: string;
+  // Backend rotates refresh_token on every refresh.
+  // Делаем опциональным для обратной совместимости, но если пришёл — сохраняем обязательно.
+  refresh_token?: string;
   currentStreak?: number;
 }
 
@@ -601,9 +604,14 @@ async function apiRequest<T>(
         });
 
         if (refreshResponse.ok) {
-          const { access_token }: RefreshResponse = await refreshResponse.json();
+          const refreshed: RefreshResponse = await refreshResponse.json();
+          const nextTokens: StoredTokens = {
+            access_token: refreshed.access_token,
+            refresh_token: refreshed.refresh_token ?? tokens.refresh_token,
+          };
+
           console.log('✅ Токен обновлён успешно');
-          setStoredTokens({ ...tokens, access_token });
+          setStoredTokens(nextTokens);
           // Повторяем оригинальный запрос с новым токеном
           return apiRequest<T>(endpoint, options, true);
         }
@@ -721,8 +729,8 @@ export async function refreshToken(): Promise<RefreshResponse> {
   });
 
   setStoredTokens({
-    ...tokens,
     access_token: response.access_token,
+    refresh_token: response.refresh_token ?? tokens.refresh_token,
   });
 
   return response;

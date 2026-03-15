@@ -111,6 +111,12 @@ export default function AuthScreen() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void onRequestOtp();
+                  }
+                }}
                 placeholder="you@example.com"
                 className={cn(
                   'w-full rounded-xl px-3 py-2.5 text-sm border outline-none',
@@ -142,6 +148,12 @@ export default function AuthScreen() {
                 type="text"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void onVerifyOtp();
+                  }
+                }}
                 placeholder="000000"
                 inputMode="numeric"
                 autoFocus
