@@ -31,6 +31,8 @@ export interface User {
   photoUrl?: string;
   languageCode?: string;
   isPremium?: boolean;
+  isLanguageKeeper?: boolean;
+  languageKeeperJoinedAt?: string;
   paywallEligible?: boolean;
   role: string;
   trustScore: number;
@@ -111,6 +113,8 @@ const mapAuthResponseToUser = (response: AuthResponse): User => ({
   name: response.name,
   telegramUsername: response.telegramUsername,
   photoUrl: response.photoUrl,
+  isLanguageKeeper: response.isLanguageKeeper,
+  languageKeeperJoinedAt: response.languageKeeperJoinedAt,
   role: response.role,
   trustScore: response.trustScore ?? 0,
   stats: response.stats ?? {
@@ -140,6 +144,8 @@ const mapMeResponseToUser = (me: MeResponse, prevUser?: User | null): User => ({
   photoUrl: me.photoUrl,
   languageCode: me.languageCode,
   isPremium: me.isPremium,
+  isLanguageKeeper: me.isLanguageKeeper ?? prevUser?.isLanguageKeeper,
+  languageKeeperJoinedAt: me.languageKeeperJoinedAt ?? prevUser?.languageKeeperJoinedAt,
   paywallEligible: resolvePaywallEligibility(me),
   role: me.role,
   trustScore: me.trustScore,

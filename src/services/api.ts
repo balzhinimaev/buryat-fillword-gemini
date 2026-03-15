@@ -121,6 +121,8 @@ export interface MeResponse {
   photoUrl?: string;
   languageCode?: string;
   isPremium?: boolean;
+  isLanguageKeeper?: boolean;
+  languageKeeperJoinedAt?: string;
   // Backend eligibility flag: paywall показываем только после первого value milestone
   paywallEligible?: boolean;
 
@@ -205,6 +207,8 @@ export async function updateName(name: string): Promise<UserResponse> {
 export interface ApiSettings {
   isPublicProfile: boolean;
   remindersEnabled: boolean;
+  hasSeenHowTo: boolean;
+  hasSeenTimerOnboarding: boolean;
   hintsEnabled: boolean;
   timerEnabled: boolean;
   vibrationEnabled: boolean;

@@ -18,8 +18,18 @@ import type { ApiSettings, ApiSettingsUpdate } from '../services/api';
 // Маппинг между фронтовыми полями (GameSettings) и серверными (ApiSettings)
 // ============================================================================
 
-// Поля, которые синхронизируются с сервером (без playerName и hasSeenHowTo)
-type SyncableField = 'soundEnabled' | 'vibrationEnabled' | 'theme' | 'showHints' | 'timerEnabled' | 'publicProfile' | 'notificationsEnabled' | 'difficulty';
+// Поля, которые синхронизируются с сервером (без playerName)
+type SyncableField =
+  | 'soundEnabled'
+  | 'vibrationEnabled'
+  | 'theme'
+  | 'showHints'
+  | 'timerEnabled'
+  | 'publicProfile'
+  | 'notificationsEnabled'
+  | 'hasSeenHowTo'
+  | 'hasSeenTimerOnboarding'
+  | 'difficulty';
 
 // Frontend → API маппинг имён полей
 const FIELD_TO_API: Record<SyncableField, keyof ApiSettings> = {
@@ -30,6 +40,8 @@ const FIELD_TO_API: Record<SyncableField, keyof ApiSettings> = {
   timerEnabled: 'timerEnabled',
   publicProfile: 'isPublicProfile',
   notificationsEnabled: 'remindersEnabled',
+  hasSeenHowTo: 'hasSeenHowTo',
+  hasSeenTimerOnboarding: 'hasSeenTimerOnboarding',
   difficulty: 'difficulty',
 };
 
@@ -59,6 +71,8 @@ function fromApiSettings(api: ApiSettings): Partial<GameSettings> {
     timerEnabled: api.timerEnabled,
     publicProfile: api.isPublicProfile,
     notificationsEnabled: api.remindersEnabled,
+    hasSeenHowTo: api.hasSeenHowTo ?? false,
+    hasSeenTimerOnboarding: api.hasSeenTimerOnboarding ?? false,
     difficulty: api.difficulty,
   };
 }
@@ -402,7 +416,15 @@ export const useGameStore = () => {
       const merged = fromApiSettings(apiSettings);
       setState(prev => ({
         ...prev,
-        settings: { ...prev.settings, ...merged },
+        settings: {
+          ...prev.settings,
+          ...merged,
+          // Если локально уже прошли обучение, не откатываем прогресс
+          // при первом запуске после релиза (когда backend ещё хранит false).
+          hasSeenHowTo: prev.settings.hasSeenHowTo || Boolean(merged.hasSeenHowTo),
+          hasSeenTimerOnboarding:
+            prev.settings.hasSeenTimerOnboarding || Boolean(merged.hasSeenTimerOnboarding),
+        },
       }));
       console.log('✅ Настройки загружены с сервера');
     } catch (err) {

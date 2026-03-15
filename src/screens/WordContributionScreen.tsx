@@ -1,5 +1,5 @@
 // src/screens/WordContributionScreen.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -11,8 +11,8 @@ import {
   Users
 } from 'lucide-react';
 import type { GameStore } from '../store/gameStore';
-import { useContributionStore } from '../store/contributionStore';
 import { useTelegram, useBackButton } from '../hooks/useTelegram';
+import { useAuth } from '../store/authStore';
 import { useTheme } from '../theme/ThemeContext';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -25,6 +25,7 @@ import {
   type UserStats, 
   type WordsStats,
   type LanguageKeeperLeaderboardItem,
+  type UserResponse,
   getDialects, 
   getPartsOfSpeech, 
   createWord, 
@@ -44,9 +45,20 @@ interface Props {
 // Главный компонент экрана
 export const WordContributionScreen: React.FC<Props> = ({ store }) => {
   const { goBack } = store;
-  const contribution = useContributionStore();
+  const { state: authState, refreshUser } = useAuth();
   const { user: telegramUser } = useTelegram();
   const { theme, isDark } = useTheme();
+
+  const [joinCompletedLocally, setJoinCompletedLocally] = useState(false);
+
+  const isLanguageKeeper = Boolean(authState.user?.isLanguageKeeper || joinCompletedLocally);
+  const contributorName =
+    authState.user?.name ||
+    [telegramUser?.first_name, telegramUser?.last_name].filter(Boolean).join(' ') ||
+    telegramUser?.username ||
+    'Гость';
+  const contributorPhoto = authState.user?.photoUrl || telegramUser?.photo_url;
+  const contributorWordsAdded = authState.user?.stats?.wordsAdded ?? 0;
   
   useBackButton(() => goBack());
   const [activeTab, setActiveTab] = useState<Tab>('add');
@@ -148,10 +160,32 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
     };
     fetchWordsStats();
   }, []);
+
+  // Синхронизация флага хранителя: после первого успешного join не
+  // показываем welcome повторно даже если refresh /auth/me чуть задержался.
+  useEffect(() => {
+    if (authState.user?.isLanguageKeeper) {
+      setJoinCompletedLocally(true);
+    }
+  }, [authState.user?.isLanguageKeeper]);
+
+  // При входе в экран подтягиваем актуальный профиль с backend
+  // (в т.ч. isLanguageKeeper), чтобы не зависеть от localStorage.
+  useEffect(() => {
+    if (!authState.isAuthenticated) return;
+    refreshUser();
+  }, [authState.isAuthenticated, refreshUser]);
+
+  const handleJoinKeepers = useCallback(async (): Promise<UserResponse> => {
+    const response = await joinLanguageKeepers();
+    setJoinCompletedLocally(true);
+    await refreshUser();
+    return response;
+  }, [refreshUser]);
   
   // Загрузка личной статистики и лидерборда при открытии вкладки "Статистика"
   useEffect(() => {
-    if (activeTab === 'stats' && contribution.currentContributor) {
+    if (activeTab === 'stats' && isLanguageKeeper) {
       const fetchUserStats = async () => {
         try {
           setUserStatsLoading(true);
@@ -181,24 +215,16 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
       fetchUserStats();
       fetchLeaderboard();
     }
-  }, [activeTab, contribution.currentContributor]);
+  }, [activeTab, isLanguageKeeper]);
 
   const tabs = [
     { id: 'add' as Tab, label: 'Добавить', icon: Plus },
-    { id: 'verify' as Tab, label: 'Проверить', icon: Check, badge: contribution.getWordsForVerification.length },
+    { id: 'verify' as Tab, label: 'Проверить', icon: Check },
     { id: 'stats' as Tab, label: 'Статистика', icon: Trophy },
   ];
 
   const handleExport = () => {
-    const data = contribution.exportVerifiedWords();
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `buryat_words_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    // Экспорт локально больше не актуален: источник истины по контрибуциям — backend.
   };
 
   return (
@@ -252,14 +278,14 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
             <p className="text-sm opacity-80">Словарная мастерская</p>
           </div>
 
-          {/* Аватар контрибьютора */}
-          {contribution.currentContributor && (
+          {/* Аватар хранителя */}
+          {isLanguageKeeper && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 p-0.5">
-                {telegramUser?.photo_url ? (
+                {contributorPhoto ? (
                   <img 
-                    src={telegramUser.photo_url} 
-                    alt={contribution.currentContributor.name}
+                    src={contributorPhoto} 
+                    alt={contributorName}
                     className="w-full h-full rounded-full object-cover"
                   />
                 ) : (
@@ -267,16 +293,16 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
                     "w-full h-full rounded-full flex items-center justify-center font-bold text-sm",
                     isDark ? "bg-stone-800 text-amber-400" : "bg-white text-amber-600"
                   )}>
-                    {contribution.currentContributor.name[0].toUpperCase()}
+                    {contributorName[0]?.toUpperCase() || 'Г'}
                   </div>
                 )}
               </div>
               <div className="text-right">
                 <p className="text-sm font-medium">
-                  {contribution.currentContributor.name}
+                  {contributorName}
                 </p>
                 <p className="text-xs opacity-70">
-                  {contribution.currentContributor.wordsAdded} слов
+                  {contributorWordsAdded} слов
                 </p>
               </div>
             </div>
@@ -289,11 +315,10 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
         "flex-1 px-4 pb-6 overflow-y-auto relative z-10",
         isDark ? "pt-6" : "pt-6 -mt-4"
       )}>
-        {!contribution.currentContributor ? (
+        {!isLanguageKeeper ? (
           // Приветственный экран
           <WelcomeScreen 
-            onJoin={contribution.setContributor}
-            onJoinKeepers={joinLanguageKeepers}
+            onJoinKeepers={handleJoinKeepers}
             telegramUser={telegramUser} 
             projectStats={projectStats}
             statsLoading={statsLoading}
@@ -319,12 +344,6 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
                 >
                   <tab.icon size={18} />
                   <span className="hidden sm:inline">{tab.label}</span>
-                  {tab.badge !== undefined && tab.badge > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 
-                                     text-white text-xs flex items-center justify-center font-bold">
-                      {tab.badge}
-                    </span>
-                  )}
                 </button>
               ))}
             </div>
@@ -392,7 +411,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
                   exit={{ opacity: 0, x: 20 }}
                 >
                   <StatsView 
-                    stats={contribution.stats} 
+                    stats={{ totalWords: 0, pendingWords: 0, verifiedWords: 0, rejectedWords: 0, topContributors: [] }} 
                     wordsStats={wordsStats}
                     wordsStatsLoading={wordsStatsLoading}
                     userStats={userStats} 

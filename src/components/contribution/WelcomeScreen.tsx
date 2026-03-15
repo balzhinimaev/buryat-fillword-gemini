@@ -14,7 +14,6 @@ import { ACHIEVEMENTS } from './constants';
 import type { ProjectStats, UserResponse } from '../../services/api';
 
 interface WelcomeScreenProps {
-  onJoin: (name: string, telegram?: string) => void;
   onJoinKeepers: () => Promise<UserResponse>;
   telegramUser: { 
     first_name?: string; 
@@ -27,7 +26,6 @@ interface WelcomeScreenProps {
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
-  onJoin, 
   onJoinKeepers, 
   telegramUser, 
   projectStats, 
@@ -50,8 +48,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     try {
       // Вызываем API для присоединения к хранителям
       await onJoinKeepers();
-      // После успешного API вызова обновляем локальное состояние
-      onJoin(displayName, telegramUser?.username);
     } catch (error) {
       console.error('Ошибка при присоединении к хранителям:', error);
       const message = error instanceof Error ? error.message : 'Не удалось присоединиться';
