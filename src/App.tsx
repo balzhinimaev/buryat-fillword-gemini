@@ -11,6 +11,7 @@ import { getResumeFirstLevelSlug } from './utils/campaignResume';
 import { trackAnalyticsEventsNonBlocking } from './utils/analytics';
 import { extractStartAppPayload, parseStartAppIntent } from './utils/startapp';
 import { usePushNotifications } from './hooks/usePushNotifications';
+import { useTelegram } from './hooks/useTelegram';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./screens/MainMenu'));
@@ -63,6 +64,7 @@ export default function App() {
   } = store;
   const currentTheme = getTheme(settings.theme);
   const { state: authState, refreshUser } = useAuth();
+  const { isTelegram } = useTelegram();
   const startupFlowCheckedRef = useRef(false);
 
   const startAppIntent = useMemo(() => {
@@ -353,7 +355,7 @@ export default function App() {
       <TelegramThemeSync themeId={settings.theme} screen={currentScreen} />
       
       <div 
-        className={`min-h-[100dvh] max-w-md mx-auto shadow-2xl overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
+        className={`min-h-[100dvh] w-full ${isTelegram ? 'max-w-md shadow-2xl' : 'max-w-6xl px-0 md:px-4'} mx-auto overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
       >
         <AnimatePresence mode="wait">
           <motion.div
