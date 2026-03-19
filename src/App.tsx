@@ -355,7 +355,7 @@ export default function App() {
       <TelegramThemeSync themeId={settings.theme} screen={currentScreen} />
       
       <div 
-        className={`min-h-[100dvh] w-full ${isTelegram ? 'max-w-md shadow-2xl' : 'max-w-6xl px-0 md:px-4'} mx-auto overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
+        className={`min-h-[100dvh] w-full ${isTelegram ? 'max-w-md shadow-2xl' : 'max-w-6xl px-0 md:px-4 lg:px-6'} mx-auto overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -365,7 +365,7 @@ export default function App() {
             animate="animate"
             exit="exit"
             transition={pageTransition}
-            className="min-h-[100dvh]"
+            className={`min-h-[100dvh] ${isTelegram ? '' : 'md:my-4 md:rounded-3xl md:shadow-2xl md:border md:border-stone-200/60 dark:md:border-stone-700/60 overflow-hidden'}`}
           >
             <Suspense
               fallback={(
