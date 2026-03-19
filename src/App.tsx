@@ -292,6 +292,17 @@ export default function App() {
     return currentTheme.backgrounds.primary;
   }, [currentTheme]);
 
+  const webNarrowScreens = new Set([
+    'auth',
+    'authLoading',
+    'settings',
+    'support',
+    'onboarding',
+    'howto',
+  ]);
+
+  const isWebNarrow = !isTelegram && webNarrowScreens.has(effectiveScreen);
+
   const renderScreen = () => {
     switch (effectiveScreen) {
       case 'authLoading':
@@ -355,7 +366,7 @@ export default function App() {
       <TelegramThemeSync themeId={settings.theme} screen={currentScreen} />
       
       <div 
-        className={`min-h-[100dvh] w-full ${isTelegram ? 'max-w-md shadow-2xl' : 'max-w-6xl px-0 md:px-4 lg:px-6'} mx-auto overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
+        className={`min-h-[100dvh] w-full ${isTelegram ? 'max-w-md shadow-2xl' : `${isWebNarrow ? 'max-w-2xl' : 'max-w-6xl'} px-0 md:px-4 lg:px-6`} mx-auto overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
       >
         <AnimatePresence mode="wait">
           <motion.div
