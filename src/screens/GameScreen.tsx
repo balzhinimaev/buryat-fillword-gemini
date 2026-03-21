@@ -1169,11 +1169,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     return null;
   }, []);
 
-  // Глобальные события движения
+  // Глобальные события движения (подключаем только во время выделения)
   useEffect(() => {
-    const handleMove = (e: Event) => {
-      if (!isSelecting) return;
+    if (!isSelecting) return;
 
+    const handleMove = (e: Event) => {
       let clientX, clientY;
       if ((e as TouchEvent).touches?.length > 0) {
         clientX = (e as TouchEvent).touches[0].clientX;
@@ -1953,7 +1953,7 @@ ${levelInfo}
             exit={{ opacity: 0 }}
             className={cn("absolute inset-0 z-50 flex flex-col", styles.winModal.overlay)}
           >
-            <div className="flex-1 overflow-y-auto overscroll-contain">
+            <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y">
               <div className="min-h-full flex items-center justify-center p-4 py-6">
                 <motion.div 
                   initial={{ scale: 0.9, y: 30 }} 
