@@ -1,4 +1,4 @@
-type SfxType = 'select' | 'success' | 'error' | 'win' | 'timeout';
+type SfxType = 'select' | 'wood' | 'success' | 'error' | 'win' | 'timeout';
 
 let audioCtx: AudioContext | null = null;
 
@@ -28,6 +28,39 @@ function beep(ctx: AudioContext, at: number, freq: number, duration: number, gai
   osc.stop(at + duration + 0.02);
 }
 
+function woodTap(ctx: AudioContext, at: number, gain = 0.035) {
+  const bufferSize = Math.floor(ctx.sampleRate * 0.03);
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    const env = Math.exp(-i / (bufferSize * 0.2));
+    data[i] = (Math.random() * 2 - 1) * env;
+  }
+
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+
+  const band = ctx.createBiquadFilter();
+  band.type = 'bandpass';
+  band.frequency.setValueAtTime(850, at);
+  band.Q.value = 0.9;
+
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(gain, at + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.04);
+
+  src.connect(band);
+  band.connect(g);
+  g.connect(ctx.destination);
+
+  // body resonance
+  beep(ctx, at, 230, 0.035, gain * 0.5, 'triangle');
+
+  src.start(at);
+  src.stop(at + 0.045);
+}
+
 export function playSfx(type: SfxType, enabled: boolean) {
   if (!enabled) return;
   const ctx = getCtx();
@@ -42,6 +75,9 @@ export function playSfx(type: SfxType, enabled: boolean) {
   switch (type) {
     case 'select':
       beep(ctx, t, 520, 0.05, 0.02, 'triangle');
+      break;
+    case 'wood':
+      woodTap(ctx, t, 0.028);
       break;
     case 'success':
       beep(ctx, t, 660, 0.08, 0.045, 'triangle');

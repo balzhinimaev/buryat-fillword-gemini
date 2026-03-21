@@ -496,6 +496,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFoundTimeRef = useRef<number>(0);
+  const lastWoodTapAtRef = useRef<number>(0);
   const lastFailedAttemptRef = useRef<string | null>(null); // Для отслеживания повторных неудачных попыток
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -804,7 +805,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     // Кешируем позиции клеток при начале выделения
     updateCellRects();
 
-    playSfx('select', state.settings.soundEnabled);
+    playSfx('wood', state.settings.soundEnabled);
+    lastWoodTapAtRef.current = Date.now();
     setIsSelecting(true);
     setSelectedPath([{ r, c }]);
   };
@@ -1209,6 +1211,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         const isFound = foundCellsRegistry.has(`${r}-${c}`);
         
         if (isNeighbor && !isAlreadySelected && !isFound) {
+          const now = Date.now();
+          if (now - lastWoodTapAtRef.current > 35) {
+            playSfx('wood', state.settings.soundEnabled);
+            lastWoodTapAtRef.current = now;
+          }
           return [...prevPath, { r, c }];
         }
 
@@ -1229,7 +1236,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       window.removeEventListener('pointerup', handleEnd);
       window.removeEventListener('touchend', handleEnd);
     };
-  }, [isSelecting, foundCellsRegistry, handlePointerUp, findCellAtPoint]);
+  }, [isSelecting, foundCellsRegistry, handlePointerUp, findCellAtPoint, state.settings.soundEnabled]);
 
   const getCellStatus = (r: number, c: number): CellStatus => {
     if (selectedPath.some(p => p.r === r && p.c === c)) return 'selected';
