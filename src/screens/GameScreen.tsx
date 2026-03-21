@@ -23,9 +23,10 @@ import { generateServerLevel, generateCampaignLevel, findWordByPath, isPalindrom
 import type { Coord, CellStatus, WordData } from '../types';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
-import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, type LevelModeLevelResponse, type LevelModeSubmitResponse, type DailyWordTodayResponse, type DailyWordSubmitResponse, type DailyWordLeaderboardResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
+import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, type LevelModeLevelResponse, type LevelModeSubmitResponse, type LevelModeLevelLeaderboardResponse, type DailyWordTodayResponse, type DailyWordSubmitResponse, type DailyWordLeaderboardResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
 import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { useAuth } from '../store/authStore';
+import { resolveLevelDifficulty, setLevelDifficultyThresholds } from '../config/levelDifficulty';
 
 interface GameScreenProps {
   store: GameStore;
@@ -310,6 +311,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [levelModeSessionId, setLevelModeSessionId] = useState<string | null>(null);
   const [levelModeResult, setLevelModeResult] = useState<LevelModeSubmitResponse | null>(null);
   const [isLevelModeSubmitting, setIsLevelModeSubmitting] = useState(false);
+  const [levelModeResultTab, setLevelModeResultTab] = useState<'summary' | 'leaderboard'>('summary');
+  const [levelModeLeaderboard, setLevelModeLeaderboard] = useState<LevelModeLevelLeaderboardResponse | null>(null);
+  const [levelModeLeaderboardLoading, setLevelModeLeaderboardLoading] = useState(false);
+  const [levelModeLeaderboardError, setLevelModeLeaderboardError] = useState<string | null>(null);
 
   // Daily Mode (филлворд дня — server-driven)
   const [dailyData, setDailyData] = useState<DailyWordTodayResponse | null>(null);
@@ -360,6 +365,23 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       });
   }, [refreshUser]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    void api.getLevelDifficultyThresholds()
+      .then((thresholds) => {
+        if (!isMounted) return;
+        setLevelDifficultyThresholds(thresholds);
+      })
+      .catch(() => {
+        // keep defaults
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const trackGameEvent = useCallback((activityType: string, analyticsEventName: Parameters<typeof trackAnalyticsEventNonBlocking>[0]) => {
     trackActivityNonBlocking(activityType);
     trackAnalyticsEventNonBlocking(analyticsEventName, {
@@ -388,6 +410,28 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       setDailyLeaderboardLoading(false);
     }
   }, []);
+
+  const loadLevelModeLeaderboard = useCallback(async () => {
+    if (!isEndlessMode) return;
+
+    try {
+      setLevelModeLeaderboardLoading(true);
+      setLevelModeLeaderboardError(null);
+      const leaderboard = await api.getLevelModeLevelLeaderboard(endlessLevel, 50);
+      setLevelModeLeaderboard(leaderboard);
+    } catch (e) {
+      const apiError = e as Partial<ApiError>;
+      if (typeof apiError.message === 'string' && apiError.message.length > 0) {
+        setLevelModeLeaderboardError(apiError.message);
+      } else if (e instanceof Error && e.message) {
+        setLevelModeLeaderboardError(e.message);
+      } else {
+        setLevelModeLeaderboardError('Не удалось загрузить рейтинг уровня');
+      }
+    } finally {
+      setLevelModeLeaderboardLoading(false);
+    }
+  }, [isEndlessMode, endlessLevel]);
 
   // load campaign level when slug changes
   useEffect(() => {
@@ -466,6 +510,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     setLevelModeSessionId(null);
     setLevelModeResult(null);
     setIsLevelModeSubmitting(false);
+    setLevelModeResultTab('summary');
+    setLevelModeLeaderboard(null);
+    setLevelModeLeaderboardError(null);
     submitInFlightRef.current = false;
 
     setFoundWordIds(new Set());
@@ -731,6 +778,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     setDailyResultTab('summary');
     void loadDailyLeaderboard();
   }, [showWinModal, isDailyMode, loadDailyLeaderboard]);
+
+  // Лидерборд уровня в уровневом режиме
+  useEffect(() => {
+    if (!showWinModal || !isEndlessMode) return;
+
+    setLevelModeResultTab('summary');
+    void loadLevelModeLeaderboard();
+  }, [showWinModal, isEndlessMode, loadLevelModeLeaderboard]);
 
   // Форматирование времени
   const formatTime = (seconds: number) => {
@@ -2094,6 +2149,159 @@ ${levelInfo}
                               </div>
                               <div className="max-h-40 overflow-y-auto px-2 pb-2 space-y-1">
                                 {dailyLeaderboard.entries.map((row) => (
+                                  <div
+                                    key={`${row.userId}-${row.rank}`}
+                                    className={cn(
+                                      'rounded-lg px-2 py-1.5 flex items-center gap-2',
+                                      row.isCurrentUser
+                                        ? (isDark ? 'bg-violet-500/20' : 'bg-violet-100')
+                                        : (isDark ? 'bg-white/5' : 'bg-stone-50')
+                                    )}
+                                  >
+                                    <div className={cn('w-6 text-center font-bold text-[11px]', styles.winModal.statCard.label)}>
+                                      #{row.rank}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className={cn('text-[11px] font-semibold truncate', styles.winModal.statCard.valueDefault)}>
+                                        {row.name}{row.isCurrentUser ? ' (вы)' : ''}
+                                      </div>
+                                      <div className={cn('text-[10px] opacity-70 tabular-nums', styles.winModal.statCard.label)}>
+                                        {row.stars}★{typeof row.bestTimeSeconds === 'number' ? ` • ${formatTime(row.bestTimeSeconds)}` : ''}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="px-3 py-3">
+                              <div className={styles.winModal.statCard.label}>Данные рейтинга пока не готовы.</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {isEndlessMode && levelModeResult && (
+                    <motion.div
+                      className="relative z-10 px-5 pb-2"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                    >
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          onClick={() => setLevelModeResultTab('summary')}
+                          className={cn(
+                            'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                            levelModeResultTab === 'summary'
+                              ? (isDark ? 'bg-violet-500/30 text-violet-200' : 'bg-violet-100 text-violet-700')
+                              : (isDark ? 'bg-white/5 text-white/50 hover:bg-white/10' : 'bg-stone-100 text-stone-500 hover:bg-stone-200')
+                          )}
+                        >
+                          Итоги
+                        </button>
+                        <button
+                          onClick={() => {
+                            setLevelModeResultTab('leaderboard');
+                            if (!levelModeLeaderboard && !levelModeLeaderboardLoading) {
+                              void loadLevelModeLeaderboard();
+                            }
+                          }}
+                          className={cn(
+                            'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+                            levelModeResultTab === 'leaderboard'
+                              ? (isDark ? 'bg-violet-500/30 text-violet-200' : 'bg-violet-100 text-violet-700')
+                              : (isDark ? 'bg-white/5 text-white/50 hover:bg-white/10' : 'bg-stone-100 text-stone-500 hover:bg-stone-200')
+                          )}
+                        >
+                          Рейтинг уровня
+                        </button>
+                      </div>
+
+                      {levelModeResultTab === 'summary' ? (
+                        <div className={cn(
+                          'rounded-xl border overflow-hidden text-xs',
+                          styles.winModal.statCard.background,
+                          styles.winModal.statCard.border
+                        )}>
+                          <div className="px-3 py-2">
+                            <div className={cn('text-[10px] uppercase tracking-wider mb-1 font-semibold', styles.winModal.statCard.label)}>
+                              Результат уровня
+                            </div>
+                            <div className={cn('flex flex-wrap gap-x-3 gap-y-0.5', styles.winModal.statCard.valueDefault)}>
+                              <span>Слова: {levelModeResult.wordsFound}/{levelModeResult.wordsTotal}</span>
+                              <span>Точность: {levelModeResult.wordsFoundPercent}%</span>
+                              <span>Попытка: #{levelModeResult.attemptNumber}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={cn(
+                          'rounded-xl border overflow-hidden text-xs',
+                          styles.winModal.statCard.background,
+                          styles.winModal.statCard.border
+                        )}>
+                          {levelModeLeaderboardLoading ? (
+                            <div className="px-3 py-4 flex items-center justify-center gap-2">
+                              <Clock size={14} className={cn('animate-spin', styles.winModal.statCard.label)} />
+                              <span className={styles.winModal.statCard.label}>Загружаем рейтинг…</span>
+                            </div>
+                          ) : levelModeLeaderboardError ? (
+                            <div className="px-3 py-3">
+                              <div className={cn('text-[11px]', isDark ? 'text-red-300' : 'text-red-600')}>{levelModeLeaderboardError}</div>
+                              <button
+                                onClick={() => void loadLevelModeLeaderboard()}
+                                className={cn(
+                                  'mt-2 px-2 py-1 rounded-md text-[11px] font-semibold',
+                                  isDark ? 'bg-white/10 text-white/70 hover:bg-white/15' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                                )}
+                              >
+                                Обновить
+                              </button>
+                            </div>
+                          ) : levelModeLeaderboard ? (
+                            <>
+                              <div className="px-3 pt-2 pb-1 space-y-0.5">
+                                <div className={cn('text-[10px] uppercase tracking-wider flex items-center gap-2 flex-wrap', styles.winModal.statCard.label)}>
+                                  <span>
+                                    Участников: <span className="font-semibold">{levelModeLeaderboard.totalParticipants}</span>
+                                    {levelModeLeaderboard.myRank ? (
+                                      <span className="ml-2">• Ваше место: <span className="font-semibold">#{levelModeLeaderboard.myRank}</span></span>
+                                    ) : null}
+                                  </span>
+                                  {(() => {
+                                    const difficultyLabel = resolveLevelDifficulty(
+                                      levelModeLeaderboard.avgAttempts,
+                                      levelModeLeaderboard.avgBestTimeSeconds,
+                                    );
+
+                                    const difficultyClass = difficultyLabel === 'Сложный'
+                                      ? (isDark ? 'bg-rose-500/20 text-rose-300' : 'bg-rose-100 text-rose-700')
+                                      : difficultyLabel === 'Средний'
+                                        ? (isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700')
+                                        : (isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700');
+
+                                    return (
+                                      <span className={cn('px-1.5 py-px rounded-full text-[10px] font-semibold', difficultyClass)}>
+                                        {difficultyLabel}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
+                                <div className={cn('text-[10px] tabular-nums opacity-75', styles.winModal.statCard.label)}>
+                                  Попыток всего: <span className="font-semibold">{levelModeLeaderboard.totalAttempts}</span>
+                                  {typeof levelModeLeaderboard.avgAttempts === 'number' ? (
+                                    <span className="ml-2">• Ср. попыток: <span className="font-semibold">{levelModeLeaderboard.avgAttempts}</span></span>
+                                  ) : null}
+                                  {typeof levelModeLeaderboard.avgBestTimeSeconds === 'number' ? (
+                                    <span className="ml-2">• Ср. лучшее время: <span className="font-semibold">{formatTime(Math.round(levelModeLeaderboard.avgBestTimeSeconds))}</span></span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div className="max-h-40 overflow-y-auto px-2 pb-2 space-y-1">
+                                {levelModeLeaderboard.entries.map((row) => (
                                   <div
                                     key={`${row.userId}-${row.rank}`}
                                     className={cn(

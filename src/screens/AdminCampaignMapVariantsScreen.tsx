@@ -39,6 +39,27 @@ const createEmptyGrid = (size: number): string[][] =>
 
 const toKey = (v: string) => String(v || '').trim().toUpperCase();
 
+const buildSnakePath = (size: number, clockwise: boolean): Coord[] => {
+  const path: Coord[] = [];
+  for (let r = 0; r < size; r++) {
+    if ((r % 2 === 0) === clockwise) {
+      for (let c = 0; c < size; c++) path.push({ r, c });
+    } else {
+      for (let c = size - 1; c >= 0; c--) path.push({ r, c });
+    }
+  }
+  return path;
+};
+
+const shuffle = <T,>(arr: T[]): T[] => {
+  const next = [...arr];
+  for (let i = next.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+};
+
 export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsScreenProps> = ({ store }) => {
   const { goBack, state } = store;
   const lessonSlug = state.adminCampaignMapLessonSlug;
@@ -241,6 +262,58 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
       setDrawingPath([]);
     }
   }, [drawingWord, drawingPath, lessonWords, getCellOwner]);
+
+  const autoGenerateMap = useCallback(() => {
+    if (lessonWords.length === 0) {
+      setError('В уроке нет слов для генерации карты');
+      return;
+    }
+
+    const words = shuffle(lessonWords.map(w => ({ ...w, bur: toKey(w.bur) }))).sort((a, b) => b.bur.length - a.bur.length);
+    const totalLetters = words.reduce((sum, w) => sum + w.bur.length, 0);
+    const capacity = gridSize * gridSize;
+
+    if (totalLetters > capacity) {
+      setError(`Слишком много букв (${totalLetters}) для сетки ${gridSize}×${gridSize} (${capacity})`);
+      return;
+    }
+
+    const snake = buildSnakePath(gridSize, Math.random() > 0.5);
+    const offset = Math.floor(Math.random() * Math.max(1, capacity));
+    const rotated = [...snake.slice(offset), ...snake.slice(0, offset)];
+
+    const nextGrid = createEmptyGrid(gridSize);
+    const nextPlacements = new Map<string, Coord[]>();
+
+    let cursor = 0;
+    for (const word of words) {
+      const upper = toKey(word.bur);
+      const path = rotated.slice(cursor, cursor + upper.length);
+      if (path.length !== upper.length) {
+        setError('Не удалось разместить все слова на сетке');
+        return;
+      }
+
+      for (let i = 0; i < upper.length; i++) {
+        const cell = path[i];
+        nextGrid[cell.r][cell.c] = upper[i];
+      }
+
+      nextPlacements.set(upper, path);
+      cursor += upper.length;
+    }
+
+    for (let i = cursor; i < rotated.length; i++) {
+      const cell = rotated[i];
+      nextGrid[cell.r][cell.c] = NOISE_ALPHABET[Math.floor(Math.random() * NOISE_ALPHABET.length)];
+    }
+
+    setEditorGrid(nextGrid);
+    setPlacements(nextPlacements);
+    setDrawingWord(null);
+    setDrawingPath([]);
+    setError(null);
+  }, [lessonWords, gridSize]);
 
   const fillNoise = useCallback(() => {
     setEditorGrid(prev => {
@@ -547,6 +620,12 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
           </div>
 
           <div className="flex gap-2 mt-3">
+            <button
+              onClick={autoGenerateMap}
+              className={cn('flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs', isDark ? 'bg-emerald-500/20 text-emerald-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200')}
+            >
+              <Sparkles size={12} /> Авто
+            </button>
             <button
               onClick={fillNoise}
               className={cn('flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs', isDark ? 'bg-amber-500/20 text-amber-200' : 'bg-amber-50 text-amber-700 border border-amber-200')}

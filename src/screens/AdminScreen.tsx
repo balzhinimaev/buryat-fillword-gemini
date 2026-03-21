@@ -38,7 +38,9 @@ import {
   type ApiWordsResponse,
   type AnalyticsDailyKpiResponse,
   type AnalyticsAdminEngagementResponse,
+  type LevelDifficultyThresholds,
 } from '../services/api';
+import { setLevelDifficultyThresholds as applyLevelDifficultyThresholds } from '../config/levelDifficulty';
 
 interface AdminScreenProps {
   store: GameStore;
@@ -330,6 +332,8 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
   });
   const [analyticsDaily, setAnalyticsDaily] = useState<AnalyticsDailyKpiResponse[]>([]);
   const [engagement, setEngagement] = useState<AnalyticsAdminEngagementResponse | null>(null);
+  const [levelDifficultyThresholds, setLevelDifficultyThresholds] = useState<LevelDifficultyThresholds | null>(null);
+  const [savingThresholds, setSavingThresholds] = useState(false);
 
   // ─── Load stats ───────────────────────────────────────────────────
   const loadStats = useCallback(async () => {
@@ -354,6 +358,16 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
     }
   }, [analyticsDays]);
 
+  const loadLevelDifficultyThresholds = useCallback(async () => {
+    try {
+      const data = await api.getLevelDifficultyThresholds();
+      setLevelDifficultyThresholds(data);
+      applyLevelDifficultyThresholds(data);
+    } catch (err) {
+      console.error('Failed to load level difficulty thresholds:', err);
+    }
+  }, []);
+
   // ─── Load words by tab ────────────────────────────────────────────
   const loadWords = useCallback(async (tab: WordTab) => {
     try {
@@ -376,6 +390,10 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  useEffect(() => {
+    loadLevelDifficultyThresholds();
+  }, [loadLevelDifficultyThresholds]);
 
   useEffect(() => {
     loadWords(activeTab);
@@ -429,6 +447,39 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
   const handleTabChange = (tab: WordTab) => {
     setActiveTab(tab);
   };
+
+  const handleThresholdFieldChange = (
+    key: keyof LevelDifficultyThresholds,
+    value: number,
+  ) => {
+    setLevelDifficultyThresholds((prev) => {
+      const fallback: LevelDifficultyThresholds = prev ?? {
+        mediumAvgAttempts: 2.5,
+        hardAvgAttempts: 4.5,
+        mediumAvgBestTimeSeconds: 90,
+        hardAvgBestTimeSeconds: 140,
+      };
+      return {
+        ...fallback,
+        [key]: Number.isFinite(value) ? Math.max(0, value) : 0,
+      };
+    });
+  };
+
+  const saveDifficultyThresholds = useCallback(async () => {
+    if (!levelDifficultyThresholds) return;
+
+    try {
+      setSavingThresholds(true);
+      const updated = await api.updateLevelDifficultyThresholds(levelDifficultyThresholds);
+      setLevelDifficultyThresholds(updated);
+      applyLevelDifficultyThresholds(updated);
+    } catch (err) {
+      console.error('Failed to update level difficulty thresholds:', err);
+    } finally {
+      setSavingThresholds(false);
+    }
+  }, [levelDifficultyThresholds]);
 
   const latestKpi = analyticsDaily[0] ?? null;
   const completionRate = latestKpi && latestKpi.funnel.gameStart > 0
@@ -799,6 +850,101 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
               </AnimatePresence>
             </div>
           )}
+        </section>
+
+        {/* ═══ Level Difficulty Thresholds ═══ */}
+        <section>
+          <SectionHeader
+            icon={<Activity size={16} />}
+            title="Сложность уровней"
+            isDark={isDark}
+          />
+
+          <div className={cn(
+            "p-4 rounded-2xl border space-y-3",
+            isDark ? "bg-white/5 border-white/10" : "bg-white border-stone-200"
+          )}>
+            {levelDifficultyThresholds ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="space-y-1">
+                    <span className={cn("text-xs", isDark ? "text-white/60" : "text-stone-600")}>Средний: ср. попыток</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min={0}
+                      value={levelDifficultyThresholds.mediumAvgAttempts}
+                      onChange={(e) => handleThresholdFieldChange('mediumAvgAttempts', Number(e.target.value))}
+                      className={cn(
+                        "w-full px-3 py-2 rounded-xl border text-sm",
+                        isDark ? "bg-white/10 border-white/10 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                      )}
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className={cn("text-xs", isDark ? "text-white/60" : "text-stone-600")}>Сложный: ср. попыток</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min={0}
+                      value={levelDifficultyThresholds.hardAvgAttempts}
+                      onChange={(e) => handleThresholdFieldChange('hardAvgAttempts', Number(e.target.value))}
+                      className={cn(
+                        "w-full px-3 py-2 rounded-xl border text-sm",
+                        isDark ? "bg-white/10 border-white/10 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                      )}
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className={cn("text-xs", isDark ? "text-white/60" : "text-stone-600")}>Средний: ср. время (сек)</span>
+                    <input
+                      type="number"
+                      step="1"
+                      min={0}
+                      value={levelDifficultyThresholds.mediumAvgBestTimeSeconds}
+                      onChange={(e) => handleThresholdFieldChange('mediumAvgBestTimeSeconds', Number(e.target.value))}
+                      className={cn(
+                        "w-full px-3 py-2 rounded-xl border text-sm",
+                        isDark ? "bg-white/10 border-white/10 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                      )}
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className={cn("text-xs", isDark ? "text-white/60" : "text-stone-600")}>Сложный: ср. время (сек)</span>
+                    <input
+                      type="number"
+                      step="1"
+                      min={0}
+                      value={levelDifficultyThresholds.hardAvgBestTimeSeconds}
+                      onChange={(e) => handleThresholdFieldChange('hardAvgBestTimeSeconds', Number(e.target.value))}
+                      className={cn(
+                        "w-full px-3 py-2 rounded-xl border text-sm",
+                        isDark ? "bg-white/10 border-white/10 text-white" : "bg-stone-50 border-stone-200 text-stone-900"
+                      )}
+                    />
+                  </label>
+                </div>
+
+                <button
+                  onClick={() => void saveDifficultyThresholds()}
+                  disabled={savingThresholds}
+                  className={cn(
+                    "w-full py-2.5 rounded-xl text-sm font-semibold transition-colors",
+                    isDark
+                      ? "bg-violet-500/30 hover:bg-violet-500/40 text-violet-200 disabled:opacity-50"
+                      : "bg-violet-100 hover:bg-violet-200 text-violet-700 disabled:opacity-60"
+                  )}
+                >
+                  {savingThresholds ? 'Сохраняем…' : 'Сохранить пороги'}
+                </button>
+              </>
+            ) : (
+              <div className={cn("text-sm", isDark ? "text-white/50" : "text-stone-500")}>Загружаем настройки…</div>
+            )}
+          </div>
         </section>
 
         {/* ═══ Tools ═══ */}

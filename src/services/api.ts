@@ -1828,6 +1828,29 @@ export interface LevelModeSubmitResponse {
   xpReason: string;
 }
 
+export interface LevelModeLevelLeaderboardEntry {
+  rank: number;
+  userId: string;
+  name: string;
+  telegramUsername?: string;
+  stars: number;
+  bestTimeSeconds?: number;
+  attempts: number;
+  firstCompletedAt?: string;
+  isCurrentUser: boolean;
+}
+
+export interface LevelModeLevelLeaderboardResponse {
+  levelNumber: number;
+  totalParticipants: number;
+  totalAttempts: number;
+  avgAttempts?: number;
+  avgBestTimeSeconds?: number;
+  myRank?: number;
+  myBestResult?: LevelModeLevelLeaderboardEntry;
+  entries: LevelModeLevelLeaderboardEntry[];
+}
+
 export async function getLevelModeProgress(): Promise<LevelModeProgressResponse> {
   return apiRequest<LevelModeProgressResponse>('/level-mode/progress', { method: 'GET' });
 }
@@ -1844,6 +1867,17 @@ export async function submitLevelModeLevel(
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export async function getLevelModeLevelLeaderboard(
+  levelNumber: number,
+  limit = 50,
+): Promise<LevelModeLevelLeaderboardResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return apiRequest<LevelModeLevelLeaderboardResponse>(
+    `/level-mode/levels/${levelNumber}/leaderboard?${params.toString()}`,
+    { method: 'GET' },
+  );
 }
 
 // =========================
@@ -1899,6 +1933,13 @@ export interface GenerateAdminLevelWordsResponse {
   words: GeneratedAdminLevelWord[];
 }
 
+export interface LevelDifficultyThresholds {
+  mediumAvgAttempts: number;
+  hardAvgAttempts: number;
+  mediumAvgBestTimeSeconds: number;
+  hardAvgBestTimeSeconds: number;
+}
+
 export type AdminLevelUpdateRequest = Omit<Partial<AdminLevelCreateRequest>, 'levelNumber'>;
 
 export async function getAdminLevels(): Promise<AdminLevel[]> {
@@ -1930,6 +1971,21 @@ export async function updateAdminLevel(levelNumber: number, data: AdminLevelUpda
 
 export async function deleteAdminLevel(levelNumber: number): Promise<void> {
   return apiRequest<void>(`/level-mode/admin/levels/${levelNumber}`, { method: 'DELETE' });
+}
+
+export async function getLevelDifficultyThresholds(): Promise<LevelDifficultyThresholds> {
+  return apiRequest<LevelDifficultyThresholds>('/level-mode/settings/level-difficulty-thresholds', {
+    method: 'GET',
+  });
+}
+
+export async function updateLevelDifficultyThresholds(
+  data: LevelDifficultyThresholds,
+): Promise<LevelDifficultyThresholds> {
+  return apiRequest<LevelDifficultyThresholds>('/level-mode/admin/settings/level-difficulty-thresholds', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
 }
 
 // =========================
@@ -2251,6 +2307,7 @@ export const api = {
   getLevelModeProgress,
   getLevelModeLevel,
   submitLevelModeLevel,
+  getLevelModeLevelLeaderboard,
 
   // Admin: Level Mode
   getAdminLevels,
@@ -2258,6 +2315,8 @@ export const api = {
   generateAdminLevelWords,
   updateAdminLevel,
   deleteAdminLevel,
+  getLevelDifficultyThresholds,
+  updateLevelDifficultyThresholds,
 
   // Daily Word (player)
   getDailyWordToday,
