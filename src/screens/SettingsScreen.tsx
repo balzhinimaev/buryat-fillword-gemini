@@ -1,5 +1,5 @@
 // src/screens/SettingsScreen.tsx
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Volume2, 
@@ -32,15 +32,28 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
   const { state, navigate, goBack, updateSettings, resetProgress } = store;
   const { settings } = state;
   const { theme, isDark } = useTheme();
-  const { setUserName } = useAuth();
+  const { state: authState, setUserName } = useAuth();
   
   useBackButton(() => goBack());
   
   const [showResetModal, setShowResetModal] = useState(false);
   const [editingName, setEditingName] = useState(false);
-  const [tempName, setTempName] = useState(settings.playerName);
+  const backendPlayerName = authState.user?.name?.trim();
+  const effectivePlayerName = useMemo(() => {
+    if (backendPlayerName && backendPlayerName.length > 0) return backendPlayerName;
+    return settings.playerName;
+  }, [backendPlayerName, settings.playerName]);
+  const [tempName, setTempName] = useState(effectivePlayerName);
   const [isSavingName, setIsSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!backendPlayerName || editingName) return;
+    if (settings.playerName !== backendPlayerName) {
+      updateSettings({ playerName: backendPlayerName });
+    }
+    setTempName(backendPlayerName);
+  }, [backendPlayerName, editingName, settings.playerName, updateSettings]);
 
   const handleNameSave = async () => {
     const newName = tempName.trim();
@@ -166,7 +179,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
             </div>
           ) : (
             <button
-              onClick={() => setEditingName(true)}
+              onClick={() => {
+                setTempName(effectivePlayerName);
+                setEditingName(true);
+              }}
               className={cn(
                 "w-full text-left px-4 py-3 rounded-xl transition-colors",
                 isDark 
@@ -174,7 +190,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
                   : "bg-stone-50 text-stone-700 hover:bg-stone-100"
               )}
             >
-              {settings.playerName}
+              {effectivePlayerName}
             </button>
           )}
         </motion.div>
