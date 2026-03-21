@@ -104,6 +104,18 @@ export default function AuthScreen() {
             </div>
           </div>
 
+          {!initData && (
+            <div className={cn(
+              'mb-3 rounded-xl border px-3 py-2 text-xs',
+              isDark ? 'border-amber-400/30 bg-amber-500/10 text-amber-200' : 'border-amber-200 bg-amber-50 text-amber-700'
+            )}>
+              <div className="font-semibold mb-0.5">Нет Telegram initData</div>
+              <div>
+                Откройте мини-приложение через кнопку бота в Telegram: <span className="font-semibold">@buryat_fillword_bot</span> → <span className="font-semibold">Играть</span>.
+              </div>
+            </div>
+          )}
+
           {step === 'email' ? (
             <div className="space-y-3">
               <label className={cn('text-xs', theme.text.muted)}>Email</label>
