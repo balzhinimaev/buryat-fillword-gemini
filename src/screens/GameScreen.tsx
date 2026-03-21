@@ -27,6 +27,7 @@ import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResul
 import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { useAuth } from '../store/authStore';
 import { resolveLevelDifficulty, setLevelDifficultyThresholds } from '../config/levelDifficulty';
+import { playSfx } from '../utils/sfx';
 
 interface GameScreenProps {
   store: GameStore;
@@ -802,7 +803,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
     // Кешируем позиции клеток при начале выделения
     updateCellRects();
-    
+
+    playSfx('select', state.settings.soundEnabled);
     setIsSelecting(true);
     setSelectedPath([{ r, c }]);
   };
@@ -812,6 +814,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
     // Конфетти — только при полной победе
     if (reason === 'completed') {
+      playSfx('win', state.settings.soundEnabled);
       const confettiColors = isDark 
         ? ['#FACC15', '#F97316', '#10B981', '#0EA5E9']
         : ['#F59E0B', '#EA580C', '#059669', '#0284C7'];
@@ -822,6 +825,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         origin: { y: 0.6 }, 
         colors: confettiColors
       });
+    } else {
+      playSfx('timeout', state.settings.soundEnabled);
     }
 
     const foundWordsArray = placedWords
@@ -946,6 +951,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     score,
     addToLeaderboard,
     state.settings.playerName,
+    state.settings.soundEnabled,
     showToast,
     trackGameEvent,
   ]);
@@ -1012,6 +1018,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         if (lastFailedAttemptRef.current === selectedLetters) {
           // Пользователь ввёл то же самое дважды — сообщаем, что такого слова нет
           showToast(`Слова "${selectedLetters.toLowerCase()}" нет в этом уровне ❌`);
+          playSfx('error', state.settings.soundEnabled);
           setMistakes(m => m + 1);
           lastFailedAttemptRef.current = null; // Сбрасываем после уведомления
         } else {
@@ -1062,14 +1069,15 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       if (state.settings.vibrationEnabled && navigator.vibrate) {
         navigator.vibrate(50);
       }
-      
+      playSfx('success', state.settings.soundEnabled);
+
       if (newFoundWordIds.size === placedWords.length) {
         void finishGame(newFoundWordIds, 'completed');
       }
     }
 
     setSelectedPath([]);
-  }, [selectedPath, placedWords, foundWordIds, combo, state.settings.vibrationEnabled, finishGame, gridLetters, showToast]);
+  }, [selectedPath, placedWords, foundWordIds, combo, state.settings.vibrationEnabled, state.settings.soundEnabled, finishGame, gridLetters, showToast]);
 
   // Кеширование позиций клеток при начале выделения
   const updateCellRects = useCallback(() => {
