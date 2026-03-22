@@ -24,7 +24,6 @@ interface LessonWord {
 }
 
 const WORD_COLORS = ['#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#f59e0b', '#ef4444', '#6366f1'];
-const NOISE_ALPHABET = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯӨҮҺ';
 
 const toErrorMessage = (error: unknown): string => {
   const apiError = error as Partial<ApiError>;
@@ -96,7 +95,7 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
 
   const resetToNewVariant = useCallback((words: LessonWord[]) => {
     const totalLetters = words.reduce((sum, w) => sum + w.bur.length, 0);
-    const suggestedSize = Math.min(10, Math.max(4, Math.ceil(Math.sqrt(Math.max(16, totalLetters)))));
+    const suggestedSize = Math.min(10, Math.max(3, Math.ceil(Math.sqrt(Math.max(1, totalLetters)))));
 
     setEditingVariantId(null);
     setTitle('');
@@ -273,8 +272,8 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
     const totalLetters = words.reduce((sum, w) => sum + w.bur.length, 0);
     const capacity = gridSize * gridSize;
 
-    if (totalLetters > capacity) {
-      setError(`Слишком много букв (${totalLetters}) для сетки ${gridSize}×${gridSize} (${capacity})`);
+    if (totalLetters !== capacity) {
+      setError(`Нужен точный матч букв: сейчас ${totalLetters}, поле ${gridSize}×${gridSize} = ${capacity}`);
       return;
     }
 
@@ -303,31 +302,12 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
       cursor += upper.length;
     }
 
-    for (let i = cursor; i < rotated.length; i++) {
-      const cell = rotated[i];
-      nextGrid[cell.r][cell.c] = NOISE_ALPHABET[Math.floor(Math.random() * NOISE_ALPHABET.length)];
-    }
-
     setEditorGrid(nextGrid);
     setPlacements(nextPlacements);
     setDrawingWord(null);
     setDrawingPath([]);
     setError(null);
   }, [lessonWords, gridSize]);
-
-  const fillNoise = useCallback(() => {
-    setEditorGrid(prev => {
-      const next = prev.map(row => [...row]);
-      for (let r = 0; r < next.length; r++) {
-        for (let c = 0; c < next[r].length; c++) {
-          if (!next[r][c]) {
-            next[r][c] = NOISE_ALPHABET[Math.floor(Math.random() * NOISE_ALPHABET.length)];
-          }
-        }
-      }
-      return next;
-    });
-  }, []);
 
   const clearAll = useCallback(() => {
     setEditorGrid(createEmptyGrid(gridSize));
@@ -340,6 +320,7 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
     const totalLetters = lessonWords.reduce((sum, w) => sum + w.bur.length, 0);
     const uniqueLetters = new Set(lessonWords.flatMap(w => w.bur.split(''))).size;
     const capacity = gridSize * gridSize;
+    const exactLetterFit = totalLetters === capacity;
     const filledCells = editorGrid.reduce((sum, row) => sum + row.filter(Boolean).length, 0);
     const freeCells = capacity - filledCells;
     const fillPercent = capacity > 0 ? Math.round((filledCells / capacity) * 100) : 0;
@@ -351,6 +332,7 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
       totalLetters,
       uniqueLetters,
       capacity,
+      exactLetterFit,
       filledCells,
       freeCells,
       fillPercent,
@@ -373,7 +355,7 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
   };
 
   const onGridSizeChange = (next: number) => {
-    const safe = Math.max(4, Math.min(10, next));
+    const safe = Math.max(3, Math.min(10, next));
     setGridSize(safe);
     setEditorGrid(createEmptyGrid(safe));
     setPlacements(new Map());
@@ -384,13 +366,18 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
   const saveVariant = async () => {
     if (!lessonSlug) return;
 
+    if (!stats.exactLetterFit) {
+      setError(`Нужно ровно ${stats.capacity} букв под поле ${gridSize}×${gridSize}. Сейчас: ${stats.totalLetters}`);
+      return;
+    }
+
     if (!stats.allWordsPlaced) {
       setError('Разместите все слова урока на сетке');
       return;
     }
 
     if (!stats.gridFull) {
-      setError('Заполните все клетки (кнопка «Шум» поможет)');
+      setError('Все клетки должны быть заполнены буквами слов (без шума)');
       return;
     }
 
@@ -549,7 +536,7 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
             </select>
             <input
               type="number"
-              min={4}
+              min={3}
               max={10}
               value={gridSize}
               onChange={(e) => onGridSizeChange(Number(e.target.value || 6))}
@@ -564,7 +551,8 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
 
           <div className={cn('rounded-xl border p-2 mb-3 text-xs', isDark ? 'border-white/10 bg-white/5 text-white/70' : 'border-stone-200 bg-stone-50 text-stone-700')}>
             <div>Символов в словах: <b>{stats.totalLetters}</b> · Уникальных букв: <b>{stats.uniqueLetters}</b></div>
-            <div>Вместимость: <b>{stats.capacity}</b> · Занято: <b>{stats.filledCells}</b> · Свободно: <b>{stats.freeCells}</b> · Заполнение: <b>{stats.fillPercent}%</b></div>
+            <div>Вместимость: <b>{stats.capacity}</b> · Матч букв: <b>{stats.exactLetterFit ? 'да' : 'нет'}</b></div>
+            <div>Занято: <b>{stats.filledCells}</b> · Свободно: <b>{stats.freeCells}</b> · Заполнение: <b>{stats.fillPercent}%</b></div>
             <div>Слова: <b>{stats.placedWords}/{lessonWords.length}</b> {stats.allWordsPlaced ? '✓' : ''}</div>
           </div>
 
@@ -627,12 +615,6 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
               <Sparkles size={12} /> Авто
             </button>
             <button
-              onClick={fillNoise}
-              className={cn('flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs', isDark ? 'bg-amber-500/20 text-amber-200' : 'bg-amber-50 text-amber-700 border border-amber-200')}
-            >
-              <Sparkles size={12} /> Шум
-            </button>
-            <button
               onClick={clearAll}
               className={cn('flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs', isDark ? 'bg-red-500/20 text-red-200' : 'bg-red-50 text-red-700 border border-red-200')}
             >
@@ -652,10 +634,10 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
             )}
             <button
               onClick={() => void saveVariant()}
-              disabled={saving || !stats.allWordsPlaced || !stats.gridFull}
+              disabled={saving || !stats.exactLetterFit || !stats.allWordsPlaced || !stats.gridFull}
               className={cn(
                 'flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold',
-                saving || !stats.allWordsPlaced || !stats.gridFull
+                saving || !stats.exactLetterFit || !stats.allWordsPlaced || !stats.gridFull
                   ? isDark ? 'bg-white/10 text-white/40' : 'bg-stone-100 text-stone-400'
                   : isDark ? 'bg-violet-500/30 text-violet-100' : 'bg-violet-600 text-white'
               )}
@@ -665,19 +647,24 @@ export const AdminCampaignMapVariantsScreen: React.FC<AdminCampaignMapVariantsSc
             </button>
           </div>
 
-          {!stats.allWordsPlaced && (
+          {!stats.exactLetterFit && (
+            <p className={cn('text-xs mt-2', isDark ? 'text-amber-300' : 'text-amber-700')}>
+              Для строгой карты сумма букв должна быть ровно {stats.capacity} (сейчас {stats.totalLetters}).
+            </p>
+          )}
+          {stats.exactLetterFit && !stats.allWordsPlaced && (
             <p className={cn('text-xs mt-2', isDark ? 'text-amber-300' : 'text-amber-700')}>
               Разместите все слова урока на сетке.
             </p>
           )}
-          {stats.allWordsPlaced && !stats.gridFull && (
+          {stats.exactLetterFit && stats.allWordsPlaced && !stats.gridFull && (
             <p className={cn('text-xs mt-2', isDark ? 'text-amber-300' : 'text-amber-700')}>
-              Заполните оставшиеся клетки шумом.
+              Все клетки должны быть заняты буквами слов (без лишнего шума).
             </p>
           )}
-          {stats.allWordsPlaced && stats.gridFull && (
+          {stats.exactLetterFit && stats.allWordsPlaced && stats.gridFull && (
             <p className={cn('text-xs mt-2 inline-flex items-center gap-1', isDark ? 'text-emerald-300' : 'text-emerald-700')}>
-              <CheckCircle2 size={12} /> Карта валидна для сохранения.
+              <CheckCircle2 size={12} /> Карта валидна: точное заполнение без лишних букв.
             </p>
           )}
         </section>
