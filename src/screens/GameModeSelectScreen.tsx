@@ -35,6 +35,8 @@ interface GameModeSelectScreenProps {
   store: GameStore;
 }
 
+const CHAPTER2_PREFERRED_SENTINEL = '__chapter2__';
+
 export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ store }) => {
   const { navigate, goBack, selectLevelPack, isPackUnlocked, getPackProgress, selectCategory, setCampaignResumeSlug, setCampaignLandingView, setCampaignPreferredModuleId, state } = store;
   const { themeId, isDark } = useTheme();
@@ -494,19 +496,14 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                   whileHover={isChapter2Unlocked ? { scale: 1.02 } : undefined}
                   whileTap={isChapter2Unlocked ? { scale: 0.98 } : undefined}
                   onClick={() => {
-                    if (!chapter2Module?.id) {
-                      setCampaignPreferredModuleId(null);
-                      setCampaignLandingView('modules');
-                      navigate('levels');
-                      return;
-                    }
-
                     if (!isChapter2Unlocked) return;
 
                     trackModeSelectedFromMenu('campaign_chapter2', {
-                      moduleId: chapter2Module.id,
+                      moduleId: chapter2Module?.id,
                     });
-                    setCampaignPreferredModuleId(chapter2Module.id);
+                    setCampaignPreferredModuleId(
+                      chapter2Module?.id ?? CHAPTER2_PREFERRED_SENTINEL,
+                    );
                     setCampaignLandingView('modules');
                     navigate('levels');
                   }}

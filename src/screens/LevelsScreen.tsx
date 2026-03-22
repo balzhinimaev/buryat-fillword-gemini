@@ -10,6 +10,8 @@ import type { GameStore } from '../store/gameStore';
 import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { api, type ApiError, type CampaignDifficulty, type CampaignOverviewResponse, type CampaignOverviewLevel, type CampaignOverviewModule } from '../services/api';
 
+const CHAPTER2_PREFERRED_SENTINEL = '__chapter2__';
+
 interface LevelsScreenProps {
   store: GameStore;
 }
@@ -180,15 +182,40 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     if (!showModulesChapter) return;
     if (selectedModuleId) return;
 
-    const exists = moduleSections.some((module) => module.id === preferredId);
-    if (exists) {
-      setSelectedModuleId(preferredId);
+    // Ждём загрузки overview, чтобы не терять target-модуль при первой отрисовке.
+    if (!overview) return;
+
+    const resolvePreferredModuleId = (): string | null => {
+      if (moduleSections.length === 0) return null;
+
+      if (preferredId === CHAPTER2_PREFERRED_SENTINEL) {
+        const chapter2Module =
+          moduleSections.find(module => (module.order ?? 0) === 2)
+          ?? moduleSections.find(module => /глава\s*2|chapter\s*2/i.test(module.title ?? ''))
+          ?? moduleSections[1]
+          ?? moduleSections[0]
+          ?? null;
+
+        return chapter2Module?.id ?? null;
+      }
+
+      const exists = moduleSections.some((module) => module.id === preferredId);
+      return exists ? preferredId : null;
+    };
+
+    const resolvedId = resolvePreferredModuleId();
+    if (resolvedId) {
+      setSelectedModuleId(resolvedId);
+      if (resolvedId !== preferredId) {
+        setCampaignPreferredModuleId(resolvedId);
+      }
       return;
     }
 
     setCampaignPreferredModuleId(null);
   }, [
     moduleSections,
+    overview,
     selectedModuleId,
     setCampaignPreferredModuleId,
     showModulesChapter,
