@@ -1,5 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, Layers, Loader2, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  BookOpen,
+  Gauge,
+  Grid3X3,
+  Layers,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
@@ -94,6 +106,7 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
 
   const [tab, setTab] = useState<Tab>('chapters');
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const [chapters, setChapters] = useState<CampaignChapter[]>([]);
   const [levels, setLevels] = useState<CampaignAdminLevel[]>([]);
@@ -101,6 +114,7 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
   const [loadingChapters, setLoadingChapters] = useState(false);
   const [loadingLevels, setLoadingLevels] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [autoGeneratingWords, setAutoGeneratingWords] = useState(false);
 
   const [chapterForm, setChapterForm] = useState<CampaignChapterCreateRequest>(emptyChapterForm);
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
@@ -108,6 +122,8 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
   const [lessonForm, setLessonForm] = useState<CampaignAdminLevelCreateRequest>(emptyLessonForm);
   const [lessonWordsRaw, setLessonWordsRaw] = useState('');
   const [editingLessonSlug, setEditingLessonSlug] = useState<string | null>(null);
+  const [lessonGridSizeDraft, setLessonGridSizeDraft] = useState<number | ''>(6);
+  const [lessonAutoMaxDifficulty, setLessonAutoMaxDifficulty] = useState<number | ''>(10);
 
   const [lessonFilterChapterId, setLessonFilterChapterId] = useState<string>('');
   const [lessonFilterStatus, setLessonFilterStatus] = useState<string>('');
@@ -117,6 +133,30 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
     const maxOrder = chapters.reduce((max, c) => Math.max(max, c.order ?? 0), 0);
     return maxOrder + 1;
   }, [chapters]);
+
+  const chapter2 = useMemo(() => {
+    return (
+      chapters.find(chapter => (chapter.order ?? 0) === 2)
+      ?? chapters.find(chapter => /глава\s*2|chapter\s*2/i.test(chapter.title ?? ''))
+      ?? null
+    );
+  }, [chapters]);
+
+  const parsedLessonWords = useMemo(() => parseWordsTextarea(lessonWordsRaw), [lessonWordsRaw]);
+
+  const lessonLettersTotal = useMemo(() => {
+    return parsedLessonWords.reduce((sum, word) => sum + word.bur.length, 0);
+  }, [parsedLessonWords]);
+
+  const lessonGridCapacity = useMemo(() => {
+    if (lessonGridSizeDraft === '') return null;
+    return lessonGridSizeDraft * lessonGridSizeDraft;
+  }, [lessonGridSizeDraft]);
+
+  const lessonLettersExactFit =
+    lessonGridCapacity !== null ? lessonLettersTotal === lessonGridCapacity : null;
+
+  const isChapter2Selected = !!chapter2?.id && lessonForm.chapterId === chapter2.id;
 
   const loadChapters = useCallback(async () => {
     try {
@@ -168,6 +208,9 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
     setEditingLessonSlug(null);
     setLessonForm(emptyLessonForm);
     setLessonWordsRaw('');
+    setLessonGridSizeDraft(6);
+    setLessonAutoMaxDifficulty(10);
+    setInfo(null);
   };
 
   const onEditChapter = (chapter: CampaignChapter) => {
@@ -187,6 +230,7 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
   const onEditLesson = async (slug: string) => {
     try {
       setSaving(true);
+      setInfo(null);
       const level = await api.getCampaignAdminLevel(slug);
       setEditingLessonSlug(level.slug);
       setLessonForm({
@@ -206,6 +250,22 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
         descriptionBur: level.descriptionBur ?? '',
       });
       setLessonWordsRaw(wordsToTextarea(level.words));
+
+      const variantGridSize = level.mapVariants?.[0]?.gridSize;
+      const wordsLetters = (level.words ?? []).reduce(
+        (sum, word) => sum + String(word.bur ?? '').trim().toUpperCase().length,
+        0,
+      );
+      const inferredGridSize = wordsLetters > 0 ? Math.sqrt(wordsLetters) : NaN;
+
+      if (typeof variantGridSize === 'number' && variantGridSize >= 3) {
+        setLessonGridSizeDraft(variantGridSize);
+      } else if (Number.isInteger(inferredGridSize) && inferredGridSize >= 3) {
+        setLessonGridSizeDraft(inferredGridSize);
+      } else {
+        setLessonGridSizeDraft(6);
+      }
+
       setTab('lessons');
     } catch (e) {
       setError(toErrorMessage(e));
@@ -220,15 +280,19 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
       return;
     }
 
+    const wasEditing = Boolean(editingChapterId);
+
     try {
       setSaving(true);
       setError(null);
+      setInfo(null);
       if (editingChapterId) {
         await api.updateCampaignAdminChapter(editingChapterId, chapterForm);
       } else {
         await api.createCampaignAdminChapter(chapterForm);
       }
       await loadChapters();
+      setInfo(wasEditing ? 'Глава сохранена' : 'Глава создана');
       resetChapterForm();
     } catch (e) {
       setError(toErrorMessage(e));
@@ -260,9 +324,24 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
       return;
     }
 
+    if (
+      isChapter2Selected &&
+      lessonGridCapacity !== null &&
+      parsedWords.length > 0
+    ) {
+      const letters = parsedWords.reduce((sum, word) => sum + word.bur.length, 0);
+      if (letters !== lessonGridCapacity) {
+        setError(
+          `Для главы 2 нужен строгий квадрат: ${letters}/${lessonGridCapacity} букв. Подгони слова под N×N.`,
+        );
+        return;
+      }
+    }
+
     try {
       setSaving(true);
       setError(null);
+      setInfo(null);
 
       const payload: CampaignAdminLevelCreateRequest = {
         ...lessonForm,
@@ -272,16 +351,78 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
       if (editingLessonSlug) {
         const { slug: _ignoredSlug, ...updateData } = payload;
         await api.updateCampaignAdminLevel(editingLessonSlug, updateData);
+        setInfo(`Урок ${editingLessonSlug} сохранён`);
       } else {
-        await api.createCampaignAdminLevel(payload);
+        const created = await api.createCampaignAdminLevel(payload);
+        setEditingLessonSlug(created.slug);
+        setLessonForm({
+          slug: created.slug,
+          name: created.name,
+          nameBur: created.nameBur,
+          difficulty: created.difficulty,
+          order: created.order,
+          icon: created.icon,
+          requiredStars: created.requiredStars,
+          words: created.words ?? payload.words,
+          timeLimitSeconds: created.timeLimitSeconds,
+          isActive: created.isActive,
+          status: created.status,
+          chapterId: created.chapterId ?? payload.chapterId ?? '',
+          description: created.description ?? payload.description,
+          descriptionBur: created.descriptionBur ?? payload.descriptionBur,
+        });
+        setLessonWordsRaw(wordsToTextarea(created.words ?? payload.words));
+        setInfo(`Урок ${created.slug} создан`);
       }
 
       await loadLevels();
-      resetLessonForm();
     } catch (e) {
       setError(toErrorMessage(e));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const autoGenerateLessonWords = async () => {
+    if (lessonGridSizeDraft === '' || lessonGridSizeDraft < 3 || lessonGridSizeDraft > 10) {
+      setError('Размер сетки должен быть от 3 до 10');
+      return;
+    }
+
+    try {
+      setAutoGeneratingWords(true);
+      setError(null);
+      setInfo(null);
+
+      const gridSize = lessonGridSizeDraft as number;
+      const targetLetters = gridSize * gridSize;
+      const minWords = Math.max(3, Math.floor(targetLetters / 8));
+      const maxWords = Math.max(minWords, Math.min(20, Math.floor(targetLetters / 2)));
+
+      const generated = await api.generateAdminLevelWords({
+        gridSize,
+        maxDifficulty: lessonAutoMaxDifficulty === '' ? 10 : lessonAutoMaxDifficulty,
+        minWordLength: 2,
+        maxWordLength: Math.min(targetLetters, gridSize + 4),
+        minWords,
+        maxWords,
+        attempts: 220,
+      });
+
+      const words = generated.words.map(word => ({ bur: word.bur, ru: word.ru }));
+      setLessonWordsRaw(wordsToTextarea(words));
+      setLessonForm(prev => ({
+        ...prev,
+        words,
+      }));
+
+      setInfo(
+        `Подобрано ${generated.words.length} слов (${generated.totalLetters}/${generated.targetLetters} букв, ${gridSize}×${gridSize})`,
+      );
+    } catch (e) {
+      setError(toErrorMessage(e));
+    } finally {
+      setAutoGeneratingWords(false);
     }
   };
 
@@ -291,8 +432,10 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
     try {
       setSaving(true);
       setError(null);
+      setInfo(null);
       await api.deleteCampaignAdminLevel(slug);
       await loadLevels();
+      setInfo(`Урок ${slug} удалён`);
       if (editingLessonSlug === slug) {
         resetLessonForm();
       }
@@ -307,8 +450,10 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
     try {
       setSaving(true);
       setError(null);
+      setInfo(null);
       await api.updateCampaignAdminChapterStatus(chapterId, status);
       await Promise.all([loadChapters(), loadLevels()]);
+      setInfo(`Статус главы обновлён: ${statusLabel[status]}`);
     } catch (e) {
       setError(toErrorMessage(e));
     } finally {
@@ -388,6 +533,15 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
             isDark ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
           )}>
             {error}
+          </div>
+        )}
+
+        {info && (
+          <div className={cn(
+            'p-3 rounded-xl border text-sm',
+            isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+          )}>
+            {info}
           </div>
         )}
 
@@ -575,6 +729,65 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
                 >
                   {STATUSES.map(s => <option key={s} value={s}>{statusLabel[s]}</option>)}
                 </select>
+
+                <div className={cn('col-span-2 rounded-xl border p-3 space-y-2', isDark ? 'border-white/10 bg-white/5' : 'border-stone-200 bg-stone-50')}>
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={14} className={isDark ? 'text-emerald-300' : 'text-emerald-700'} />
+                    <span className={cn('text-sm font-medium', theme.text.primary)}>
+                      Генерация слов под квадрат
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="space-y-1">
+                      <span className={cn('text-xs inline-flex items-center gap-1', isDark ? 'text-white/60' : 'text-stone-600')}>
+                        <Grid3X3 size={12} /> Сетка (N×N)
+                      </span>
+                      <input
+                        type="number"
+                        min={3}
+                        max={10}
+                        value={lessonGridSizeDraft}
+                        onChange={(e) => setLessonGridSizeDraft(e.target.value === '' ? '' : Number(e.target.value))}
+                        className={cn('w-full px-3 py-2 rounded-xl border text-sm', isDark ? 'bg-white/10 border-white/10 text-white' : 'bg-white border-stone-200 text-stone-900')}
+                      />
+                    </label>
+
+                    <label className="space-y-1">
+                      <span className={cn('text-xs inline-flex items-center gap-1', isDark ? 'text-white/60' : 'text-stone-600')}>
+                        <Gauge size={12} /> Макс. сложность
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={lessonAutoMaxDifficulty}
+                        onChange={(e) => setLessonAutoMaxDifficulty(e.target.value === '' ? '' : Number(e.target.value))}
+                        className={cn('w-full px-3 py-2 rounded-xl border text-sm', isDark ? 'bg-white/10 border-white/10 text-white' : 'bg-white border-stone-200 text-stone-900')}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <div className={cn('text-xs', isDark ? 'text-white/50' : 'text-stone-500')}>
+                      Цель: {lessonGridCapacity ?? '—'} букв · сейчас: {lessonLettersTotal}
+                    </div>
+                    <button
+                      onClick={() => void autoGenerateLessonWords()}
+                      disabled={autoGeneratingWords || lessonGridSizeDraft === ''}
+                      className={cn(
+                        'inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium',
+                        autoGeneratingWords || lessonGridSizeDraft === ''
+                          ? isDark ? 'bg-white/10 text-white/40' : 'bg-stone-100 text-stone-400'
+                          : isDark ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                      )}
+                    >
+                      {autoGeneratingWords ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                      Заполнить слова
+                    </button>
+                  </div>
+                </div>
+
                 <textarea
                   value={lessonWordsRaw}
                   onChange={(e) => setLessonWordsRaw(e.target.value)}
@@ -582,6 +795,26 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
                   rows={6}
                   className={cn('px-3 py-2 rounded-xl border text-sm col-span-2', isDark ? 'bg-white/10 border-white/10 text-white' : 'bg-white border-stone-200 text-stone-900')}
                 />
+
+                <div className={cn('col-span-2 px-1 text-xs', isDark ? 'text-white/60' : 'text-stone-600')}>
+                  {lessonGridCapacity === null ? (
+                    <span>Укажи размер сетки, чтобы проверить точное заполнение.</span>
+                  ) : lessonLettersExactFit ? (
+                    <span className={isDark ? 'text-emerald-300' : 'text-emerald-700'}>
+                      ✔ Точное заполнение: {lessonLettersTotal}/{lessonGridCapacity} букв.
+                    </span>
+                  ) : (
+                    <span className={isDark ? 'text-amber-300' : 'text-amber-700'}>
+                      ⚠ Сейчас {lessonLettersTotal}/{lessonGridCapacity} букв — для карты без шума нужно ровно {lessonGridCapacity}.
+                    </span>
+                  )}
+                  {isChapter2Selected && !lessonLettersExactFit && lessonGridCapacity !== null && (
+                    <div className={cn('mt-1', isDark ? 'text-orange-300' : 'text-orange-700')}>
+                      Для уроков главы 2 рекомендуется сохранять слова только в точном формате N×N.
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={() => void saveLesson()}
                   disabled={saving}
@@ -593,6 +826,19 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                   {editingLessonSlug ? 'Сохранить урок' : 'Создать урок'}
                 </button>
+
+                {editingLessonSlug && (
+                  <button
+                    onClick={() => navigateToCampaignMapEditor(editingLessonSlug)}
+                    className={cn(
+                      'inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold col-span-2',
+                      isDark ? 'bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                    )}
+                  >
+                    <Grid3X3 size={16} />
+                    Открыть редактор сеток
+                  </button>
+                )}
               </div>
             </section>
 
@@ -633,6 +879,30 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
                   className={cn('px-2 py-2 rounded-xl border text-xs', isDark ? 'bg-white/10 border-white/10 text-white' : 'bg-white border-stone-200 text-stone-900')}
                 />
               </div>
+
+              {chapter2 && (
+                <div className="mb-3 flex items-center gap-2">
+                  <button
+                    onClick={() => setLessonFilterChapterId(chapter2.id)}
+                    className={cn(
+                      'px-2 py-1 rounded-lg text-xs font-medium',
+                      lessonFilterChapterId === chapter2.id
+                        ? isDark ? 'bg-violet-500/30 text-violet-200' : 'bg-violet-100 text-violet-700'
+                        : isDark ? 'bg-white/10 text-white/70' : 'bg-stone-100 text-stone-700'
+                    )}
+                  >
+                    Только глава 2
+                  </button>
+                  {lessonFilterChapterId && (
+                    <button
+                      onClick={() => setLessonFilterChapterId('')}
+                      className={cn('px-2 py-1 rounded-lg text-xs', isDark ? 'bg-white/10 text-white/60' : 'bg-stone-100 text-stone-600')}
+                    >
+                      Сбросить фильтр
+                    </button>
+                  )}
+                </div>
+              )}
 
               {loadingLevels ? (
                 <div className="py-6 flex justify-center"><Loader2 size={20} className={cn('animate-spin', theme.text.primary)} /></div>
