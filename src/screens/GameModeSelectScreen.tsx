@@ -36,7 +36,7 @@ interface GameModeSelectScreenProps {
 }
 
 export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ store }) => {
-  const { navigate, goBack, selectLevelPack, isPackUnlocked, getPackProgress, selectCategory, setCampaignResumeSlug, setCampaignLandingView, state } = store;
+  const { navigate, goBack, selectLevelPack, isPackUnlocked, getPackProgress, selectCategory, setCampaignResumeSlug, setCampaignLandingView, setCampaignPreferredModuleId, state } = store;
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
   
@@ -140,6 +140,20 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
   const modulesProgressPercent = segmentedCampaignProgress.modules.progressPercent;
 
   const thematicModulesCount = campaignOverview?.modules?.length ?? 0;
+
+  const chapter2Module = useMemo(() => {
+    const modules = [...(campaignOverview?.modules ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    if (modules.length === 0) return null;
+
+    return (
+      modules.find(module => (module.order ?? 0) === 2)
+      ?? modules.find(module => /глава\s*2|chapter\s*2/i.test(module.title ?? ''))
+      ?? modules[1]
+      ?? modules[0]
+    );
+  }, [campaignOverview?.modules]);
+
+  const isChapter2Unlocked = chapter2Module ? chapter2Module.isUnlocked !== false : false;
 
   const resumeLevelSlug = state.campaignResumeSlug;
 
@@ -416,9 +430,14 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 <motion.span
                   animate={{ opacity: [1, 0.6, 1] }}
                   transition={{ duration: 2, repeat: Infinity }}
-                  className="px-2 py-0.5 bg-orange-400/20 border border-orange-400/30 rounded-full text-[11px] font-semibold text-orange-200"
+                  className={cn(
+                    'px-2 py-0.5 rounded-full text-[11px] font-semibold border',
+                    isChapter2Live
+                      ? 'bg-emerald-400/20 border-emerald-400/30 text-emerald-200'
+                      : 'bg-orange-400/20 border-orange-400/30 text-orange-200'
+                  )}
                 >
-                  СКОРО
+                  {isChapter2Live ? 'LIVE' : 'СКОРО'}
                 </motion.span>
               </div>
               <p className="text-sm text-white/70 mb-4">
@@ -472,11 +491,34 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 </div>
               ) : (
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-3 rounded-xl bg-white/20 backdrop-blur text-white font-bold text-center"
+                  whileHover={isChapter2Unlocked ? { scale: 1.02 } : undefined}
+                  whileTap={isChapter2Unlocked ? { scale: 0.98 } : undefined}
+                  onClick={() => {
+                    if (!chapter2Module?.id) {
+                      setCampaignPreferredModuleId(null);
+                      setCampaignLandingView('modules');
+                      navigate('levels');
+                      return;
+                    }
+
+                    if (!isChapter2Unlocked) return;
+
+                    trackModeSelectedFromMenu('campaign_chapter2', {
+                      moduleId: chapter2Module.id,
+                    });
+                    setCampaignPreferredModuleId(chapter2Module.id);
+                    setCampaignLandingView('modules');
+                    navigate('levels');
+                  }}
+                  disabled={!isChapter2Unlocked}
+                  className={cn(
+                    'w-full py-3 rounded-xl backdrop-blur text-white font-bold text-center transition-all',
+                    isChapter2Unlocked
+                      ? 'bg-white/20 hover:bg-white/25'
+                      : 'bg-white/10 text-white/55 cursor-not-allowed'
+                  )}
                 >
-                  Начать Вторую главу
+                  {isChapter2Unlocked ? 'Начать Вторую главу' : `Нужно ${chapter2Module?.requiredStars ?? 0} ⭐`}
                 </motion.button>
               )}
 
