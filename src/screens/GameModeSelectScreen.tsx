@@ -67,19 +67,77 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
     return () => { isMounted = false; };
   }, []);
 
-  const campaignStarsText = useMemo(() => {
-    const earned = campaignOverview?.earnedStars ?? state.stats.totalStars;
-    const total = campaignOverview?.totalStars ?? 36;
-    return `${earned}/${total}`;
+  const segmentedCampaignProgress = useMemo(() => {
+    const categories = campaignOverview?.categories ?? [];
+    const modules = campaignOverview?.modules ?? [];
+
+    const computedClassicTotal = categories.reduce((sum, category) => sum + (category.totalStars ?? 0), 0);
+    const computedClassicEarned = categories.reduce((sum, category) => sum + (category.earnedStars ?? 0), 0);
+
+    const computedModulesTotal = modules.reduce((sum, module) => sum + (module.totalStars ?? 0), 0);
+    const computedModulesEarned = modules.reduce((sum, module) => sum + (module.earnedStars ?? 0), 0);
+
+    const calcPercent = (earned: number, total: number) => (total > 0 ? (earned / total) * 100 : 0);
+
+    const classic = campaignOverview?.classicProgress
+      ? {
+          totalStars: campaignOverview.classicProgress.totalStars,
+          earnedStars: campaignOverview.classicProgress.earnedStars,
+          progressPercent: campaignOverview.classicProgress.progressPercent,
+        }
+      : {
+          totalStars: computedClassicTotal > 0 ? computedClassicTotal : 36,
+          earnedStars: computedClassicTotal > 0 ? computedClassicEarned : state.stats.totalStars,
+          progressPercent: computedClassicTotal > 0
+            ? calcPercent(computedClassicEarned, computedClassicTotal)
+            : Math.min(100, (state.stats.totalStars / 36) * 100),
+        };
+
+    const modulesProgress = campaignOverview?.modulesProgress
+      ? {
+          totalStars: campaignOverview.modulesProgress.totalStars,
+          earnedStars: campaignOverview.modulesProgress.earnedStars,
+          progressPercent: campaignOverview.modulesProgress.progressPercent,
+        }
+      : {
+          totalStars: computedModulesTotal,
+          earnedStars: computedModulesEarned,
+          progressPercent: calcPercent(computedModulesEarned, computedModulesTotal),
+        };
+
+    const overall = campaignOverview?.overallProgress
+      ? {
+          totalStars: campaignOverview.overallProgress.totalStars,
+          earnedStars: campaignOverview.overallProgress.earnedStars,
+          progressPercent: campaignOverview.overallProgress.progressPercent,
+        }
+      : {
+          totalStars:
+            typeof campaignOverview?.totalStars === 'number'
+              ? campaignOverview.totalStars
+              : (computedClassicTotal + computedModulesTotal),
+          earnedStars:
+            typeof campaignOverview?.earnedStars === 'number'
+              ? campaignOverview.earnedStars
+              : (computedClassicEarned + computedModulesEarned),
+          progressPercent:
+            typeof campaignOverview?.progressPercent === 'number'
+              ? campaignOverview.progressPercent
+              : calcPercent(computedClassicEarned + computedModulesEarned, computedClassicTotal + computedModulesTotal),
+        };
+
+    return {
+      classic,
+      modules: modulesProgress,
+      overall,
+    };
   }, [campaignOverview, state.stats.totalStars]);
 
-  const campaignProgressPercent = useMemo(() => {
-    if (typeof campaignOverview?.progressPercent === 'number') return campaignOverview.progressPercent;
-    if (typeof campaignOverview?.totalStars === 'number' && campaignOverview.totalStars > 0) {
-      return ((campaignOverview.earnedStars ?? 0) / campaignOverview.totalStars) * 100;
-    }
-    return Math.min(100, (state.stats.totalStars / 36) * 100);
-  }, [campaignOverview, state.stats.totalStars]);
+  const firstChapterStarsText = `${segmentedCampaignProgress.classic.earnedStars}/${segmentedCampaignProgress.classic.totalStars}`;
+  const firstChapterProgressPercent = segmentedCampaignProgress.classic.progressPercent;
+
+  const modulesStarsText = `${segmentedCampaignProgress.modules.earnedStars}/${segmentedCampaignProgress.modules.totalStars}`;
+  const modulesProgressPercent = segmentedCampaignProgress.modules.progressPercent;
 
   const thematicModulesCount = campaignOverview?.modules?.length ?? 0;
 
@@ -557,7 +615,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
             
             {/* Декоративный элемент */}
             <GraduationCap className="absolute top-2.5 right-2.5 text-white/15" size={28} />
-            {campaignProgressPercent >= 100 && (
+            {firstChapterProgressPercent >= 100 && (
               <CheckCircle2 className="absolute bottom-2.5 right-2.5 text-white/15" size={22} />
             )}
             
@@ -578,7 +636,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 <div className="flex items-center gap-3 text-[11px] text-white/60">
                   <div className="flex items-center gap-1">
                     <Star size={12} className="fill-current" />
-                    <span>{campaignStarsText}</span>
+                    <span>{firstChapterStarsText}</span>
                   </div>
                   <div className={cn(
                     "flex-1 h-1 rounded-full overflow-hidden max-w-[120px]",
@@ -586,10 +644,10 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                   )}>
                     <div
                       className="h-full rounded-full bg-white/40"
-                      style={{ width: `${Math.min(100, campaignProgressPercent)}%` }}
+                      style={{ width: `${Math.min(100, firstChapterProgressPercent)}%` }}
                     />
                   </div>
-                  <span>{campaignProgressPercent.toFixed(0)}%</span>
+                  <span>{firstChapterProgressPercent.toFixed(0)}%</span>
                 </div>
               </div>
               <ChevronRight size={20} className="text-white/40 shrink-0" />
@@ -636,7 +694,25 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                   <p className="text-xs text-white/70 mb-1.5">
                     Праздники и спецтемы с отдельными уровнями
                   </p>
-                  <div className="text-[11px] text-white/65">{thematicModulesCount} мод.</div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-[11px] text-white/65">
+                      <span>{thematicModulesCount} мод.</span>
+                      <span>•</span>
+                      <div className="flex items-center gap-1">
+                        <Star size={11} className="fill-current" />
+                        <span>{modulesStarsText}</span>
+                      </div>
+                      <span>{modulesProgressPercent.toFixed(0)}%</span>
+                    </div>
+
+                    <div className="h-1 rounded-full overflow-hidden bg-white/10 max-w-[180px]">
+                      <div
+                        className="h-full rounded-full bg-white/40"
+                        style={{ width: `${Math.min(100, modulesProgressPercent)}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
                 <ChevronRight size={20} className="text-white/40 shrink-0" />
               </div>

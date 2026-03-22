@@ -133,6 +133,47 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     return [...mods].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [overview]);
 
+  const classicProgress = useMemo(() => {
+    if (overview?.classicProgress) return overview.classicProgress;
+
+    const totalStars = difficultySections.reduce((sum, section) => sum + (section.totalStars ?? 0), 0);
+    const earnedStars = difficultySections.reduce((sum, section) => sum + (section.earnedStars ?? 0), 0);
+
+    if (totalStars > 0) {
+      return {
+        totalStars,
+        earnedStars,
+        progressPercent: (earnedStars / totalStars) * 100,
+      };
+    }
+
+    return {
+      totalStars: 36,
+      earnedStars: state.stats.totalStars,
+      progressPercent: Math.min(100, (state.stats.totalStars / 36) * 100),
+    };
+  }, [difficultySections, overview?.classicProgress, state.stats.totalStars]);
+
+  const modulesProgress = useMemo(() => {
+    if (overview?.modulesProgress) return overview.modulesProgress;
+
+    const totalStars = moduleSections.reduce((sum, module) => sum + (module.totalStars ?? 0), 0);
+    const earnedStars = moduleSections.reduce((sum, module) => sum + (module.earnedStars ?? 0), 0);
+    const progressPercent = totalStars > 0 ? (earnedStars / totalStars) * 100 : 0;
+
+    return { totalStars, earnedStars, progressPercent };
+  }, [moduleSections, overview?.modulesProgress]);
+
+  const overallEarnedStarsForUnlock = useMemo(() => {
+    if (typeof overview?.overallProgress?.earnedStars === 'number') {
+      return overview.overallProgress.earnedStars;
+    }
+    if (typeof overview?.earnedStars === 'number') {
+      return overview.earnedStars;
+    }
+    return classicProgress.earnedStars + modulesProgress.earnedStars;
+  }, [classicProgress.earnedStars, modulesProgress.earnedStars, overview?.earnedStars, overview?.overallProgress?.earnedStars]);
+
   useEffect(() => {
     const preferredId = state.campaignPreferredModuleId;
     if (!preferredId) return;
@@ -185,6 +226,37 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     if (!selectedModuleId) return null;
     return moduleSections.find(module => module.id === selectedModuleId) ?? null;
   }, [moduleSections, selectedModuleId]);
+
+  const selectedModuleProgress = useMemo(() => {
+    if (!selectedModule) return null;
+
+    const sortedLevels = sortLevels(selectedModule.levels ?? []);
+    const totalStars = selectedModule.totalStars ?? sortedLevels.reduce((sum, lvl) => sum + (lvl.maxStars ?? 3), 0);
+    const earnedStars = selectedModule.earnedStars ?? sortedLevels.reduce((sum, lvl) => sum + (lvl.earnedStars ?? 0), 0);
+    const progressPercent = totalStars > 0 ? (earnedStars / totalStars) * 100 : 0;
+
+    return { totalStars, earnedStars, progressPercent };
+  }, [selectedModule, sortLevels]);
+
+  const headerProgress = useMemo(() => {
+    if (!showModulesChapter) {
+      return {
+        totalStars: classicProgress.totalStars,
+        earnedStars: classicProgress.earnedStars,
+        progressPercent: classicProgress.progressPercent,
+      };
+    }
+
+    if (selectedModuleProgress) {
+      return selectedModuleProgress;
+    }
+
+    return {
+      totalStars: modulesProgress.totalStars,
+      earnedStars: modulesProgress.earnedStars,
+      progressPercent: modulesProgress.progressPercent,
+    };
+  }, [classicProgress, modulesProgress, selectedModuleProgress, showModulesChapter]);
 
   return (
     <div className={cn(theme.backgrounds.primaryGradient, "min-h-[100dvh] flex flex-col relative overflow-hidden")}>
@@ -244,11 +316,9 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
             <div className="flex-1">
               <div className="text-sm text-white/70 mb-1">
                 Собрано звёзд
-                {typeof overview?.progressPercent === 'number' && (
-                  <span className="ml-2 text-white/60">
-                    ({overview.progressPercent.toFixed(2)}%)
-                  </span>
-                )}
+                <span className="ml-2 text-white/60">
+                  ({headerProgress.progressPercent.toFixed(2)}%)
+                </span>
               </div>
               <div className={cn("h-2 rounded-full overflow-hidden", theme.progress.track)}>
                 <motion.div 
@@ -256,19 +326,14 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                   style={{ height: '100%' }}
                   initial={{ width: 0 }}
                   animate={{ 
-                    width: `${Math.min(
-                      100, 
-                      (typeof overview?.totalStars === 'number' && overview.totalStars > 0)
-                        ? ((overview.earnedStars ?? 0) / overview.totalStars) * 100
-                        : (state.stats.totalStars / 36) * 100
-                    )}%` 
+                    width: `${Math.min(100, headerProgress.progressPercent)}%` 
                   }}
                 />
               </div>
             </div>
             <div className="text-2xl font-bold">
-              <span className="text-amber-400">{overview?.earnedStars ?? state.stats.totalStars}</span>
-              <span className="text-white/50">/{overview?.totalStars ?? 36}</span>
+              <span className="text-amber-400">{headerProgress.earnedStars}</span>
+              <span className="text-white/50">/{headerProgress.totalStars}</span>
             </div>
           </div>
         </div>
@@ -400,8 +465,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                   {sortLevels(selectedModule.levels ?? []).map((lvl, index) => {
                     const unlocked = lvl.isUnlocked === true ||
                       (lvl.isUnlocked !== false &&
-                        typeof overview?.earnedStars === 'number' &&
-                        overview.earnedStars >= (lvl.requiredStars ?? 0));
+                        overallEarnedStarsForUnlock >= (lvl.requiredStars ?? 0));
 
                     const stars = lvl.earnedStars ?? getLevelProgress(lvl.slug)?.stars ?? 0;
                     const icon = lvl.icon ?? '📚';
@@ -501,8 +565,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                   // Иначе проверяем по earnedStars из overview
                   const unlocked = lvl.isUnlocked === true || 
                     (lvl.isUnlocked !== false && 
-                     typeof overview?.earnedStars === 'number' && 
-                     overview.earnedStars >= (lvl.requiredStars ?? 0));
+                     overallEarnedStarsForUnlock >= (lvl.requiredStars ?? 0));
 
                   const stars = lvl.earnedStars ?? getLevelProgress(lvl.slug)?.stars ?? 0;
                   const icon = lvl.icon ?? '📚';

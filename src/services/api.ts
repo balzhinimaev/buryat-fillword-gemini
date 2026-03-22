@@ -959,9 +959,22 @@ export interface CampaignOverviewModule extends ExtensibleRecord {
   earnedStars?: number;
 }
 
+export interface CampaignOverviewProgressSummary {
+  totalStars: number;
+  earnedStars: number;
+  progressPercent: number;
+}
+
 export interface CampaignOverviewResponse extends ExtensibleRecord {
   categories: CampaignOverviewCategory[];
   modules?: CampaignOverviewModule[];
+
+  // Новая сегментация прогресса
+  classicProgress?: CampaignOverviewProgressSummary;
+  modulesProgress?: CampaignOverviewProgressSummary;
+  overallProgress?: CampaignOverviewProgressSummary;
+
+  // Legacy-поля (для обратной совместимости)
   totalStars?: number;
   earnedStars?: number;
   progressPercent?: number;
