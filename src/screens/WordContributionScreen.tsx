@@ -39,6 +39,7 @@ import { WordVerificationPanel } from '../components/WordVerificationPanel';
 import { WelcomeScreen, AddWordForm, StatsView, type Tab } from '../components/contribution';
 import { OFFLINE } from '../config/offline';
 import { submitWordOfflineAware, syncQueue, queueStats } from '../services/contribSync';
+import { syncDictionary } from '../services/offlineDict';
 
 interface Props {
   store: GameStore;
@@ -74,9 +75,10 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
     setSyncMsg('');
     try {
       const r = await syncQueue();
+      const d = await syncDictionary();
       setQstats(queueStats());
       if (!r.ok) setSyncMsg(r.reason === 'offline' ? 'нет сети' : 'не удалось войти');
-      else setSyncMsg(`отправлено +${r.pushed}, обновлено ${r.pulled}${r.failed ? `, ошибок ${r.failed}` : ''}`);
+      else setSyncMsg(`отправлено +${r.pushed}, обновлено ${r.pulled}${d.added ? `, словарь +${d.added}` : ''}${r.failed ? `, ошибок ${r.failed}` : ''}`);
     } finally {
       setSyncingQ(false);
     }

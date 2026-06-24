@@ -15,6 +15,7 @@ import { useTelegram } from './hooks/useTelegram';
 import { OFFLINE } from './config/offline';
 import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
 import { notifyReady, checkOtaUpdate } from './services/otaUpdate';
+import { syncDictionary } from './services/offlineDict';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./screens/MainMenu'));
@@ -77,6 +78,8 @@ export default function App() {
     notifyReady();
     checkOtaUpdate();
     checkApkUpdate().then(setApkUpdate).catch(() => {});
+    // В офлайн-сборке тихо докачиваем недостающие слова словаря (если есть сеть).
+    if (OFFLINE) syncDictionary().catch(() => {});
   }, []);
 
   const startAppIntent = useMemo(() => {

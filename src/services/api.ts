@@ -6,6 +6,12 @@ import {
   offlineSubmit,
   offlineLeaderboard,
 } from './offlineEngine';
+import {
+  offlineGetWords,
+  offlineGetWordDetail,
+  offlineGetCategories,
+  offlineWordsStats,
+} from './offlineDict';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://burlive.ru/api';
 
@@ -796,6 +802,7 @@ export async function logout(): Promise<void> {
 
 // Получение категорий
 export async function getCategories(): Promise<ApiCategory[]> {
+  if (OFFLINE) return offlineGetCategories();
   return apiRequest<ApiCategory[]>('/categories', { method: 'GET' });
 }
 
@@ -824,11 +831,13 @@ export async function getProjectStats(): Promise<ProjectStats> {
 
 // Получение общей статистики слов
 export async function getWordsStats(): Promise<WordsStats> {
+  if (OFFLINE) return offlineWordsStats();
   return apiRequest<WordsStats>('/words/stats', { method: 'GET' });
 }
 
 // Получение списка слов (публичный эндпоинт)
 export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsResponse> {
+  if (OFFLINE) return offlineGetWords(params);
   const searchParams = new URLSearchParams();
   if (params.status) searchParams.set('status', params.status);
   if (params.categoryId) searchParams.set('categoryId', params.categoryId);
@@ -846,6 +855,7 @@ export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsRes
 
 // Получение детальной информации о слове (публичный эндпоинт)
 export async function getWordDetail(id: string): Promise<ApiWordDetailResponse> {
+  if (OFFLINE) return offlineGetWordDetail(id);
   return apiRequest<ApiWordDetailResponse>(`/words/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
