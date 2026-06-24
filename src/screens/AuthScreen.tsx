@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, KeyRound, Mail, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../store/authStore';
+import { startVkLogin, VK_CONFIGURED } from '../services/vkAuth';
 import { useTelegram } from '../hooks/useTelegram';
 import { useTheme } from '../theme/ThemeContext';
 import { cn } from '../components/ui';
@@ -113,6 +114,20 @@ export default function AuthScreen() {
               <div>
                 Откройте мини-приложение через кнопку бота в Telegram: <span className="font-semibold">@buryat_fillword_bot</span> → <span className="font-semibold">Играть</span>.
               </div>
+            </div>
+          )}
+
+          {VK_CONFIGURED && (
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={() => { void startVkLogin(); }}
+                className="w-full rounded-xl py-2.5 text-sm font-semibold text-white"
+                style={{ backgroundColor: '#0077FF' }}
+              >
+                Войти через ВКонтакте
+              </button>
+              <div className={cn('text-center text-xs my-2', theme.text.muted)}>или по email</div>
             </div>
           )}
 

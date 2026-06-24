@@ -676,6 +676,19 @@ async function apiRequest<T>(
   return response.json();
 }
 
+// Авторизация через VK (web OAuth code-flow) — для нативного Android-приложения
+export async function vkAuth(code: string, redirectUri?: string): Promise<AuthResponse> {
+  const response = await apiRequest<AuthResponse>('/auth/vk', {
+    method: 'POST',
+    body: JSON.stringify({ code, redirectUri }),
+  });
+  setStoredTokens({
+    access_token: response.access_token,
+    refresh_token: response.refresh_token,
+  });
+  return response;
+}
+
 // Авторизация через Telegram
 export async function telegramAuth(initData: string): Promise<AuthResponse> {
   const response = await apiRequest<AuthResponse>('/auth/telegram', {

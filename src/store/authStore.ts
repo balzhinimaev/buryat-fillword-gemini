@@ -1,7 +1,8 @@
 // Хранилище состояния авторизации
 import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import { 
-  telegramAuth, 
+  telegramAuth,
+  vkAuth,
   requestEmailOtp,
   verifyEmailOtp,
   getStoredTokens, 
@@ -79,6 +80,7 @@ export interface AuthState {
 export interface AuthStore {
   state: AuthState;
   login: () => Promise<void>;
+  vkLogin: (code: string) => Promise<void>;
   requestEmailOtp: (email: string) => Promise<EmailOtpRequestResponse>;
   verifyEmailOtp: (email: string, code: string) => Promise<void>;
   clearError: () => void;
@@ -259,6 +261,38 @@ export function useAuthStore(): AuthStore {
       }));
     }
   }, [initData]);
+
+  // Вход через VK: получаем code из OAuth-редиректа и обмениваем на наш JWT.
+  const vkLogin = useCallback(async (code: string) => {
+    setState(prev => ({ ...prev, isLoading: true, isCheckingSession: false, error: null }));
+    try {
+      const response: AuthResponse = await vkAuth(code);
+      let user: User = mapAuthResponseToUser(response);
+      try {
+        const me = await getMe();
+        user = mapMeResponseToUser(me, user);
+      } catch (e) {
+        console.log('⚠️ Не удалось загрузить /auth/me после VK-логина:', e);
+      }
+      saveUser(user);
+      setState({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+        isCheckingSession: false,
+        error: null,
+        isNewUser: !!response.isNewUser,
+        onboardingCompleted: response.onboardingCompleted,
+      });
+    } catch (error) {
+      console.error('VK auth failed:', error);
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: normalizeAuthErrorMessage(error, 'Ошибка входа через VK'),
+      }));
+    }
+  }, []);
 
   const requestEmailOtpCode = useCallback(async (email: string): Promise<EmailOtpRequestResponse> => {
     setState(prev => ({ ...prev, isLoading: true, isCheckingSession: false, error: null }));
@@ -651,6 +685,7 @@ export function useAuthStore(): AuthStore {
   return {
     state,
     login,
+    vkLogin,
     requestEmailOtp: requestEmailOtpCode,
     verifyEmailOtp: verifyEmailOtpCode,
     clearError,

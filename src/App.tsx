@@ -17,6 +17,8 @@ import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
 import { notifyReady, checkOtaUpdate } from './services/otaUpdate';
 import { syncDictionary } from './services/offlineDict';
 import { Browser } from '@capacitor/browser';
+import { App as CapacitorApp } from '@capacitor/app';
+import { parseVkCode } from './services/vkAuth';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./screens/MainMenu'));
@@ -68,7 +70,7 @@ export default function App() {
     navigate,
   } = store;
   const currentTheme = getTheme(settings.theme);
-  const { state: authState, refreshUser } = useAuth();
+  const { state: authState, refreshUser, vkLogin } = useAuth();
   const { isTelegram } = useTelegram();
   const startupFlowCheckedRef = useRef(false);
   const [apkUpdate, setApkUpdate] = useState<ApkUpdateInfo | null>(null);
@@ -95,6 +97,17 @@ export default function App() {
       if (OFFLINE) syncDictionary().catch(() => {});
     })();
   }, []);
+
+  // VK OAuth deep-link: ru.burlive.app://vk?code=... → завершаем вход.
+  useEffect(() => {
+    const subPromise = CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+      const code = parseVkCode(url);
+      if (!code) return;
+      try { await Browser.close(); } catch { /* ignore */ }
+      vkLogin(code);
+    });
+    return () => { subPromise.then((s) => s.remove()).catch(() => {}); };
+  }, [vkLogin]);
 
   const startAppIntent = useMemo(() => {
     const telegramStartParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param ?? null;
