@@ -1,4 +1,12 @@
 // API сервис для работы с бэкендом
+import { OFFLINE } from '../config/offline';
+import {
+  offlineGetLevel,
+  offlineGetProgress,
+  offlineSubmit,
+  offlineLeaderboard,
+} from './offlineEngine';
+
 const API_URL = import.meta.env.VITE_API_URL || 'https://burlive.ru/api';
 
 // Событие для уведомления о необходимости переавторизации
@@ -1865,10 +1873,12 @@ export interface LevelModeLevelLeaderboardResponse {
 }
 
 export async function getLevelModeProgress(): Promise<LevelModeProgressResponse> {
+  if (OFFLINE) return offlineGetProgress();
   return apiRequest<LevelModeProgressResponse>('/level-mode/progress', { method: 'GET' });
 }
 
 export async function getLevelModeLevel(levelNumber: number): Promise<LevelModeLevelResponse> {
+  if (OFFLINE) return offlineGetLevel(levelNumber);
   return apiRequest<LevelModeLevelResponse>(`/level-mode/levels/${levelNumber}`, { method: 'GET' });
 }
 
@@ -1876,6 +1886,7 @@ export async function submitLevelModeLevel(
   levelNumber: number,
   body: LevelModeSubmitRequest
 ): Promise<LevelModeSubmitResponse> {
+  if (OFFLINE) return offlineSubmit(levelNumber, body);
   return apiRequest<LevelModeSubmitResponse>(`/level-mode/levels/${levelNumber}/submit`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -1886,6 +1897,7 @@ export async function getLevelModeLevelLeaderboard(
   levelNumber: number,
   limit = 50,
 ): Promise<LevelModeLevelLeaderboardResponse> {
+  if (OFFLINE) return offlineLeaderboard(levelNumber);
   const params = new URLSearchParams({ limit: String(limit) });
   return apiRequest<LevelModeLevelLeaderboardResponse>(
     `/level-mode/levels/${levelNumber}/leaderboard?${params.toString()}`,

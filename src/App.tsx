@@ -12,6 +12,7 @@ import { trackAnalyticsEventsNonBlocking } from './utils/analytics';
 import { extractStartAppPayload, parseStartAppIntent } from './utils/startapp';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { useTelegram } from './hooks/useTelegram';
+import { OFFLINE } from './config/offline';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./screens/MainMenu'));
@@ -184,6 +185,12 @@ export default function App() {
 
     (async () => {
       let resumeSlug: string | null = null;
+
+      // Офлайн-режим: нет сервера/кампании — сразу в выбор режима (доступен level-mode).
+      if (OFFLINE) {
+        navigate('gameMode');
+        return;
+      }
 
       try {
         const overview = await api.getCampaignOverview();

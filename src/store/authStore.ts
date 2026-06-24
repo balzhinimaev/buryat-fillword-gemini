@@ -22,6 +22,7 @@ import {
   type ReminderTime
 } from '../services/api';
 import { useTelegram } from '../hooks/useTelegram';
+import { OFFLINE } from '../config/offline';
 
 export interface User {
   _id: string;
@@ -361,7 +362,39 @@ export function useAuthStore(): AuthStore {
   useEffect(() => {
     const authenticateOnStart = async () => {
       // Предотвращаем повторные попытки
-      if (hasTriedAuthRef.current || !isReady) return;
+      if (hasTriedAuthRef.current) return;
+
+      // Офлайн-режим: без сети и без Telegram — заходим под локальным игроком.
+      if (OFFLINE) {
+        hasTriedAuthRef.current = true;
+        const offlineUser: User = loadUser() || {
+          _id: 'offline_user',
+          name: 'Игрок',
+          role: 'user',
+          trustScore: 0,
+          stats: {
+            wordsAdded: 0,
+            wordsVerified: 0,
+            wordsApproved: 0,
+            wordsRejected: 0,
+            verificationAccuracy: 0,
+          },
+          onboardingCompleted: true,
+        };
+        saveUser(offlineUser);
+        setState({
+          user: offlineUser,
+          isAuthenticated: true,
+          isLoading: false,
+          isCheckingSession: false,
+          error: null,
+          isNewUser: false,
+          onboardingCompleted: true,
+        });
+        return;
+      }
+
+      if (!isReady) return;
       hasTriedAuthRef.current = true;
       setState(prev => ({ ...prev, isCheckingSession: true, error: null }));
 
