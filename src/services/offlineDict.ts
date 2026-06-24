@@ -100,11 +100,10 @@ function toApiWord(w: DictWord): ApiWord {
 export function offlineGetWords(params: GetWordsParams = {}): ApiWordsResponse {
   const all = getAllWords();
   const offset = params.offset ?? 0;
-  const limit = params.limit ?? all.length;
-  return {
-    words: all.slice(offset, offset + limit).map(toApiWord),
-    total: all.length,
-  };
+  // Офлайн отдаём ВЕСЬ словарь на первой странице — тогда клиентский поиск работает по всем словам,
+  // а не по подгруженной странице. На запросы «load more» (offset>0) возвращаем пусто.
+  if (offset > 0) return { words: [], total: all.length };
+  return { words: all.map(toApiWord), total: all.length };
 }
 
 export function offlineGetWordDetail(id: string): ApiWordDetailResponse {

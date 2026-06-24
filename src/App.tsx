@@ -16,6 +16,7 @@ import { OFFLINE } from './config/offline';
 import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
 import { notifyReady, checkOtaUpdate } from './services/otaUpdate';
 import { syncDictionary } from './services/offlineDict';
+import { Browser } from '@capacitor/browser';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./screens/MainMenu'));
@@ -71,15 +72,28 @@ export default function App() {
   const { isTelegram } = useTelegram();
   const startupFlowCheckedRef = useRef(false);
   const [apkUpdate, setApkUpdate] = useState<ApkUpdateInfo | null>(null);
+  const [updDismissed, setUpdDismissed] = useState(false);
+  const openApkUpdate = async () => {
+    if (!apkUpdate?.apkUrl) return;
+    try {
+      await Browser.open({ url: apkUpdate.apkUrl });
+    } catch {
+      window.open(apkUpdate.apkUrl, '_blank');
+    }
+  };
 
   // Обновления: подтверждаем рабочий бандл (capgo), проверяем OTA веб-обновление
   // и наличие нового APK. Всё мягко падает в офлайне.
   useEffect(() => {
-    notifyReady();
-    checkOtaUpdate();
-    checkApkUpdate().then(setApkUpdate).catch(() => {});
-    // В офлайн-сборке тихо докачиваем недостающие слова словаря (если есть сеть).
-    if (OFFLINE) syncDictionary().catch(() => {});
+    (async () => {
+      // Сначала подтверждаем, что ТЕКУЩИЙ бандл рабочий (иначе capgo откатит) — и только потом
+      // проверяем/применяем новый OTA-бандл. Порядок критичен для защиты от «кирпича».
+      await notifyReady();
+      checkOtaUpdate();
+      checkApkUpdate().then(setApkUpdate).catch(() => {});
+      // В офлайн-сборке тихо докачиваем недостающие слова словаря (если есть сеть).
+      if (OFFLINE) syncDictionary().catch(() => {});
+    })();
   }, []);
 
   const startAppIntent = useMemo(() => {
@@ -325,6 +339,23 @@ export default function App() {
   const isWebNarrow = !isTelegram && webNarrowScreens.has(effectiveScreen);
 
   const renderScreen = () => {
+    // Офлайн-сборка: онлайн-только разделы (лидерборд, статистика кампании, кампания)
+    // показываем как заглушку, а не как пустой/битый экран.
+    if (OFFLINE && (effectiveScreen === 'leaderboard' || effectiveScreen === 'stats' || effectiveScreen === 'levels')) {
+      return (
+        <div className={`min-h-[100dvh] flex flex-col items-center justify-center gap-4 p-6 text-center ${currentTheme.text.muted}`}>
+          <div className="text-4xl">📡</div>
+          <div className="text-base">Этот раздел доступен только онлайн</div>
+          <button
+            type="button"
+            onClick={() => navigate('menu')}
+            className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium"
+          >
+            В меню
+          </button>
+        </div>
+      );
+    }
     switch (effectiveScreen) {
       case 'authLoading':
         return (
@@ -389,15 +420,20 @@ export default function App() {
       <div 
         className={`min-h-[100dvh] w-full ${isTelegram ? 'max-w-md shadow-2xl' : `${isWebNarrow ? 'max-w-2xl' : 'max-w-6xl'} px-0 md:px-4 lg:px-6`} mx-auto overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
       >
-        {apkUpdate?.available && (
-          <a
-            href={apkUpdate.apkUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="block w-full text-center text-sm py-2 px-3 bg-amber-500 text-white font-medium"
-          >
-            🔄 Доступно обновление {apkUpdate.versionName} — скачать APK
-          </a>
+        {apkUpdate?.available && !updDismissed && (
+          <div className="w-full flex items-center gap-2 py-2 px-3 bg-amber-500 text-white text-sm font-medium">
+            <button type="button" onClick={openApkUpdate} className="flex-1 text-center underline-offset-2">
+              🔄 Доступно обновление {apkUpdate.versionName} — скачать APK
+            </button>
+            <button
+              type="button"
+              onClick={() => setUpdDismissed(true)}
+              aria-label="Скрыть"
+              className="px-2 opacity-80 hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
         )}
         <AnimatePresence mode="wait">
           <motion.div

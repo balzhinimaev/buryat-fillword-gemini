@@ -71,6 +71,14 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
   const [syncingQ, setSyncingQ] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const handleSyncQueue = async () => {
+    // Одноразовое пояснение: синхронизация создаёт анонимный аккаунт устройства.
+    if (!localStorage.getItem('burlive_sync_consent')) {
+      const ok = window.confirm(
+        'Синхронизация создаст анонимный аккаунт устройства и отправит добавленные слова на сервер (на модерацию). Слова появятся в общем словаре после проверки. Продолжить?'
+      );
+      if (!ok) return;
+      localStorage.setItem('burlive_sync_consent', '1');
+    }
     setSyncingQ(true);
     setSyncMsg('');
     try {

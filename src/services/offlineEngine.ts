@@ -19,6 +19,29 @@ interface OfflineWord {
 
 const DICT = wordsData as OfflineWord[];
 const PROGRESS_KEY = 'offline_lm_progress';
+const SESSION_KEY = 'offline_lm_sessions'; // sessionId -> реальное число слов уровня
+
+// Запоминаем, сколько слов реально в выданном уровне (для честного подсчёта звёзд).
+function rememberSessionTotal(sessionId: string, total: number): void {
+  try {
+    const m = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}') as Record<string, number>;
+    m[sessionId] = total;
+    // не даём разрастаться
+    const keys = Object.keys(m);
+    if (keys.length > 50) delete m[keys[0]];
+    localStorage.setItem(SESSION_KEY, JSON.stringify(m));
+  } catch {
+    /* ignore */
+  }
+}
+function sessionTotal(sessionId: string): number | null {
+  try {
+    const m = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}') as Record<string, number>;
+    return typeof m[sessionId] === 'number' ? m[sessionId] : null;
+  } catch {
+    return null;
+  }
+}
 
 interface StoredLevel {
   stars: number;
@@ -96,6 +119,8 @@ export function offlineGetLevel(levelNumber: number): LevelModeLevelResponse {
   const { gridSize, timeLimitSeconds } = offlineLevelParams(levelNumber);
   const picked = pickWords(levelNumber);
   const prev = loadProgress()[String(levelNumber)];
+  const sessionId = makeSessionId();
+  rememberSessionTotal(sessionId, picked.length);
   return {
     levelNumber,
     words: picked.map((w, i) => ({ bur: w.bur, rus: w.ru, wordId: `offline-${levelNumber}-${i}` })),
@@ -104,7 +129,7 @@ export function offlineGetLevel(levelNumber: number): LevelModeLevelResponse {
     maxStars: 3,
     currentStars: prev?.stars ?? null,
     bestTimeSeconds: prev?.bestTimeSeconds ?? null,
-    sessionId: makeSessionId(),
+    sessionId,
     sessionExpiresAt: new Date(Date.now() + 3600_000).toISOString(),
     isManual: false,
   };
@@ -140,14 +165,17 @@ export function offlineSubmit(
   body: LevelModeSubmitRequest,
 ): LevelModeSubmitResponse {
   const { timeLimitSeconds } = offlineLevelParams(levelNumber);
-  // Реальное число слов уровня берём не из нового сэмпла, а из переданных found + missed нельзя — поэтому
-  // считаем по факту: всё что нашли. Total оцениваем по wordCount уровня.
-  const wordsTotal = offlineLevelParams(levelNumber).wordCount;
+  // Честный total — реальное число слов выданного уровня (по sessionId), а не теоретический wordCount.
+  // Так избегаем hard-lock, когда генератор сетки разместил меньше слов, чем планировалось.
+  const wordsTotal = sessionTotal(body.sessionId) ?? offlineLevelParams(levelNumber).wordCount;
   const found = Array.isArray(body.foundWords) ? body.foundWords.length : 0;
-  const allFound = found >= wordsTotal;
+  const ratio = wordsTotal > 0 ? found / wordsTotal : 0;
   const t = body.timeSeconds ?? timeLimitSeconds;
+  // Полное прохождение → 1–3 звезды по времени; частичное (≥60%) → 1 звезда (прогрессия не застревает).
   let earnedStars = 0;
+  const allFound = ratio >= 1;
   if (allFound) earnedStars = t < timeLimitSeconds * 0.5 ? 3 : t < timeLimitSeconds ? 2 : 1;
+  else if (ratio >= 0.6) earnedStars = 1;
 
   const map = loadProgress();
   const key = String(levelNumber);

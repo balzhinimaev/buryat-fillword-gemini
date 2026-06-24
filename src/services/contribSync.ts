@@ -24,7 +24,10 @@ export interface QueueItem {
   serverId?: string;
   state: SyncState;
   syncedAt?: string;
+  attempts?: number; // неудачные попытки push (после лимита помечаем rejected, не ретраим)
 }
+
+const MAX_PUSH_ATTEMPTS = 3;
 
 function rand(n: number): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -139,12 +142,15 @@ export async function syncQueue(): Promise<SyncSummary> {
   const now = new Date().toISOString();
 
   for (const item of q) {
+    // Уже отправленные/отклонённые слова заново не пушим (кроме pull статуса по serverId).
+    if (item.state === 'rejected' && !item.serverId) continue;
     try {
       if (!item.serverId) {
         const res = await createWord(item.data);
         item.serverId = res._id;
         item.state = res.status === 'verified' ? 'verified' : res.status === 'rejected' ? 'rejected' : 'synced';
         item.syncedAt = now;
+        item.attempts = 0;
         pushed++;
       } else {
         const detail = await getWordDetail(item.serverId);
@@ -158,6 +164,11 @@ export async function syncQueue(): Promise<SyncSummary> {
     } catch (e) {
       console.log('sync item failed', item.data.bur, e);
       failed++;
+      if (!item.serverId) {
+        item.attempts = (item.attempts ?? 0) + 1;
+        // После лимита попыток считаем слово непринятым сервером (дубликат/невалидно) — не ретраим.
+        if (item.attempts >= MAX_PUSH_ATTEMPTS) item.state = 'rejected';
+      }
     }
     saveQueue(q); // инкрементально, чтобы не терять прогресс при обрыве
   }
