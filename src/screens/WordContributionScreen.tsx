@@ -37,6 +37,8 @@ import {
 } from '../services/api';
 import { WordVerificationPanel } from '../components/WordVerificationPanel';
 import { WelcomeScreen, AddWordForm, StatsView, type Tab } from '../components/contribution';
+import { OFFLINE } from '../config/offline';
+import { submitWordOfflineAware, syncQueue, queueStats } from '../services/contribSync';
 
 interface Props {
   store: GameStore;
@@ -62,6 +64,23 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
   
   useBackButton(() => goBack());
   const [activeTab, setActiveTab] = useState<Tab>('add');
+
+  // Офлайн-синхронизация раздела (очередь выгрузки слов)
+  const [qstats, setQstats] = useState(() => queueStats());
+  const [syncingQ, setSyncingQ] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const handleSyncQueue = async () => {
+    setSyncingQ(true);
+    setSyncMsg('');
+    try {
+      const r = await syncQueue();
+      setQstats(queueStats());
+      if (!r.ok) setSyncMsg(r.reason === 'offline' ? 'нет сети' : 'не удалось войти');
+      else setSyncMsg(`отправлено +${r.pushed}, обновлено ${r.pulled}${r.failed ? `, ошибок ${r.failed}` : ''}`);
+    } finally {
+      setSyncingQ(false);
+    }
+  };
   
   // Категории из API
   const [apiCategories, setApiCategories] = useState<ApiCategory[]>([]);
@@ -380,8 +399,35 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
                     </div>
                   </div>
                   
-                  <AddWordForm 
-                    onSubmit={createWord}
+                  {OFFLINE && (
+                    <div className="mb-3 p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-3">
+                      <div className="text-sm">
+                        <div className="font-medium">Синхронизация словаря</div>
+                        <div className="opacity-70">
+                          {qstats.pending} в очереди · {qstats.synced} отправлено
+                          {syncMsg ? ` · ${syncMsg}` : ''}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSyncQueue}
+                        disabled={syncingQ}
+                        className="px-3 py-2 rounded-lg bg-amber-500 text-white text-sm font-medium disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {syncingQ ? 'Синхронизация…' : 'Синхронизировать'}
+                      </button>
+                    </div>
+                  )}
+                  <AddWordForm
+                    onSubmit={
+                      OFFLINE
+                        ? async (d) => {
+                            const r = await submitWordOfflineAware(d);
+                            setQstats(queueStats());
+                            return r;
+                          }
+                        : createWord
+                    }
                     categories={apiCategories}
                     categoriesLoading={categoriesLoading}
                     dialects={apiDialects}

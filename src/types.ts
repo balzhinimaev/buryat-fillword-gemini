@@ -157,6 +157,9 @@ export interface ContributedWord {
   verifications: string[]; // id пользователей, подтвердивших слово
   flags: string[]; // id пользователей, отметивших как неправильное
   notes?: string; // заметки от модератора
+  serverId?: string; // _id слова на сервере после успешной выгрузки (push)
+  syncedAt?: string; // ISO-время последней синхронизации
+  serverStatus?: ContributionStatus; // статус, подтянутый с сервера (pull)
 }
 
 export interface Contributor {

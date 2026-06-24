@@ -686,6 +686,23 @@ export async function telegramAuth(initData: string): Promise<AuthResponse> {
   return response;
 }
 
+// Регистрация аккаунта по email/паролю (используется для тихого per-device аккаунта офлайн-синка)
+export async function registerDeviceAccount(
+  email: string,
+  password: string,
+  name: string,
+): Promise<{ access_token: string; refresh_token: string; _id: string }> {
+  const response = await apiRequest<{ access_token: string; refresh_token: string; _id: string }>(
+    '/auth/register',
+    { method: 'POST', body: JSON.stringify({ email, password, name }) },
+  );
+  setStoredTokens({
+    access_token: response.access_token,
+    refresh_token: response.refresh_token,
+  });
+  return response;
+}
+
 // Запрос OTP кода на email
 export async function requestEmailOtp(email: string): Promise<EmailOtpRequestResponse> {
   return apiRequest<EmailOtpRequestResponse>('/auth/otp/request', {
