@@ -1,7 +1,7 @@
 // src/App.tsx
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGameStore } from './store/gameStore';
-import { useMemo, useEffect, useRef, lazy, Suspense } from 'react';
+import { useMemo, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
 import { getTheme } from './theme';
 import { TelegramThemeSync } from './components/TelegramThemeSync';
@@ -13,6 +13,8 @@ import { extractStartAppPayload, parseStartAppIntent } from './utils/startapp';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { useTelegram } from './hooks/useTelegram';
 import { OFFLINE } from './config/offline';
+import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
+import { notifyReady, checkOtaUpdate } from './services/otaUpdate';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./screens/MainMenu'));
@@ -67,6 +69,15 @@ export default function App() {
   const { state: authState, refreshUser } = useAuth();
   const { isTelegram } = useTelegram();
   const startupFlowCheckedRef = useRef(false);
+  const [apkUpdate, setApkUpdate] = useState<ApkUpdateInfo | null>(null);
+
+  // Обновления: подтверждаем рабочий бандл (capgo), проверяем OTA веб-обновление
+  // и наличие нового APK. Всё мягко падает в офлайне.
+  useEffect(() => {
+    notifyReady();
+    checkOtaUpdate();
+    checkApkUpdate().then(setApkUpdate).catch(() => {});
+  }, []);
 
   const startAppIntent = useMemo(() => {
     const telegramStartParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param ?? null;
@@ -375,6 +386,16 @@ export default function App() {
       <div 
         className={`min-h-[100dvh] w-full ${isTelegram ? 'max-w-md shadow-2xl' : `${isWebNarrow ? 'max-w-2xl' : 'max-w-6xl'} px-0 md:px-4 lg:px-6`} mx-auto overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
       >
+        {apkUpdate?.available && (
+          <a
+            href={apkUpdate.apkUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="block w-full text-center text-sm py-2 px-3 bg-amber-500 text-white font-medium"
+          >
+            🔄 Доступно обновление {apkUpdate.versionName} — скачать APK
+          </a>
+        )}
         <AnimatePresence mode="wait">
           <motion.div
             key={effectiveScreen}

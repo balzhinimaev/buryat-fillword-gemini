@@ -6,6 +6,12 @@ const config: CapacitorConfig = {
   appId: 'ru.burlive.app',
   appName: 'Burlive',
   webDir: 'dist',
+  plugins: {
+    // OTA веб-обновления в ручном режиме (проверку/применение делаем сами из otaUpdate.ts).
+    CapacitorUpdater: {
+      autoUpdate: false,
+    },
+  },
 };
 
 export default config;
