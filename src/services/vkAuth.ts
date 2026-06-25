@@ -11,10 +11,12 @@ export const VK_REDIRECT_URI = 'https://burlive.ru/auth/vk/callback';
 export const VK_CONFIGURED = VK_CLIENT_ID.length > 0;
 
 function authorizeUrl(): string {
+  // Без scope: для входа нужны только user_id + публичный профиль (users.get),
+  // им scope не требуется. scope=email вызывал invalid_request/invalid scope.
   return (
     `https://oauth.vk.com/authorize?client_id=${encodeURIComponent(VK_CLIENT_ID)}` +
     `&redirect_uri=${encodeURIComponent(VK_REDIRECT_URI)}` +
-    `&response_type=code&scope=email&display=mobile&v=5.199`
+    `&response_type=code&display=mobile&v=5.199`
   );
 }
 
