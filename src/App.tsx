@@ -18,7 +18,8 @@ import { notifyReady, checkOtaUpdate } from './services/otaUpdate';
 import { syncDictionary } from './services/offlineDict';
 import { Browser } from '@capacitor/browser';
 import { App as CapacitorApp } from '@capacitor/app';
-import { parseVkCode } from './services/vkAuth';
+import { Capacitor } from '@capacitor/core';
+import { parseVkCode, consumeWebVkCode } from './services/vkAuth';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./screens/MainMenu'));
@@ -92,7 +93,13 @@ export default function App() {
       // проверяем/применяем новый OTA-бандл. Порядок критичен для защиты от «кирпича».
       await notifyReady();
       checkOtaUpdate();
-      checkApkUpdate().then(setApkUpdate).catch(() => {});
+      // Баннер обновления APK — только в нативном приложении (в вебе бессмысленно).
+      if (Capacitor.isNativePlatform()) {
+        checkApkUpdate().then(setApkUpdate).catch(() => {});
+      }
+      // Веб-возврат VK OAuth: ?vk_code в URL → завершаем вход.
+      const webVkCode = consumeWebVkCode();
+      if (webVkCode) vkLogin(webVkCode);
       // В офлайн-сборке тихо докачиваем недостающие слова словаря (если есть сеть).
       if (OFFLINE) syncDictionary().catch(() => {});
     })();
