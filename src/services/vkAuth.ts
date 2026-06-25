@@ -6,8 +6,9 @@ import { Capacitor } from '@capacitor/core';
 
 const VK_CLIENT_ID = (import.meta.env.VITE_VK_CLIENT_ID as string) || '';
 // Один redirect_uri на оба флоу: callback-страница пробует deep-link (натив),
-// иначе кидает в /webapp/?vk_code=... (веб). Должен совпадать с настройкой VK-приложения.
-export const VK_REDIRECT_URI = 'https://burlive.ru/auth/vk/callback';
+// иначе кидает в burlive.ru/webapp/?vk_code=... (веб). Должен совпадать с настройкой VK-приложения.
+// Временно через anoname.ru — VK режет свежий burlive.ru как «вредоносный» (ложно).
+export const VK_REDIRECT_URI = 'https://anoname.ru/auth/vk/callback';
 export const VK_CONFIGURED = VK_CLIENT_ID.length > 0;
 
 function authorizeUrl(): string {
