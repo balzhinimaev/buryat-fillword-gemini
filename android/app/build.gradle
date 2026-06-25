@@ -40,7 +40,7 @@ android {
         applicationId "ru.burlive.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode releaseVersionCode ?: 1
+        versionCode releaseVersionCode ?: 2
         versionName releaseVersionName ?: "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -51,6 +51,14 @@ android {
     }
 
     signingConfigs {
+        // Фиксированный ключ для debug/sideload-сборок — чтобы APK обновлялся поверх
+        // предыдущего (иначе CI генерит новый debug-ключ каждый раз → "подпись не совпадает").
+        debug {
+            storeFile file('burlive-debug.keystore')
+            storePassword 'burlive123'
+            keyAlias 'burlive'
+            keyPassword 'burlive123'
+        }
         release {
             if (releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) {
                 storeFile file(releaseStoreFile)
@@ -62,6 +70,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
