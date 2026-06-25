@@ -24,6 +24,7 @@ import {
 } from '../services/api';
 import { useTelegram } from '../hooks/useTelegram';
 import { OFFLINE } from '../config/offline';
+import { takePkce, VK_REDIRECT_URI, type VkReturn } from '../services/vkAuth';
 
 export interface User {
   _id: string;
@@ -80,7 +81,7 @@ export interface AuthState {
 export interface AuthStore {
   state: AuthState;
   login: () => Promise<void>;
-  vkLogin: (code: string) => Promise<void>;
+  vkLogin: (ret: VkReturn) => Promise<void>;
   requestEmailOtp: (email: string) => Promise<EmailOtpRequestResponse>;
   verifyEmailOtp: (email: string, code: string) => Promise<void>;
   clearError: () => void;
@@ -262,11 +263,18 @@ export function useAuthStore(): AuthStore {
     }
   }, [initData]);
 
-  // Вход через VK: получаем code из OAuth-редиректа и обмениваем на наш JWT.
-  const vkLogin = useCallback(async (code: string) => {
+  // Вход через VK ID: code+device_id из редиректа + сохранённый code_verifier (PKCE) → наш JWT.
+  const vkLogin = useCallback(async (ret: VkReturn) => {
     setState(prev => ({ ...prev, isLoading: true, isCheckingSession: false, error: null }));
     try {
-      const response: AuthResponse = await vkAuth(code);
+      const codeVerifier = takePkce(ret.state);
+      if (!codeVerifier) throw new Error('Сессия VK устарела, попробуйте снова');
+      const response: AuthResponse = await vkAuth({
+        code: ret.code,
+        codeVerifier,
+        deviceId: ret.deviceId,
+        redirectUri: VK_REDIRECT_URI,
+      });
       let user: User = mapAuthResponseToUser(response);
       try {
         const me = await getMe();

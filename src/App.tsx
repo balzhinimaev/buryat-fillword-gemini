@@ -19,7 +19,7 @@ import { syncDictionary } from './services/offlineDict';
 import { Browser } from '@capacitor/browser';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { parseVkCode, consumeWebVkCode } from './services/vkAuth';
+import { parseVkReturn, consumeWebVkReturn } from './services/vkAuth';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./screens/MainMenu'));
@@ -97,9 +97,9 @@ export default function App() {
       if (Capacitor.isNativePlatform()) {
         checkApkUpdate().then(setApkUpdate).catch(() => {});
       }
-      // Веб-возврат VK OAuth: ?vk_code в URL → завершаем вход.
-      const webVkCode = consumeWebVkCode();
-      if (webVkCode) vkLogin(webVkCode);
+      // Веб-возврат VK ID: ?vk_code+vk_device_id в URL → завершаем вход.
+      const webVk = consumeWebVkReturn();
+      if (webVk) vkLogin(webVk);
       // В офлайн-сборке тихо докачиваем недостающие слова словаря (если есть сеть).
       if (OFFLINE) syncDictionary().catch(() => {});
     })();
@@ -108,10 +108,10 @@ export default function App() {
   // VK OAuth deep-link: ru.burlive.app://vk?code=... → завершаем вход.
   useEffect(() => {
     const subPromise = CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
-      const code = parseVkCode(url);
-      if (!code) return;
+      const ret = parseVkReturn(url);
+      if (!ret) return;
       try { await Browser.close(); } catch { /* ignore */ }
-      vkLogin(code);
+      vkLogin(ret);
     });
     return () => { subPromise.then((s) => s.remove()).catch(() => {}); };
   }, [vkLogin]);

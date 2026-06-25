@@ -676,11 +676,16 @@ async function apiRequest<T>(
   return response.json();
 }
 
-// Авторизация через VK (web OAuth code-flow) — для нативного Android-приложения
-export async function vkAuth(code: string, redirectUri?: string): Promise<AuthResponse> {
+// Авторизация через VK ID (OAuth 2.1, PKCE) — натив и веб
+export async function vkAuth(params: {
+  code: string;
+  codeVerifier: string;
+  deviceId: string;
+  redirectUri: string;
+}): Promise<AuthResponse> {
   const response = await apiRequest<AuthResponse>('/auth/vk', {
     method: 'POST',
-    body: JSON.stringify({ code, redirectUri }),
+    body: JSON.stringify(params),
   });
   setStoredTokens({
     access_token: response.access_token,
