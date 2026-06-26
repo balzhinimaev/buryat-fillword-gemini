@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
     }
   },
   preview: {
-    allowedHosts: ['burlive.ru', 'www.burlive.ru'],
+    allowedHosts: ['burlive.ru', 'www.burlive.ru', 'buryat-game.ru', 'www.buryat-game.ru'],
   },
   }
 })
