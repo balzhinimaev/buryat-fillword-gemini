@@ -5,8 +5,8 @@ import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 
 const VK_CLIENT_ID = (import.meta.env.VITE_VK_CLIENT_ID as string) || '';
-// Временно через anoname.ru — VK режет свежий burlive.ru. Должен совпадать с Trusted Redirect URL в VK ID.
-export const VK_REDIRECT_URI = 'https://anoname.ru/auth/vk/callback';
+// Канонический домен. Должен совпадать с Trusted Redirect URL в VK ID (app 54653349).
+export const VK_REDIRECT_URI = 'https://buryat-game.ru/auth/vk/callback';
 export const VK_CONFIGURED = VK_CLIENT_ID.length > 0;
 
 const AUTHORIZE_URL = 'https://id.vk.com/authorize';
