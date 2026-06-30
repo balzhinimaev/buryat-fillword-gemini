@@ -1,5 +1,5 @@
 // src/screens/LevelsScreen.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star, ArrowLeft, Layers, Lock, Clock, Hash, RefreshCw, Sparkles } from 'lucide-react';
 import { CategoryCard, cn } from '../components/ui';
@@ -28,28 +28,13 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   const { theme } = useTheme();
   const [showModulesChapter, setShowModulesChapter] = useState(state.campaignLandingView === 'modules');
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
-  const entryLandingViewRef = useRef(state.campaignLandingView);
 
+  // Единая предсказуемая навигация «назад»:
+  //  • внутри модуля (открыт список его уровней) → возвращаемся к списку модулей;
+  //  • на списке модулей или в классическом виде → выходим на предыдущий экран (меню/выбор режима).
   const handleBack = useCallback(() => {
-    if (showModulesChapter && selectedModuleId) {
+    if (selectedModuleId) {
       setSelectedModuleId(null);
-      setCampaignPreferredModuleId(null);
-      return;
-    }
-
-    if (showModulesChapter) {
-      // Если пользователь зашёл в экран сразу через кнопку «Спецмодули»,
-      // ожидаемое поведение back — выйти на предыдущий экран (выбор режима),
-      // а не переключать его на «Первую главу».
-      if (entryLandingViewRef.current === 'modules') {
-        setCampaignLandingView(null);
-        setCampaignPreferredModuleId(null);
-        goBack();
-        return;
-      }
-
-      setShowModulesChapter(false);
-      setCampaignLandingView('chapters');
       setCampaignPreferredModuleId(null);
       return;
     }
@@ -62,7 +47,6 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     selectedModuleId,
     setCampaignLandingView,
     setCampaignPreferredModuleId,
-    showModulesChapter,
   ]);
 
   useBackButton(handleBack);
