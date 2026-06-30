@@ -12,6 +12,12 @@ import {
   offlineGetCategories,
   offlineWordsStats,
 } from './offlineDict';
+import {
+  offlineGetCampaignOverview,
+  offlineGetCampaignLevel,
+  offlineStartCampaignLevel,
+  offlineSubmitCampaignLevel,
+} from './offlineCampaign';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://burlive.ru/api';
 
@@ -1105,14 +1111,17 @@ export interface CampaignLevelResultResponse extends ExtensibleRecord {
 }
 
 export async function getCampaignOverview(): Promise<CampaignOverviewResponse> {
+  if (OFFLINE) return offlineGetCampaignOverview();
   return apiRequest<CampaignOverviewResponse>('/campaign/overview', { method: 'GET' });
 }
 
 export async function getCampaignLevel(slug: string): Promise<CampaignLevelResponse> {
+  if (OFFLINE) return offlineGetCampaignLevel(slug);
   return apiRequest<CampaignLevelResponse>(`/campaign/level/${encodeURIComponent(slug)}`, { method: 'GET' });
 }
 
 export async function startCampaignLevel(slug: string): Promise<CampaignLevelStartResponse> {
+  if (OFFLINE) return offlineStartCampaignLevel(slug);
   return apiRequest<CampaignLevelStartResponse>(`/campaign/level/${encodeURIComponent(slug)}/start`, { method: 'POST' });
 }
 
@@ -1120,6 +1129,7 @@ export async function submitCampaignLevel(
   slug: string,
   body: CampaignSubmitLevelResultRequest
 ): Promise<CampaignLevelResultResponse> {
+  if (OFFLINE) return offlineSubmitCampaignLevel(slug, body);
   return apiRequest<CampaignLevelResultResponse>(`/campaign/level/${encodeURIComponent(slug)}/submit`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -1127,6 +1137,7 @@ export async function submitCampaignLevel(
 }
 
 export async function trackCampaignModuleOpened(moduleId: string, source?: string): Promise<{ ok: true }> {
+  if (OFFLINE) return { ok: true };
   return apiRequest<{ ok: true }>(`/campaign/module/${encodeURIComponent(moduleId)}/open`, {
     method: 'POST',
     body: JSON.stringify(source ? { source } : {}),
@@ -1137,6 +1148,7 @@ export async function trackCampaignPaywallShown(payload?: {
   context?: string;
   source?: string;
 }): Promise<{ ok: true }> {
+  if (OFFLINE) return { ok: true };
   return apiRequest<{ ok: true }>('/campaign/paywall/shown', {
     method: 'POST',
     body: JSON.stringify(payload ?? {}),
