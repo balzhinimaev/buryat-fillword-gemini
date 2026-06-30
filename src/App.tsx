@@ -16,6 +16,7 @@ import { OFFLINE } from './config/offline';
 import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
 import { notifyReady, checkOtaUpdate } from './services/otaUpdate';
 import { syncDictionary } from './services/offlineDict';
+import { syncCampaigns } from './services/offlineCampaign';
 import { Browser } from '@capacitor/browser';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -100,8 +101,11 @@ export default function App() {
       // Веб-возврат VK ID: ?vk_code+vk_device_id в URL → завершаем вход.
       const webVk = consumeWebVkReturn();
       if (webVk) vkLogin(webVk);
-      // В офлайн-сборке тихо докачиваем недостающие слова словаря (если есть сеть).
-      if (OFFLINE) syncDictionary().catch(() => {});
+      // В офлайн-сборке тихо докачиваем свежий контент (словарь + кампании), если есть сеть.
+      if (OFFLINE) {
+        syncDictionary().catch(() => {});
+        syncCampaigns().catch(() => {});
+      }
     })();
   }, []);
 

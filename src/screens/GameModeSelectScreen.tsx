@@ -135,8 +135,9 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
     };
   }, [campaignOverview, state.stats.totalStars]);
 
-  const firstChapterStarsText = `${segmentedCampaignProgress.classic.earnedStars}/${segmentedCampaignProgress.classic.totalStars}`;
-  const firstChapterProgressPercent = segmentedCampaignProgress.classic.progressPercent;
+  // «Первая глава» теперь ведёт в список модулей (весь контент там), поэтому и прогресс берём модульный.
+  const firstChapterStarsText = `${segmentedCampaignProgress.modules.earnedStars}/${segmentedCampaignProgress.modules.totalStars}`;
+  const firstChapterProgressPercent = segmentedCampaignProgress.modules.progressPercent;
 
   const modulesStarsText = `${segmentedCampaignProgress.modules.earnedStars}/${segmentedCampaignProgress.modules.totalStars}`;
   const modulesProgressPercent = segmentedCampaignProgress.modules.progressPercent;
@@ -638,7 +639,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 return;
               }
               trackModeSelectedFromMenu('campaign_chapters');
-              setCampaignLandingView('chapters');
+              setCampaignLandingView('modules');
               navigate('levels');
             }}
             className="relative w-full p-4 rounded-2xl overflow-hidden group text-left"
@@ -694,8 +695,8 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
           </motion.button>
         </motion.div>
 
-        {/* Тематические модули — отдельная глава */}
-        {thematicModulesCount > 0 && (
+        {/* Тематические модули — объединены в «Первую главу» выше (отдельный тайл скрыт, чтобы не дублировать). */}
+        {false && thematicModulesCount > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

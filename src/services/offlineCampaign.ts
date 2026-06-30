@@ -22,11 +22,43 @@ interface BLesson {
 }
 interface BChapter { id: string; title: string; titleBur?: string; order: number; requiredStars: number; lessons: BLesson[] }
 
-const CHAPTERS = bundled as unknown as BChapter[];
-const allLessons = (): BLesson[] => CHAPTERS.flatMap(c => c.lessons);
-
 const LEVELS_KEY = 'offline_campaign_levels';
 const SESS_KEY = 'offline_campaign_sessions';
+const CONTENT_KEY = 'offline_campaign_content'; // скачанный с сервера снимок (приоритет над вшитым)
+const SYNC_BASE = 'https://buryat-game.ru/api';
+
+// Источник данных: скачанный кэш (если валиден и новее), иначе вшитый снимок.
+function getChapters(): BChapter[] {
+  try {
+    const raw = localStorage.getItem(CONTENT_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (Array.isArray(data) && data.length > 0 && data.every((c: BChapter) => Array.isArray(c.lessons) && c.lessons.length > 0)) {
+        return data as BChapter[];
+      }
+    }
+  } catch { /* битый кэш — игнорируем */ }
+  return bundled as unknown as BChapter[];
+}
+const allLessons = (): BLesson[] => getChapters().flatMap(c => c.lessons);
+
+// Скачать свежий контент кампаний при наличии сети. Вызывать на старте (если онлайн).
+// Перезаписывает кэш ТОЛЬКО валидными данными — офлайн/ошибка не ломают существующий контент.
+export async function syncCampaigns(): Promise<{ ok: boolean; chapters: number }> {
+  try {
+    const r = await fetch(`${SYNC_BASE}/campaign/content`, { cache: 'no-store' });
+    if (!r.ok) return { ok: false, chapters: 0 };
+    const data = await r.json();
+    const valid = Array.isArray(data) && data.length > 0 &&
+      data.every((c: BChapter) => Array.isArray(c.lessons) && c.lessons.length > 0 &&
+        c.lessons.every(l => Array.isArray(l.mapVariants) && l.mapVariants.length > 0 && Array.isArray(l.words) && l.words.length > 0));
+    if (!valid) return { ok: false, chapters: 0 };
+    localStorage.setItem(CONTENT_KEY, JSON.stringify(data));
+    return { ok: true, chapters: (data as BChapter[]).length };
+  } catch {
+    return { ok: false, chapters: 0 };
+  }
+}
 
 interface LevelRec { stars: number; bestTimeSeconds?: number; attempts: number; firstCompletedAt?: string }
 
@@ -50,7 +82,7 @@ export function offlineGetCampaignOverview(): CampaignOverviewResponse {
   const levels = loadLevels();
   const totalStars = totalEarned(levels);
 
-  const modules: CampaignOverviewModule[] = CHAPTERS.map(ch => {
+  const modules: CampaignOverviewModule[] = getChapters().map(ch => {
     const lvls: CampaignOverviewLevel[] = ch.lessons.map(l => {
       const rec = levels[l.slug];
       return {

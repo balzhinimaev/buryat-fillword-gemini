@@ -769,15 +769,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
               <div className="text-left">
                 <div className={cn("font-semibold", styles.buttons.text.primary)}>Статистика</div>
               </div>
-
-              <div className={cn(
-                "absolute bottom-3 right-3 z-20 px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide border",
-                isDark
-                  ? "bg-violet-500/20 text-violet-300 border-violet-400/25"
-                  : "bg-violet-100 text-violet-700 border-violet-200"
-              )}>
-                Бета
-              </div>
             </motion.button>
 
             <motion.button
