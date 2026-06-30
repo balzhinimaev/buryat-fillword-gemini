@@ -269,6 +269,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 
     try {
       const overview = await api.getCampaignOverview();
+
+      // Весь обучающий контент живёт в тематических модулях (главах), а не в
+      // плоских тирах сложности (categories). Если модули есть — открываем их список.
+      if ((overview.modules?.length ?? 0) > 0) {
+        setCampaignLandingView('modules');
+        navigate('levels');
+        return;
+      }
+
       const firstUnlockedLevel = overview.categories
         ?.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
         .flatMap((category) => [...(category.levels ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
