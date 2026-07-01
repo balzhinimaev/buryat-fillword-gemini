@@ -12,8 +12,10 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
-  Gauge
+  Gauge,
+  LogOut
 } from 'lucide-react';
+import { OFFLINE } from '../config/offline';
 import { Modal, cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
@@ -32,7 +34,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
   const { state, navigate, goBack, updateSettings, resetProgress } = store;
   const { settings } = state;
   const { theme, isDark } = useTheme();
-  const { state: authState, setUserName } = useAuth();
+  const { state: authState, setUserName, logout } = useAuth();
+
+  // Профиль: способ входа + признак реального аккаунта
+  const hasToken = (() => {
+    try { return !!JSON.parse(localStorage.getItem('auth_tokens') || 'null')?.access_token; } catch { return false; }
+  })();
+  const isLoggedIn = hasToken || !!authState.user?.photoUrl || !!authState.user?.telegramId;
+  const providerLabel = authState.user?.telegramId
+    ? 'Вход через Telegram'
+    : (authState.user?.photoUrl ? 'Вход через ВКонтакте' : 'Локальный профиль (офлайн)');
+  const handleLogout = () => {
+    if (!window.confirm('Выйти из аккаунта? Локальный прогресс останется на устройстве.')) return;
+    logout();
+    try { localStorage.removeItem('auth_tokens'); } catch { /* ignore */ }
+    // В офлайн-сборке перезагружаем, чтобы восстановить гостевую сессию.
+    if (OFFLINE) window.location.reload();
+  };
   
   useBackButton(() => goBack());
   
@@ -123,6 +141,50 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
 
       {/* Content */}
       <main className="flex-1 p-4 space-y-4 relative z-10">
+        {/* Профиль */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={cn(
+            "rounded-2xl p-4",
+            isDark
+              ? cn(theme.backgrounds.card, "border", theme.borders.subtle)
+              : "bg-white shadow-sm border border-stone-100"
+          )}
+        >
+          <div className="flex items-center gap-3">
+            {authState.user?.photoUrl ? (
+              <img src={authState.user.photoUrl} alt="" className="w-14 h-14 rounded-2xl object-cover" />
+            ) : (
+              <div className={cn(
+                "w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold",
+                isDark ? "bg-terra-500/20 text-terra-300" : "bg-terra-100 text-terra-700"
+              )}>
+                {(effectivePlayerName || 'И').slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className={cn("font-bold text-base truncate", theme.text.primary)}>
+                {effectivePlayerName || 'Игрок'}
+              </div>
+              <div className={cn("text-xs", theme.text.muted)}>{providerLabel}</div>
+            </div>
+          </div>
+          {isLoggedIn && (
+            <button
+              onClick={handleLogout}
+              className={cn(
+                "mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-colors",
+                isDark
+                  ? "bg-red-500/15 text-red-300 border border-red-400/20 hover:bg-red-500/25"
+                  : "bg-red-50 text-red-600 border border-red-100 hover:bg-red-100"
+              )}
+            >
+              <LogOut size={16} /> Выйти
+            </button>
+          )}
+        </motion.div>
+
         {/* Player Name */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
