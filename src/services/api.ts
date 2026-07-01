@@ -594,6 +594,13 @@ async function apiRequest<T>(
   options: RequestInit = {},
   isRetry = false
 ): Promise<T> {
+  // Полный офлайн: в офлайн-сборке НЕ ходим в сеть для непереехваченных вызовов —
+  // мгновенно отдаём офлайн-ошибку (без "Failed to fetch" и ожидания таймаута).
+  // Исключение — /auth/* (вход через VK/Telegram нужен онлайн, для синка прогресса после входа).
+  if (OFFLINE && !endpoint.startsWith('/auth/')) {
+    throw { statusCode: 0, message: 'offline', error: 'offline' } as ApiError;
+  }
+
   const tokens = getStoredTokens();
   
   const headers: HeadersInit = {
@@ -2084,6 +2091,9 @@ export async function deleteAdminLevel(levelNumber: number): Promise<void> {
 }
 
 export async function getLevelDifficultyThresholds(): Promise<LevelDifficultyThresholds> {
+  if (OFFLINE) {
+    return { mediumAvgAttempts: 3, hardAvgAttempts: 6, mediumAvgBestTimeSeconds: 90, hardAvgBestTimeSeconds: 180 };
+  }
   return apiRequest<LevelDifficultyThresholds>('/level-mode/settings/level-difficulty-thresholds', {
     method: 'GET',
   });
