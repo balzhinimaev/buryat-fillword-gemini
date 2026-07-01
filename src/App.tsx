@@ -14,7 +14,7 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 import { useTelegram } from './hooks/useTelegram';
 import { OFFLINE } from './config/offline';
 import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
-import { notifyReady, checkOtaAvailable, applyOta, type OtaInfo } from './services/otaUpdate';
+import { notifyReady, revertToBuiltin, applyOta, type OtaInfo } from './services/otaUpdate';
 import { syncDictionary } from './services/offlineDict';
 import { syncCampaigns } from './services/offlineCampaign';
 import { syncCampaignProgress } from './services/offlineSync';
@@ -108,8 +108,9 @@ export default function App() {
       // Сначала подтверждаем, что ТЕКУЩИЙ бандл рабочий (иначе capgo откатит) — и только потом
       // проверяем/применяем новый OTA-бандл. Порядок критичен для защиты от «кирпича».
       await notifyReady();
-      // Проверяем OTA и показываем баннер с кнопкой «Обновить» (применение — по нажатию, с прогрессом).
-      checkOtaAvailable().then(setOtaInfo).catch(() => {});
+      // Без OTA-магии: сбрасываем любой ранее применённый OTA-бандл и всегда используем
+      // встроенный в APK. Обновления — только через установку нового APK.
+      revertToBuiltin();
       // Баннер обновления APK — только в нативном приложении (в вебе бессмысленно).
       if (Capacitor.isNativePlatform()) {
         checkApkUpdate().then(setApkUpdate).catch(() => {});

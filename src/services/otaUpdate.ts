@@ -16,6 +16,16 @@ export async function notifyReady(): Promise<void> {
   }
 }
 
+// Сброс к ВСТРОЕННОМУ в APK бандлу: отменяет любой ранее применённый OTA-бандл.
+// Используется в сборке «без OTA-магии» — приложение всегда грузит то, что зашито в APK.
+export async function revertToBuiltin(): Promise<void> {
+  try {
+    await CapacitorUpdater.reset();
+  } catch {
+    /* ignore */
+  }
+}
+
 // Проверка доступности OTA-обновления (БЕЗ применения). Возвращает info или null.
 export async function checkOtaAvailable(): Promise<OtaInfo | null> {
   if (!Capacitor.isNativePlatform()) return null;
