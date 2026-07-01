@@ -598,7 +598,7 @@ async function apiRequest<T>(
   // мгновенно отдаём офлайн-ошибку (без "Failed to fetch" и ожидания таймаута).
   // Исключение — /auth/* (вход через VK/Telegram нужен онлайн, для синка прогресса после входа).
   if (OFFLINE && !endpoint.startsWith('/auth/')) {
-    throw { statusCode: 0, message: 'offline', error: 'offline' } as ApiError;
+    throw { statusCode: 0, message: 'Нет подключения к интернету', error: 'offline' } as ApiError;
   }
 
   const tokens = getStoredTokens();
