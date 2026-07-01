@@ -5,6 +5,8 @@ import { APP_VERSION_NAME } from '../config/version';
 
 const OTA_MANIFEST_URL = 'https://burlive.ru/app/ota.json';
 
+export interface OtaInfo { version: string; url: string; checksum: string; }
+
 // Подтверждаем, что текущий бандл рабочий — иначе capgo откатит на предыдущий.
 export async function notifyReady(): Promise<void> {
   try {
@@ -14,34 +16,46 @@ export async function notifyReady(): Promise<void> {
   }
 }
 
-// Проверка и применение OTA-бандла. На лету подменяет веб-ассеты и перезагружает webview.
-export async function checkOtaUpdate(): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return;
+// Проверка доступности OTA-обновления (БЕЗ применения). Возвращает info или null.
+export async function checkOtaAvailable(): Promise<OtaInfo | null> {
+  if (!Capacitor.isNativePlatform()) return null;
   try {
     const r = await fetch(OTA_MANIFEST_URL, { cache: 'no-store' });
-    if (!r.ok) return;
-    const m = (await r.json()) as { version?: string; url?: string; checksum?: string };
-    if (!m.version || !m.url) return;
-    // Без контрольной суммы бандл НЕ применяем — защита от подмены кода (S1).
-    if (!m.checksum) {
-      console.warn('OTA: манифест без checksum — пропуск (целостность не подтверждена)');
-      return;
-    }
+    if (!r.ok) return null;
+    const m = (await r.json()) as Partial<OtaInfo>;
+    // Без контрольной суммы бандл НЕ применяем — защита целостности (S1).
+    if (!m.version || !m.url || !m.checksum) return null;
 
     let current = '';
     try {
-      const cur = await CapacitorUpdater.current();
-      current = cur?.bundle?.version ?? '';
-    } catch {
-      /* ignore */
-    }
-    // Если на сервере та же версия, что встроена/установлена — ничего не делаем.
-    if (m.version === current || m.version === APP_VERSION_NAME) return;
+      current = (await CapacitorUpdater.current())?.bundle?.version ?? '';
+    } catch { /* ignore */ }
+    // Уже стоит эта версия (встроенная или ранее применённая) — обновлять нечего.
+    if (m.version === current || m.version === APP_VERSION_NAME) return null;
 
-    // download c checksum: capgo проверяет целостность и бросает исключение при несовпадении.
-    const bundle = await CapacitorUpdater.download({ url: m.url, version: m.version, checksum: m.checksum });
+    return { version: m.version, url: m.url, checksum: m.checksum };
+  } catch {
+    return null;
+  }
+}
+
+// Скачать и применить OTA с колбэком прогресса (0..100). set() перезагрузит webview.
+export async function applyOta(info: OtaInfo, onProgress?: (pct: number) => void): Promise<void> {
+  let handle: { remove: () => void } | undefined;
+  try {
+    handle = await CapacitorUpdater.addListener('download', (s: { percent?: number }) => {
+      if (typeof s.percent === 'number') {
+        onProgress?.(Math.max(0, Math.min(100, Math.round(s.percent))));
+      }
+    });
+  } catch { /* ignore */ }
+  try {
+    const bundle = await CapacitorUpdater.download({
+      url: info.url, version: info.version, checksum: info.checksum,
+    });
+    onProgress?.(100);
     await CapacitorUpdater.set(bundle); // применяет бандл и перезагружает webview
-  } catch (e) {
-    console.log('OTA check failed (offline?)', e);
+  } finally {
+    try { handle?.remove(); } catch { /* ignore */ }
   }
 }

@@ -14,7 +14,7 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 import { useTelegram } from './hooks/useTelegram';
 import { OFFLINE } from './config/offline';
 import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
-import { notifyReady, checkOtaUpdate } from './services/otaUpdate';
+import { notifyReady, checkOtaAvailable, applyOta, type OtaInfo } from './services/otaUpdate';
 import { syncDictionary } from './services/offlineDict';
 import { syncCampaigns } from './services/offlineCampaign';
 import { syncCampaignProgress } from './services/offlineSync';
@@ -78,6 +78,20 @@ export default function App() {
   const startupFlowCheckedRef = useRef(false);
   const [apkUpdate, setApkUpdate] = useState<ApkUpdateInfo | null>(null);
   const [updDismissed, setUpdDismissed] = useState(false);
+  const [otaInfo, setOtaInfo] = useState<OtaInfo | null>(null);
+  const [otaPct, setOtaPct] = useState<number | null>(null);
+  const [otaError, setOtaError] = useState(false);
+  const handleOtaUpdate = async () => {
+    if (!otaInfo || otaPct !== null) return;
+    setOtaError(false);
+    setOtaPct(0);
+    try {
+      await applyOta(otaInfo, setOtaPct); // set() перезагрузит webview — код ниже обычно не выполнится
+    } catch {
+      setOtaPct(null);
+      setOtaError(true);
+    }
+  };
   const openApkUpdate = async () => {
     if (!apkUpdate?.apkUrl) return;
     try {
@@ -94,7 +108,8 @@ export default function App() {
       // Сначала подтверждаем, что ТЕКУЩИЙ бандл рабочий (иначе capgo откатит) — и только потом
       // проверяем/применяем новый OTA-бандл. Порядок критичен для защиты от «кирпича».
       await notifyReady();
-      checkOtaUpdate();
+      // Проверяем OTA и показываем баннер с кнопкой «Обновить» (применение — по нажатию, с прогрессом).
+      checkOtaAvailable().then(setOtaInfo).catch(() => {});
       // Баннер обновления APK — только в нативном приложении (в вебе бессмысленно).
       if (Capacitor.isNativePlatform()) {
         checkApkUpdate().then(setApkUpdate).catch(() => {});
@@ -453,6 +468,42 @@ export default function App() {
       <div 
         className={`min-h-[100dvh] w-full ${isTelegram ? 'max-w-md shadow-2xl' : `${isWebNarrow ? 'max-w-2xl' : 'max-w-6xl'} px-0 md:px-4 lg:px-6`} mx-auto overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
       >
+        {otaInfo && (
+          <div className="w-full py-2 px-3 bg-emerald-600 text-white text-sm font-medium">
+            {otaPct === null ? (
+              <div className="flex items-center gap-2">
+                <span className="flex-1 text-center">
+                  {otaError
+                    ? '⚠️ Не удалось обновить — попробуйте ещё раз'
+                    : `🔄 Доступно обновление ${otaInfo.version}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleOtaUpdate}
+                  className="px-3 py-1 rounded-lg bg-white/25 font-semibold hover:bg-white/35"
+                >
+                  Обновить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOtaInfo(null)}
+                  aria-label="Скрыть"
+                  className="px-2 opacity-80 hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="text-center mb-1">Обновление… {otaPct}%</div>
+                <div className="h-1.5 bg-white/25 rounded-full overflow-hidden">
+                  <div className="h-full bg-white transition-all duration-200" style={{ width: `${otaPct}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {apkUpdate?.available && !updDismissed && (
           <div className="w-full flex items-center gap-2 py-2 px-3 bg-amber-500 text-white text-sm font-medium">
             <button type="button" onClick={openApkUpdate} className="flex-1 text-center underline-offset-2">
