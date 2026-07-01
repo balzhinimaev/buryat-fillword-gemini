@@ -17,6 +17,7 @@ import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
 import { notifyReady, checkOtaUpdate } from './services/otaUpdate';
 import { syncDictionary } from './services/offlineDict';
 import { syncCampaigns } from './services/offlineCampaign';
+import { syncCampaignProgress } from './services/offlineSync';
 import { Browser } from '@capacitor/browser';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -98,13 +99,19 @@ export default function App() {
       if (Capacitor.isNativePlatform()) {
         checkApkUpdate().then(setApkUpdate).catch(() => {});
       }
-      // Веб-возврат VK ID: ?vk_code+vk_device_id в URL → завершаем вход.
+      // Веб-возврат VK ID: ?vk_code+vk_device_id в URL → завершаем вход, затем синкаем прогресс.
       const webVk = consumeWebVkReturn();
-      if (webVk) vkLogin(webVk);
-      // В офлайн-сборке тихо докачиваем свежий контент (словарь + кампании), если есть сеть.
+      if (webVk) {
+        void Promise.resolve(vkLogin(webVk)).then(() => {
+          if (OFFLINE) syncCampaignProgress().catch(() => {});
+        });
+      }
+      // В офлайн-сборке тихо докачиваем свежий контент (словарь + кампании) и синкаем прогресс
+      // (если пользователь уже входил — есть токен), при наличии сети.
       if (OFFLINE) {
         syncDictionary().catch(() => {});
         syncCampaigns().catch(() => {});
+        syncCampaignProgress().catch(() => {});
       }
     })();
   }, []);
@@ -115,7 +122,9 @@ export default function App() {
       const ret = parseVkReturn(url);
       if (!ret) return;
       try { await Browser.close(); } catch { /* ignore */ }
-      vkLogin(ret);
+      await Promise.resolve(vkLogin(ret));
+      // после входа синкаем офлайн-прогресс в аккаунт
+      if (OFFLINE) syncCampaignProgress().catch(() => {});
     });
     return () => { subPromise.then((s) => s.remove()).catch(() => {}); };
   }, [vkLogin]);
