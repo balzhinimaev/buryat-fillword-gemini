@@ -17,10 +17,16 @@ export async function notifyReady(): Promise<void> {
 }
 
 // Сброс к ВСТРОЕННОМУ в APK бандлу: отменяет любой ранее применённый OTA-бандл.
-// Используется в сборке «без OTA-магии» — приложение всегда грузит то, что зашито в APK.
+// Используется в сборке «без OTA-магии». ВАЖНО: reset() перезагружает приложение и
+// промис не резолвится — поэтому вызываем ТОЛЬКО если активен не-встроенный бандл,
+// иначе на свежей установке будет бесконечный цикл перезагрузок.
 export async function revertToBuiltin(): Promise<void> {
   try {
-    await CapacitorUpdater.reset();
+    const cur = await CapacitorUpdater.current();
+    const id = cur?.bundle?.id;
+    if (id && id !== 'builtin') {
+      await CapacitorUpdater.reset(); // перезагрузит на встроенный; после — id='builtin', повтора не будет
+    }
   } catch {
     /* ignore */
   }
