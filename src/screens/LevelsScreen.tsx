@@ -26,7 +26,9 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     setCampaignPreferredModuleId,
   } = store;
   const { theme } = useTheme();
-  const [showModulesChapter, setShowModulesChapter] = useState(state.campaignLandingView === 'modules');
+  // Кампании показываем ТОЛЬКО как модули: классический вид (тиры сложности) всегда пуст,
+  // и переключение на него из-за campaignLandingView кидало «назад» на пустую главу.
+  const showModulesChapter = true;
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
 
   // Единая предсказуемая навигация «назад»:
@@ -101,13 +103,6 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     void loadOverview();
   }, [loadOverview]);
 
-  useEffect(() => {
-    const goModules = state.campaignLandingView === 'modules';
-    setShowModulesChapter(goModules);
-    if (!goModules) {
-      setSelectedModuleId(null);
-    }
-  }, [state.campaignLandingView]);
 
   const difficultySections = useMemo(() => {
     const cats = overview?.categories ?? [];
