@@ -18,6 +18,11 @@ import {
   offlineStartCampaignLevel,
   offlineSubmitCampaignLevel,
 } from './offlineCampaign';
+import {
+  offlineOnly, offlineStreak, offlineProjectStats, offlineUserStats,
+  offlineGlobalLeaderboard, offlineDailyLeaderboard, offlineKeepers, offlineDialects,
+  offlinePartsOfSpeech, offlinePending, offlineAnalyticsAck, offlineSettings, offlineMe,
+} from './offlineStubs';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://burlive.ru/api';
 
@@ -218,6 +223,7 @@ export interface UpdateOnboardingRequest {
 
 // Обновление имени
 export async function updateName(name: string): Promise<UserResponse> {
+  if (OFFLINE) return offlineOnly();
   return apiRequest<UserResponse>('/users/me/name', {
     method: 'PATCH',
     body: JSON.stringify({ name }),
@@ -245,11 +251,13 @@ export type ApiSettingsUpdate = Partial<ApiSettings>;
 
 // Получить текущие настройки
 export async function getSettings(): Promise<ApiSettings> {
+  if (OFFLINE) return offlineSettings();
   return apiRequest<ApiSettings>('/users/me/settings', { method: 'GET' });
 }
 
 // Обновить настройки (PATCH, частично)
 export async function patchSettings(data: ApiSettingsUpdate): Promise<ApiSettings> {
+  if (OFFLINE) return offlineSettings();
   return apiRequest<ApiSettings>('/users/me/settings', {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -757,6 +765,7 @@ export async function verifyEmailOtp(email: string, code: string): Promise<AuthR
 }
 
 export async function registerPushDevice(payload: PushDeviceRegisterRequest): Promise<void> {
+  if (OFFLINE) return undefined;
   await apiRequest('/push/devices/register', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -764,6 +773,7 @@ export async function registerPushDevice(payload: PushDeviceRegisterRequest): Pr
 }
 
 export async function unregisterPushDevice(token: string): Promise<void> {
+  if (OFFLINE) return undefined;
   await apiRequest('/push/devices/unregister', {
     method: 'POST',
     body: JSON.stringify({ token }),
@@ -793,6 +803,7 @@ export async function refreshToken(): Promise<RefreshResponse> {
 
 // Текущий пользователь
 export async function getMe(): Promise<MeResponse> {
+  if (OFFLINE) return offlineMe();
   return apiRequest<MeResponse>('/auth/me', { method: 'GET' });
 }
 
@@ -808,6 +819,7 @@ export function resolvePaywallEligibility(me?: MeResponse | null): boolean {
 
 // Выход
 export async function logout(): Promise<void> {
+  if (OFFLINE) return undefined;
   const tokens = getStoredTokens();
   
   if (tokens?.refresh_token) {
@@ -832,16 +844,19 @@ export async function getCategories(): Promise<ApiCategory[]> {
 
 // Получение диалектов
 export async function getDialects(): Promise<ApiDialect[]> {
+  if (OFFLINE) return offlineDialects();
   return apiRequest<ApiDialect[]>('/dialects', { method: 'GET' });
 }
 
 // Получение частей речи
 export async function getPartsOfSpeech(): Promise<ApiPartOfSpeech[]> {
+  if (OFFLINE) return offlinePartsOfSpeech();
   return apiRequest<ApiPartOfSpeech[]>('/parts-of-speech', { method: 'GET' });
 }
 
 // Создание нового слова
 export async function createWord(data: CreateWordRequest): Promise<CreateWordResponse> {
+  if (OFFLINE) return offlineOnly();
   return apiRequest<CreateWordResponse>('/words', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -850,6 +865,7 @@ export async function createWord(data: CreateWordRequest): Promise<CreateWordRes
 
 // Получение статистики проекта
 export async function getProjectStats(): Promise<ProjectStats> {
+  if (OFFLINE) return offlineProjectStats();
   return apiRequest<ProjectStats>('/stats', { method: 'GET' });
 }
 
@@ -917,31 +933,37 @@ export async function deleteComment(wordId: string, commentId: string): Promise<
 
 // Топ хранителей языка
 export async function getLanguageKeepersLeaderboard(): Promise<LanguageKeeperLeaderboardItem[]> {
+  if (OFFLINE) return offlineKeepers();
   return apiRequest<LanguageKeeperLeaderboardItem[]>('/words/keepers/leaderboard', { method: 'GET' });
 }
 
 // Получение личной статистики пользователя
 export async function getUserStats(): Promise<UserStats> {
+  if (OFFLINE) return offlineUserStats();
   return apiRequest<UserStats>('/users/me/stats', { method: 'GET' });
 }
 
 // Присоединиться к хранителям языка
 export async function joinLanguageKeepers(): Promise<UserResponse> {
+  if (OFFLINE) return offlineOnly();
   return apiRequest<UserResponse>('/users/me/join-keepers', { method: 'POST' });
 }
 
 // Покинуть хранителей языка
 export async function leaveLanguageKeepers(): Promise<UserResponse> {
+  if (OFFLINE) return offlineOnly();
   return apiRequest<UserResponse>('/users/me/leave-keepers', { method: 'POST' });
 }
 
 // Получение слов на проверке
 export async function getPendingWords(): Promise<PendingWord[]> {
+  if (OFFLINE) return offlinePending();
   return apiRequest<PendingWord[]>('/words/pending', { method: 'GET' });
 }
 
 // Голосование за слово
 export async function voteWord(data: VoteRequest): Promise<VoteResponse> {
+  if (OFFLINE) return offlineOnly();
   return apiRequest<VoteResponse>('/votes', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -950,6 +972,7 @@ export async function voteWord(data: VoteRequest): Promise<VoteResponse> {
 
 // Обновление онбординга
 export async function updateOnboarding(data: UpdateOnboardingRequest): Promise<UserResponse> {
+  if (OFFLINE) return offlineOnly();
   return apiRequest<UserResponse>('/users/me/onboarding', {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -1167,6 +1190,7 @@ export interface ActivityStreakResponse {
 }
 
 export async function getActivityStreak(recalculate = false): Promise<ActivityStreakResponse> {
+  if (OFFLINE) return offlineStreak();
   const params = new URLSearchParams();
   if (recalculate) params.set('recalculate', 'true');
 
@@ -1177,6 +1201,7 @@ export async function getActivityStreak(recalculate = false): Promise<ActivitySt
 }
 
 export async function trackActivity(type?: string): Promise<ActivityStreakResponse> {
+  if (OFFLINE) return offlineStreak();
   const params = new URLSearchParams();
   if (type) params.set('type', type);
 
@@ -1314,6 +1339,7 @@ export interface AnalyticsAdminEngagementResponse {
 }
 
 export async function trackAnalyticsEvents(events: AnalyticsEventInput[]): Promise<IngestAnalyticsEventsResponse> {
+  if (OFFLINE) return offlineAnalyticsAck();
   if (events.length === 0) {
     return { accepted: 0, inserted: 0, duplicates: 0 };
   }
@@ -1639,6 +1665,7 @@ export interface LeaderboardParams {
 }
 
 export async function getLeaderboard(params: LeaderboardParams = {}): Promise<LeaderboardResponse> {
+  if (OFFLINE) return offlineGlobalLeaderboard();
   const searchParams = new URLSearchParams();
   if (params.type) searchParams.set('type', params.type);
   if (params.period) searchParams.set('period', params.period);
@@ -1738,6 +1765,7 @@ export interface UserProfileResponse {
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfileResponse> {
+  if (OFFLINE) return offlineOnly();
   return apiRequest<UserProfileResponse>(`/users/${encodeURIComponent(userId)}/profile`, { method: 'GET' });
 }
 
@@ -2140,10 +2168,12 @@ export interface DailyWordSubmitResponse {
 }
 
 export async function getDailyWordToday(): Promise<DailyWordTodayResponse> {
+  if (OFFLINE) return offlineOnly();
   return apiRequest<DailyWordTodayResponse>('/daily-word/today', { method: 'GET' });
 }
 
 export async function submitDailyWord(body: DailyWordSubmitRequest): Promise<DailyWordSubmitResponse> {
+  if (OFFLINE) return offlineOnly();
   return apiRequest<DailyWordSubmitResponse>('/daily-word/today/submit', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -2170,6 +2200,7 @@ export interface DailyWordLeaderboardResponse {
 }
 
 export async function getDailyWordTodayLeaderboard(limit = 50): Promise<DailyWordLeaderboardResponse> {
+  if (OFFLINE) return offlineDailyLeaderboard();
   const params = new URLSearchParams({ limit: String(limit) });
   return apiRequest<DailyWordLeaderboardResponse>(`/daily-word/today/leaderboard?${params.toString()}`, {
     method: 'GET',

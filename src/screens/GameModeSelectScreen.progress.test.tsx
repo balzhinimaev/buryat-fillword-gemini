@@ -85,10 +85,7 @@ describe('GameModeSelectScreen segmented campaign progress', () => {
 
     await screen.findByText('Первая глава');
 
-    // Первая глава: только базовый курс (без спецмодулей)
-    expect(screen.getByText('12/12')).toBeInTheDocument();
-
-    // Спецмодули: собственный прогресс
+    // «Первая глава» теперь ведёт в модули и показывает их прогресс (2/6)
     expect(screen.getByText('2/6')).toBeInTheDocument();
 
     // Общий прогресс не должен подмешиваться в карточку первой главы
@@ -111,7 +108,7 @@ describe('GameModeSelectScreen segmented campaign progress', () => {
 
     await screen.findByText('Первая глава');
 
-    expect(screen.getByText('12/12')).toBeInTheDocument();
+    // Без summary-полей прогресс модулей считается из массива modules (2/6)
     expect(screen.getByText('2/6')).toBeInTheDocument();
   });
 });
