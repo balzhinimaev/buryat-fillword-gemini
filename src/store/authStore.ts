@@ -673,6 +673,28 @@ export function useAuthStore(): AuthStore {
   // Обновление данных пользователя через /auth/me
   // apiRequest автоматически обновит access_token через refresh_token при необходимости
   const refreshUser = useCallback(async () => {
+    // Офлайн-сборка: источник истины — локальные данные. Пересобираем блоки
+    // статистики из offlineMe() без сети и токенов — иначе campaignStats/streak/xp
+    // замирают на снимке момента запуска и «статистика не растёт» до перезапуска.
+    if (OFFLINE) {
+      // Даём gameStore дописать своё состояние в localStorage (сохранение идёт в useEffect
+      // того же коммита React) — иначе прочитаем XP/стрик до их записи.
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const me = offlineMe();
+      setState(prev => {
+        if (!prev.user) return prev;
+        const updatedUser: User = {
+          ...prev.user,
+          streak: me.streak ?? prev.user.streak,
+          campaignStats: me.campaignStats ?? prev.user.campaignStats,
+          xp: me.xp ?? prev.user.xp,
+        };
+        saveUser(updatedUser);
+        return { ...prev, user: updatedUser };
+      });
+      return;
+    }
+
     const tokens = getStoredTokens();
     // Проверяем наличие хотя бы refresh_token, так как apiRequest сам обновит access_token при 401
     if (!tokens?.refresh_token) {
