@@ -46,4 +46,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- navigator.vibrate() в WebView без этого разрешения молча игнорируется -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>
