@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import { patchSettings as apiPatchSettings, getSettings as apiGetSettings } from '../services/api';
 import type { ApiSettings, ApiSettingsUpdate } from '../services/api';
+import { OFFLINE } from '../config/offline';
 
 // ============================================================================
 // Маппинг между фронтовыми полями (GameSettings) и серверными (ApiSettings)
@@ -411,6 +412,9 @@ export const useGameStore = () => {
 
   // Загрузка настроек с сервера и слияние с локальными
   const loadSettingsFromApi = useCallback(async () => {
+    // Офлайн-сборка: настройки живут только локально; серверная заглушка вернула бы
+    // дефолты и перезатёрла бы выбор пользователя (тему, звук) при каждом старте.
+    if (OFFLINE) return;
     try {
       const apiSettings = await apiGetSettings();
       const merged = fromApiSettings(apiSettings);
@@ -469,6 +473,52 @@ export const useGameStore = () => {
       };
     });
   }, []);
+
+  // Учёт любого сыгранного раунда (кампания/дейлик) в локальной статистике:
+  // слова, XP, время, серия дней. Прогресс по звёздам этих режимов хранится
+  // в своих движках (offlineCampaign/offlineDaily), здесь — только общий счёт игрока.
+  const recordRoundPlayed = useCallback((
+    wordsFound: string[],
+    timeSpent: number,
+    stars: number
+  ) => {
+    setState(prev => {
+      const newWordCounts = { ...prev.stats.wordFindCounts };
+      wordsFound.forEach(word => {
+        newWordCounts[word] = (newWordCounts[word] || 0) + 1;
+      });
+
+      const newLearnedWords = [...prev.stats.learnedWords];
+      wordsFound.forEach(word => {
+        if (newWordCounts[word] >= 3 && !newLearnedWords.includes(word)) {
+          newLearnedWords.push(word);
+        }
+      });
+
+      const xpGained =
+        wordsFound.length * XP_PER_WORD +
+        stars * XP_PER_STAR +
+        (stars > 0 && timeSpent < 60 ? XP_BONUS_FAST : 0);
+
+      const newXp = prev.stats.xp + xpGained;
+
+      return {
+        ...prev,
+        stats: {
+          ...prev.stats,
+          totalWordsFound: prev.stats.totalWordsFound + wordsFound.length,
+          totalGamesPlayed: prev.stats.totalGamesPlayed + 1,
+          totalTimePlayed: prev.stats.totalTimePlayed + timeSpent,
+          level: Math.floor(newXp / XP_PER_LEVEL) + 1,
+          xp: newXp,
+          learnedWords: newLearnedWords,
+          wordFindCounts: newWordCounts,
+        },
+      };
+    });
+
+    updateStreak();
+  }, [updateStreak]);
 
   // Завершение уровня в бесконечном режиме
   const completeEndlessLevel = useCallback((
@@ -687,6 +737,7 @@ export const useGameStore = () => {
     isPackUnlocked,
     getPackProgress,
     completeEndlessLevel,
+    recordRoundPlayed,
     updateSettings,
     loadSettingsFromApi,
     completeLevel,

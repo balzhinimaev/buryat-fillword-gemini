@@ -1,5 +1,10 @@
-// API сервис для работы с бэкендом
-import { OFFLINE } from '../config/offline';
+// API сервис для работы с бэкендом.
+// Офлайн-сборка (OFFLINE=true) работает по принципу local-first:
+//  - игровое ядро (кампании, уровни, дейлик, статистика, настройки) — ВСЕГДА из локальных данных;
+//  - онлайн-разделы (лидерборды, чужие профили, ачивки, вклад слов) — из сети, когда она есть,
+//    с безопасным локальным фолбэком, когда её нет.
+import { OFFLINE, isNetOnline } from '../config/offline';
+import { API_BASE } from '../config/apiBase';
 import {
   offlineGetLevel,
   offlineGetProgress,
@@ -9,9 +14,11 @@ import {
 import {
   offlineGetWords,
   offlineGetWordDetail,
+  offlineFindWordDetail,
   offlineGetCategories,
   offlineWordsStats,
 } from './offlineDict';
+import { offlineGetDailyToday, offlineSubmitDaily } from './offlineDaily';
 import {
   offlineGetCampaignOverview,
   offlineGetCampaignLevel,
@@ -24,7 +31,13 @@ import {
   offlinePartsOfSpeech, offlinePending, offlineAnalyticsAck, offlineSettings, offlineMe,
 } from './offlineStubs';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://burlive.ru/api';
+const API_URL = API_BASE;
+
+// В офлайн-сборке БЕЗ серверной сессии (не входили через VK/TG/email) авторизованные
+// эндпоинты бессмысленны: не ходим в сеть и не провоцируем 401→переавторизацию.
+const hasServerSession = (): boolean => !!getStoredTokens()?.refresh_token;
+const netUsable = (): boolean => !OFFLINE || isNetOnline();
+const authedNetUsable = (): boolean => netUsable() && (!OFFLINE || hasServerSession());
 
 // Событие для уведомления о необходимости переавторизации
 export const AUTH_REQUIRED_EVENT = 'auth:required';
@@ -223,7 +236,7 @@ export interface UpdateOnboardingRequest {
 
 // Обновление имени
 export async function updateName(name: string): Promise<UserResponse> {
-  if (OFFLINE) return offlineOnly();
+  if (!authedNetUsable()) return offlineOnly();
   return apiRequest<UserResponse>('/users/me/name', {
     method: 'PATCH',
     body: JSON.stringify({ name }),
@@ -594,10 +607,10 @@ async function apiRequest<T>(
   options: RequestInit = {},
   isRetry = false
 ): Promise<T> {
-  // Полный офлайн: в офлайн-сборке НЕ ходим в сеть для непереехваченных вызовов —
-  // мгновенно отдаём офлайн-ошибку (без "Failed to fetch" и ожидания таймаута).
-  // Исключение — /auth/* (вход через VK/Telegram нужен онлайн, для синка прогресса после входа).
-  if (OFFLINE && !endpoint.startsWith('/auth/')) {
+  // Runtime-проверка: если сети реально нет — мгновенно отдаём офлайн-ошибку
+  // (без "Failed to fetch" и ожидания таймаута). При наличии сети запросы проходят
+  // и в офлайн-сборке — так оживают онлайн-разделы (лидерборды, ачивки, синк).
+  if (OFFLINE && !isNetOnline() && !endpoint.startsWith('/auth/')) {
     throw { statusCode: 0, message: 'Нет подключения к интернету', error: 'offline' } as ApiError;
   }
 
@@ -677,8 +690,10 @@ async function apiRequest<T>(
       clearStoredTokens();
     }
 
-    // Fallback: если пришёл 401 и recovery ещё не запущен, всё равно инициируем переавторизацию
-    if (isUnauthorized && !isAuthRefreshEndpoint && !authRecoveryTriggered) {
+    // Fallback: если пришёл 401 и recovery ещё не запущен, всё равно инициируем переавторизацию.
+    // Только если серверная сессия вообще была — иначе (локальный игрок офлайн-сборки,
+    // дернувший авторизованный эндпоинт) молча отдаём ошибку без выбивания на экран входа.
+    if (isUnauthorized && !isAuthRefreshEndpoint && !authRecoveryTriggered && tokens?.refresh_token) {
       dispatchAuthRequiredIfNeeded();
       throw {
         ...error,
@@ -772,7 +787,7 @@ export async function verifyEmailOtp(email: string, code: string): Promise<AuthR
 }
 
 export async function registerPushDevice(payload: PushDeviceRegisterRequest): Promise<void> {
-  if (OFFLINE) return undefined;
+  if (!authedNetUsable()) return undefined;
   await apiRequest('/push/devices/register', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -780,7 +795,7 @@ export async function registerPushDevice(payload: PushDeviceRegisterRequest): Pr
 }
 
 export async function unregisterPushDevice(token: string): Promise<void> {
-  if (OFFLINE) return undefined;
+  if (!authedNetUsable()) return undefined;
   await apiRequest('/push/devices/unregister', {
     method: 'POST',
     body: JSON.stringify({ token }),
@@ -851,19 +866,19 @@ export async function getCategories(): Promise<ApiCategory[]> {
 
 // Получение диалектов
 export async function getDialects(): Promise<ApiDialect[]> {
-  if (OFFLINE) return offlineDialects();
+  if (!netUsable()) return offlineDialects();
   return apiRequest<ApiDialect[]>('/dialects', { method: 'GET' });
 }
 
 // Получение частей речи
 export async function getPartsOfSpeech(): Promise<ApiPartOfSpeech[]> {
-  if (OFFLINE) return offlinePartsOfSpeech();
+  if (!netUsable()) return offlinePartsOfSpeech();
   return apiRequest<ApiPartOfSpeech[]>('/parts-of-speech', { method: 'GET' });
 }
 
-// Создание нового слова
+// Создание нового слова (офлайн-очередь живёт в contribSync — сюда попадаем только при сети)
 export async function createWord(data: CreateWordRequest): Promise<CreateWordResponse> {
-  if (OFFLINE) return offlineOnly();
+  if (!netUsable()) return offlineOnly();
   return apiRequest<CreateWordResponse>('/words', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -872,13 +887,13 @@ export async function createWord(data: CreateWordRequest): Promise<CreateWordRes
 
 // Получение статистики проекта
 export async function getProjectStats(): Promise<ProjectStats> {
-  if (OFFLINE) return offlineProjectStats();
+  if (!netUsable()) return offlineProjectStats();
   return apiRequest<ProjectStats>('/stats', { method: 'GET' });
 }
 
 // Получение общей статистики слов
 export async function getWordsStats(): Promise<WordsStats> {
-  if (OFFLINE) return offlineWordsStats();
+  if (!netUsable()) return offlineWordsStats();
   return apiRequest<WordsStats>('/words/stats', { method: 'GET' });
 }
 
@@ -900,9 +915,15 @@ export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsRes
   return apiRequest<ApiWordsResponse>(`/words${qs ? `?${qs}` : ''}`, { method: 'GET' });
 }
 
-// Получение детальной информации о слове (публичный эндпоинт)
+// Получение детальной информации о слове (публичный эндпоинт).
+// В офлайн-сборке — local-first: своё слово отдаём мгновенно; незнакомый id
+// (например, серверный ObjectId из очереди синка) при сети запрашиваем у сервера.
 export async function getWordDetail(id: string): Promise<ApiWordDetailResponse> {
-  if (OFFLINE) return offlineGetWordDetail(id);
+  if (OFFLINE) {
+    const local = offlineFindWordDetail(id);
+    if (local) return local;
+    if (!isNetOnline()) return offlineGetWordDetail(id);
+  }
   return apiRequest<ApiWordDetailResponse>(`/words/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
@@ -940,37 +961,37 @@ export async function deleteComment(wordId: string, commentId: string): Promise<
 
 // Топ хранителей языка
 export async function getLanguageKeepersLeaderboard(): Promise<LanguageKeeperLeaderboardItem[]> {
-  if (OFFLINE) return offlineKeepers();
+  if (!netUsable()) return offlineKeepers();
   return apiRequest<LanguageKeeperLeaderboardItem[]>('/words/keepers/leaderboard', { method: 'GET' });
 }
 
 // Получение личной статистики пользователя
 export async function getUserStats(): Promise<UserStats> {
-  if (OFFLINE) return offlineUserStats();
+  if (!authedNetUsable()) return offlineUserStats();
   return apiRequest<UserStats>('/users/me/stats', { method: 'GET' });
 }
 
 // Присоединиться к хранителям языка
 export async function joinLanguageKeepers(): Promise<UserResponse> {
-  if (OFFLINE) return offlineOnly();
+  if (!authedNetUsable()) return offlineOnly();
   return apiRequest<UserResponse>('/users/me/join-keepers', { method: 'POST' });
 }
 
 // Покинуть хранителей языка
 export async function leaveLanguageKeepers(): Promise<UserResponse> {
-  if (OFFLINE) return offlineOnly();
+  if (!authedNetUsable()) return offlineOnly();
   return apiRequest<UserResponse>('/users/me/leave-keepers', { method: 'POST' });
 }
 
 // Получение слов на проверке
 export async function getPendingWords(): Promise<PendingWord[]> {
-  if (OFFLINE) return offlinePending();
+  if (!authedNetUsable()) return offlinePending();
   return apiRequest<PendingWord[]>('/words/pending', { method: 'GET' });
 }
 
 // Голосование за слово
 export async function voteWord(data: VoteRequest): Promise<VoteResponse> {
-  if (OFFLINE) return offlineOnly();
+  if (!authedNetUsable()) return offlineOnly();
   return apiRequest<VoteResponse>('/votes', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -979,7 +1000,7 @@ export async function voteWord(data: VoteRequest): Promise<VoteResponse> {
 
 // Обновление онбординга
 export async function updateOnboarding(data: UpdateOnboardingRequest): Promise<UserResponse> {
-  if (OFFLINE) return offlineOnly();
+  if (!authedNetUsable()) return offlineOnly();
   return apiRequest<UserResponse>('/users/me/onboarding', {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -1167,7 +1188,7 @@ export async function submitCampaignLevel(
 }
 
 export async function trackCampaignModuleOpened(moduleId: string, source?: string): Promise<{ ok: true }> {
-  if (OFFLINE) return { ok: true };
+  if (!authedNetUsable()) return { ok: true };
   return apiRequest<{ ok: true }>(`/campaign/module/${encodeURIComponent(moduleId)}/open`, {
     method: 'POST',
     body: JSON.stringify(source ? { source } : {}),
@@ -1178,7 +1199,7 @@ export async function trackCampaignPaywallShown(payload?: {
   context?: string;
   source?: string;
 }): Promise<{ ok: true }> {
-  if (OFFLINE) return { ok: true };
+  if (!authedNetUsable()) return { ok: true };
   return apiRequest<{ ok: true }>('/campaign/paywall/shown', {
     method: 'POST',
     body: JSON.stringify(payload ?? {}),
@@ -1207,8 +1228,9 @@ export async function getActivityStreak(recalculate = false): Promise<ActivitySt
   });
 }
 
+// Серверный heartbeat активности; локальная серия дней живёт в gameStore и не зависит от него.
 export async function trackActivity(type?: string): Promise<ActivityStreakResponse> {
-  if (OFFLINE) return offlineStreak();
+  if (!authedNetUsable()) return offlineStreak();
   const params = new URLSearchParams();
   if (type) params.set('type', type);
 
@@ -1346,7 +1368,7 @@ export interface AnalyticsAdminEngagementResponse {
 }
 
 export async function trackAnalyticsEvents(events: AnalyticsEventInput[]): Promise<IngestAnalyticsEventsResponse> {
-  if (OFFLINE) return offlineAnalyticsAck();
+  if (!authedNetUsable()) return offlineAnalyticsAck();
   if (events.length === 0) {
     return { accepted: 0, inserted: 0, duplicates: 0 };
   }
@@ -1672,7 +1694,7 @@ export interface LeaderboardParams {
 }
 
 export async function getLeaderboard(params: LeaderboardParams = {}): Promise<LeaderboardResponse> {
-  if (OFFLINE) return offlineGlobalLeaderboard();
+  if (!netUsable()) return offlineGlobalLeaderboard();
   const searchParams = new URLSearchParams();
   if (params.type) searchParams.set('type', params.type);
   if (params.period) searchParams.set('period', params.period);
@@ -1772,7 +1794,7 @@ export interface UserProfileResponse {
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfileResponse> {
-  if (OFFLINE) return offlineOnly();
+  if (!netUsable()) return offlineOnly();
   return apiRequest<UserProfileResponse>(`/users/${encodeURIComponent(userId)}/profile`, { method: 'GET' });
 }
 
@@ -2177,13 +2199,15 @@ export interface DailyWordSubmitResponse {
   xpReason?: string;
 }
 
+// Офлайн-сборка: дейлик ВСЕГДА локальный (детерминированный по дате) — серверный дейлик
+// это другой пазл с серверной сессией, смешивать их нельзя.
 export async function getDailyWordToday(): Promise<DailyWordTodayResponse> {
-  if (OFFLINE) return offlineOnly();
+  if (OFFLINE) return offlineGetDailyToday();
   return apiRequest<DailyWordTodayResponse>('/daily-word/today', { method: 'GET' });
 }
 
 export async function submitDailyWord(body: DailyWordSubmitRequest): Promise<DailyWordSubmitResponse> {
-  if (OFFLINE) return offlineOnly();
+  if (OFFLINE) return offlineSubmitDaily(body);
   return apiRequest<DailyWordSubmitResponse>('/daily-word/today/submit', {
     method: 'POST',
     body: JSON.stringify(body),

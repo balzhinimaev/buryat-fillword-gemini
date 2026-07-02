@@ -28,6 +28,8 @@ import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { useAuth } from '../store/authStore';
 import { resolveLevelDifficulty, setLevelDifficultyThresholds } from '../config/levelDifficulty';
 import { playSfx } from '../utils/sfx';
+import { OFFLINE } from '../config/offline';
+import { syncCampaignProgress } from '../services/offlineSync';
 
 interface GameScreenProps {
   store: GameStore;
@@ -278,7 +280,7 @@ const LetterCell = React.memo(({
 
 
 export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
-  const { state, navigate, goBack, replaceScreen, completeEndlessLevel, addToLeaderboard, selectEndlessLevel, navigateToLevelEditor, updateSettings } = store;
+  const { state, navigate, goBack, replaceScreen, completeEndlessLevel, recordRoundPlayed, addToLeaderboard, selectEndlessLevel, navigateToLevelEditor, updateSettings } = store;
   const { state: authState, refreshUser } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
   
@@ -854,6 +856,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         });
         setDailyResult(result);
         trackGameEvent('daily_completed', 'daily_completed');
+
+        // Локальная статистика (слова/XP/серия дней) — работает и без сети
+        recordRoundPlayed(foundWordsArray, time, result.earnedStars ?? 0);
+
         setTimeout(() => setShowWinModal(true), 500);
       } catch (e) {
         showToast(errorToMessage(e));
@@ -922,6 +928,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       setCampaignResult(result);
       trackGameEvent('campaign_level_completed', 'campaign_level_completed');
 
+      // Локальная статистика (слова/XP/серия дней) — работает и без сети
+      recordRoundPlayed(foundWordsArray, time, result.earnedStars ?? 0);
+
+      // Офлайн-сборка: тихо выгружаем прогресс в аккаунт, если есть сеть и вход выполнен
+      if (OFFLINE) syncCampaignProgress().catch(() => {});
+
       // Локальный лидерборд оставим как "игровой счёт", но идентификатором будет slug
       addToLeaderboard({
         playerName: state.settings.playerName,
@@ -944,6 +956,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     time,
     isDark,
     completeEndlessLevel,
+    recordRoundPlayed,
     campaignSlug,
     campaignSessionId,
     dailySessionId,

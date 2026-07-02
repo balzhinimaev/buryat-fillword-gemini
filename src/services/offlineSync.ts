@@ -1,7 +1,9 @@
 // Синхронизация офлайн-прогресса кампаний с сервером ПОСЛЕ входа (offline-first, sync-after-login).
 // Работает только при наличии токена (пользователь вошёл через VK/Telegram) и сети.
-// Двусторонняя: локальный прогресс → сервер (слияние по max звёзд) → объединённый обратно в localStorage.
-const SYNC_BASE = 'https://buryat-game.ru/api';
+// Двусторонняя: локальный прогресс → сервер (слияние по max звёзд / min времени / max попыток)
+// → объединённый обратно в localStorage.
+import { API_BASE } from '../config/apiBase';
+
 const LEVELS_KEY = 'offline_campaign_levels';
 
 interface LevelRec { stars?: number; bestTimeSeconds?: number; attempts?: number; firstCompletedAt?: string }
@@ -17,20 +19,27 @@ function loadLocal(): Record<string, LevelRec> {
 }
 
 export async function syncCampaignProgress(): Promise<{ ok: boolean; merged: number }> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return { ok: false, merged: 0 };
   const token = getToken();
   if (!token) return { ok: false, merged: 0 };
   const local = loadLocal();
   const levels = Object.entries(local).map(([slug, r]) => ({
-    slug, stars: r.stars || 0, bestTimeSeconds: r.bestTimeSeconds,
+    slug,
+    stars: r.stars || 0,
+    bestTimeSeconds: r.bestTimeSeconds,
+    attempts: r.attempts,
+    firstCompletedAt: r.firstCompletedAt,
   }));
   try {
-    const res = await fetch(`${SYNC_BASE}/campaign/sync-progress`, {
+    const res = await fetch(`${API_BASE}/campaign/sync-progress`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ levels }),
     });
     if (!res.ok) return { ok: false, merged: 0 };
-    const merged: Array<{ slug: string; stars: number; bestTimeSeconds?: number }> = await res.json();
+    const merged: Array<{
+      slug: string; stars: number; bestTimeSeconds?: number; attempts?: number; firstCompletedAt?: string;
+    }> = await res.json();
     if (!Array.isArray(merged)) return { ok: false, merged: 0 };
     const next = { ...local };
     for (const m of merged) {
@@ -38,10 +47,15 @@ export async function syncCampaignProgress(): Promise<{ ok: boolean; merged: num
       const times = [cur.bestTimeSeconds, m.bestTimeSeconds].filter(
         (x): x is number => typeof x === 'number',
       );
+      const firsts = [cur.firstCompletedAt, m.firstCompletedAt].filter(
+        (x): x is string => typeof x === 'string' && x.length > 0,
+      );
       next[m.slug] = {
         ...cur,
         stars: Math.max(cur.stars || 0, m.stars || 0),
         bestTimeSeconds: times.length ? Math.min(...times) : undefined,
+        attempts: Math.max(cur.attempts || 0, m.attempts || 0),
+        firstCompletedAt: firsts.length ? firsts.sort()[0] : undefined,
       };
     }
     localStorage.setItem(LEVELS_KEY, JSON.stringify(next));

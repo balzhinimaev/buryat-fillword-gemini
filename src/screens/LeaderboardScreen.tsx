@@ -151,6 +151,11 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Runtime-статус сети: без интернета показываем честное объяснение вместо пустой таблицы
+  const [isOfflineNow, setIsOfflineNow] = useState(
+    typeof navigator !== 'undefined' && navigator.onLine === false
+  );
+
   // Профиль пользователя (bottom sheet)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
@@ -174,6 +179,21 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
   // Загружаем при смене типа или периода
   useEffect(() => {
     void fetchLeaderboard(type, period);
+  }, [type, period, fetchLeaderboard]);
+
+  // Сеть появилась/пропала — обновляем статус и перезагружаем таблицу
+  useEffect(() => {
+    const onOnline = () => {
+      setIsOfflineNow(false);
+      void fetchLeaderboard(type, period);
+    };
+    const onOffline = () => setIsOfflineNow(true);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
   }, [type, period, fetchLeaderboard]);
 
   const currentUserId = authState.user?._id;
@@ -495,16 +515,29 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
             <div className={cn("w-20 h-20 rounded-full flex items-center justify-center mb-4", theme.backgrounds.card)}>
               <Trophy size={40} className={theme.text.muted} />
             </div>
-            <h3 className={cn("text-lg font-semibold mb-2", theme.text.secondary)}>
-              {isPrizeMode ? 'Турнир только начался!' : 'Пока нет рекордов'}
-            </h3>
-            <p className={theme.text.muted}>
-              {isPrizeMode
-                ? 'Набирай XP первым и займи призовое место!'
-                : period !== 'all'
-                  ? 'За этот период ещё никто не играл'
-                  : 'Сыграй несколько игр, чтобы попасть в таблицу!'}
-            </p>
+            {isOfflineNow ? (
+              <>
+                <h3 className={cn("text-lg font-semibold mb-2", theme.text.secondary)}>
+                  Нет подключения к интернету
+                </h3>
+                <p className={theme.text.muted}>
+                  Лидерборд появится при подключении. Твой прогресс сохраняется и синхронизируется автоматически.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className={cn("text-lg font-semibold mb-2", theme.text.secondary)}>
+                  {isPrizeMode ? 'Турнир только начался!' : 'Пока нет рекордов'}
+                </h3>
+                <p className={theme.text.muted}>
+                  {isPrizeMode
+                    ? 'Набирай XP первым и займи призовое место!'
+                    : period !== 'all'
+                      ? 'За этот период ещё никто не играл'
+                      : 'Сыграй несколько игр, чтобы попасть в таблицу!'}
+                </p>
+              </>
+            )}
           </motion.div>
         )}
 

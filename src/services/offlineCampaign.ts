@@ -1,6 +1,8 @@
 // Офлайн-движок кампаний: overview/уровень/старт/submit из вшитых данных + прогресс в localStorage.
 // Воспроизводит ровно те же формы ответов, что и серверные эндпоинты (см. api.ts).
 import bundled from '../data/offlineCampaignLevels.json';
+import { API_BASE } from '../config/apiBase';
+import { localXpInfo } from './localStats';
 import type {
   CampaignOverviewResponse,
   CampaignOverviewModule,
@@ -10,6 +12,7 @@ import type {
   CampaignLevelResultResponse,
   CampaignSubmitLevelResultRequest,
   CampaignDifficulty,
+  MeCampaignStats,
 } from './api';
 
 interface BWord { bur: string; ru: string }
@@ -25,7 +28,7 @@ interface BChapter { id: string; title: string; titleBur?: string; order: number
 const LEVELS_KEY = 'offline_campaign_levels';
 const SESS_KEY = 'offline_campaign_sessions';
 const CONTENT_KEY = 'offline_campaign_content'; // скачанный с сервера снимок (приоритет над вшитым)
-const SYNC_BASE = 'https://buryat-game.ru/api';
+const SYNC_BASE = API_BASE;
 
 // Источник данных: скачанный кэш (если валиден и новее), иначе вшитый снимок.
 function getChapters(): BChapter[] {
@@ -76,6 +79,24 @@ function saveSess(m: Record<string, { slug: string; wordCount: number }>) {
 }
 function totalEarned(levels: Record<string, LevelRec>): number {
   return Object.values(levels).reduce((s, r) => s + (r.stars || 0), 0);
+}
+
+// Статистика кампании из локального прогресса — в форме блока campaignStats из /auth/me.
+export function offlineCampaignMeStats(): MeCampaignStats {
+  const levels = loadLevels();
+  const lessons = allLessons();
+  const recs = Object.values(levels);
+  const totalStars = totalEarned(levels);
+  const maxPossibleStars = lessons.reduce((s, l) => s + (l.maxStars || 3), 0);
+  return {
+    totalStars,
+    maxPossibleStars,
+    levelsCompleted: recs.filter(r => (r.stars || 0) > 0).length,
+    totalLevels: lessons.length,
+    perfectLevels: recs.filter(r => (r.stars || 0) >= 3).length,
+    totalAttempts: recs.reduce((s, r) => s + (r.attempts || 0), 0),
+    completionPercent: maxPossibleStars ? Math.round((totalStars / maxPossibleStars) * 100) : 0,
+  };
 }
 
 export function offlineGetCampaignOverview(): CampaignOverviewResponse {
@@ -194,6 +215,13 @@ export function offlineSubmitCampaignLevel(
     .filter(le => (le.requiredStars || 0) > starsBefore && (le.requiredStars || 0) <= totalStars)
     .map(le => le.slug);
 
+  // Та же формула XP, что в gameStore (10/слово + 25/звезда + бонус за скорость);
+  // накопление делает gameStore.recordRoundPlayed, здесь считаем цифры для экрана результата.
+  const xpGained = found * 10 + earnedStars * 25 + (earnedStars > 0 && t < 60 ? 50 : 0);
+  const xpBefore = localXpInfo();
+  const totalXp = xpBefore.total + xpGained;
+  const userLevel = Math.floor(totalXp / 100) + 1;
+
   return {
     success: earnedStars > 0,
     earnedStars, isNewStarRecord, isNewTimeRecord,
@@ -203,6 +231,7 @@ export function offlineSubmitCampaignLevel(
     validFoundWords: body.foundWords ?? [], missedWords: [],
     timeLimitSeconds, previousBestStars, previousBestTime,
     attemptNumber: next.attempts,
-    xpGained: earnedStars * 10, totalXp: 0, userLevel: 1, leveledUp: false, xpReason: 'offline',
+    xpGained, totalXp, userLevel,
+    leveledUp: userLevel > xpBefore.level, xpReason: 'offline',
   };
 }

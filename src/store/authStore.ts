@@ -24,6 +24,7 @@ import {
 } from '../services/api';
 import { useTelegram } from '../hooks/useTelegram';
 import { OFFLINE } from '../config/offline';
+import { offlineMe } from '../services/offlineStubs';
 import { takePkce, VK_REDIRECT_URI, type VkReturn } from '../services/vkAuth';
 
 export interface User {
@@ -407,20 +408,30 @@ export function useAuthStore(): AuthStore {
       if (hasTriedAuthRef.current) return;
 
       // Офлайн-режим: без сети и без Telegram — заходим под локальным игроком.
+      // Профиль каждый раз обогащаем локальной статистикой (стрик/кампания/XP),
+      // чтобы карточка профиля и экран статистики показывали реальные цифры.
       if (OFFLINE) {
         hasTriedAuthRef.current = true;
-        const offlineUser: User = loadUser() || {
-          _id: 'offline_user',
-          name: 'Игрок',
-          role: 'user',
-          trustScore: 0,
-          stats: {
+        const stored = loadUser();
+        const me = offlineMe();
+        const offlineUser: User = {
+          _id: stored?._id || 'offline_user',
+          name: stored?.name || me.name,
+          telegramId: stored?.telegramId,
+          telegramUsername: stored?.telegramUsername,
+          photoUrl: stored?.photoUrl,
+          role: stored?.role || 'user',
+          trustScore: stored?.trustScore ?? 0,
+          stats: stored?.stats ?? {
             wordsAdded: 0,
             wordsVerified: 0,
             wordsApproved: 0,
             wordsRejected: 0,
             verificationAccuracy: 0,
           },
+          streak: me.streak ?? stored?.streak,
+          campaignStats: me.campaignStats ?? stored?.campaignStats,
+          xp: me.xp ?? stored?.xp,
           onboardingCompleted: true,
         };
         saveUser(offlineUser);
@@ -574,6 +585,13 @@ export function useAuthStore(): AuthStore {
   // Слушаем событие о необходимости переавторизации (когда refresh token истёк)
   useEffect(() => {
     const handleAuthRequired = async () => {
+      // Офлайн-сборка: протухший токен НЕ выбивает локального игрока на экран входа —
+      // игра продолжается на локальных данных, а синк попросит перелогин позже.
+      if (OFFLINE) {
+        console.log('⏭️ OFFLINE: пропускаем принудительную переавторизацию');
+        return;
+      }
+
       // Предотвращаем повторные переавторизации
       if (isReauthenticatingRef.current) {
         console.log('⏭️ Переавторизация уже в процессе, пропускаем...');

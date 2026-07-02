@@ -18,6 +18,7 @@ import { notifyReady, revertToBuiltin, applyOta, type OtaInfo } from './services
 import { syncDictionary } from './services/offlineDict';
 import { syncCampaigns } from './services/offlineCampaign';
 import { syncCampaignProgress } from './services/offlineSync';
+import { syncQueue } from './services/contribSync';
 import { Browser } from '@capacitor/browser';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -123,13 +124,27 @@ export default function App() {
         });
       }
       // В офлайн-сборке тихо докачиваем свежий контент (словарь + кампании) и синкаем прогресс
-      // (если пользователь уже входил — есть токен), при наличии сети.
+      // (если пользователь уже входил — есть токен) и очередь добавленных слов, при наличии сети.
       if (OFFLINE) {
         syncDictionary().catch(() => {});
         syncCampaigns().catch(() => {});
         syncCampaignProgress().catch(() => {});
+        syncQueue().catch(() => {});
       }
     })();
+  }, []);
+
+  // Появилась сеть — повторяем фоновую синхронизацию всего офлайн-накопленного.
+  useEffect(() => {
+    if (!OFFLINE) return;
+    const onOnline = () => {
+      syncDictionary().catch(() => {});
+      syncCampaigns().catch(() => {});
+      syncCampaignProgress().catch(() => {});
+      syncQueue().catch(() => {});
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
   }, []);
 
   // VK OAuth deep-link: ru.burlive.app://vk?code=... → завершаем вход.
@@ -388,23 +403,6 @@ export default function App() {
   const isWebNarrow = !isTelegram && webNarrowScreens.has(effectiveScreen);
 
   const renderScreen = () => {
-    // Офлайн-сборка: онлайн-только разделы (лидерборд, статистика кампании, кампания)
-    // показываем как заглушку, а не как пустой/битый экран.
-    if (OFFLINE && (effectiveScreen === 'leaderboard' || effectiveScreen === 'stats' || effectiveScreen === 'levels')) {
-      return (
-        <div className={`min-h-[100dvh] flex flex-col items-center justify-center gap-4 p-6 text-center ${currentTheme.text.muted}`}>
-          <div className="text-4xl">📡</div>
-          <div className="text-base">Этот раздел доступен только онлайн</div>
-          <button
-            type="button"
-            onClick={() => navigate('menu')}
-            className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium"
-          >
-            В меню
-          </button>
-        </div>
-      );
-    }
     switch (effectiveScreen) {
       case 'authLoading':
         return (

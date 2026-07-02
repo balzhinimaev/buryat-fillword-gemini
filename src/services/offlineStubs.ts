@@ -1,5 +1,8 @@
 // Офлайн-заглушки для методов api без собственного офлайн-движка.
-// Чтение → безопасные пустые/нулевые значения (экран не падает), запись → понятная ошибка.
+// Чтение → локальные данные, где они есть (стрик/статистика/XP), иначе безопасные
+// пустые значения (экран не падает); запись → понятная ошибка.
+import { localStreak, localXpInfo } from './localStats';
+import { offlineCampaignMeStats } from './offlineCampaign';
 import type {
   ActivityStreakResponse, ProjectStats, UserStats, LeaderboardResponse,
   DailyWordLeaderboardResponse, ApiSettings, MeResponse,
@@ -12,9 +15,15 @@ export function offlineOnly(): never {
   throw new Error(OFFLINE_ONLY_MSG);
 }
 
-export const offlineStreak = (): ActivityStreakResponse => ({
-  currentStreak: 0, longestStreak: 0, isStreakActive: false,
-});
+export const offlineStreak = (): ActivityStreakResponse => {
+  const s = localStreak();
+  return {
+    currentStreak: s.current,
+    longestStreak: s.longest,
+    lastActiveDate: s.lastActiveDate,
+    isStreakActive: s.isActive,
+  };
+};
 export const offlineProjectStats = (): ProjectStats => ({
   wordsCount: 0, participantsCount: 0, categoriesCount: 0, languageKeepersCount: 0,
 });
@@ -44,5 +53,11 @@ export function offlineMe(): MeResponse {
     const raw = localStorage.getItem('auth_user');
     if (raw) { const u = JSON.parse(raw); if (u?.name) name = String(u.name); }
   } catch { /* ignore */ }
-  return { id: 'offline_user', name, role: 'user', trustScore: 0, onboardingCompleted: true };
+  const s = localStreak();
+  return {
+    id: 'offline_user', name, role: 'user', trustScore: 0, onboardingCompleted: true,
+    streak: { current: s.current, longest: s.longest, lastActiveDate: s.lastActiveDate },
+    campaignStats: offlineCampaignMeStats(),
+    xp: localXpInfo(),
+  };
 }

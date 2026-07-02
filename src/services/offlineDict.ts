@@ -11,9 +11,9 @@ import type {
   WordsStats,
 } from './api';
 import bundled from '../data/offlineWords.json';
+import { API_BASE } from '../config/apiBase';
 
 const EXTRA_KEY = 'burlive_dict_extra';
-const API_BASE = 'https://burlive.ru/api';
 
 interface DictWord {
   id: string;
@@ -106,8 +106,11 @@ export function offlineGetWords(params: GetWordsParams = {}): ApiWordsResponse {
   return { words: all.map(toApiWord), total: all.length };
 }
 
-export function offlineGetWordDetail(id: string): ApiWordDetailResponse {
-  const w = getAllWords().find((x) => x.id === id) ?? getAllWords()[0];
+// Поиск с честным промахом: null для незнакомых id (например, серверные ObjectId
+// из очереди синка) — тогда гибридный api может сходить за деталями в сеть.
+export function offlineFindWordDetail(id: string): ApiWordDetailResponse | null {
+  const w = getAllWords().find((x) => x.id === id);
+  if (!w) return null;
   const base = toApiWord(w);
   return {
     word: { ...base, categoryId: null, relatedWords: [] } as ApiWordDetailResponse['word'],
@@ -117,6 +120,10 @@ export function offlineGetWordDetail(id: string): ApiWordDetailResponse {
     votesUp: 0,
     votesDown: 0,
   };
+}
+
+export function offlineGetWordDetail(id: string): ApiWordDetailResponse {
+  return offlineFindWordDetail(id) ?? offlineFindWordDetail(getAllWords()[0].id)!;
 }
 
 export function offlineGetCategories(): ApiCategory[] {
