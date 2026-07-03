@@ -109,6 +109,7 @@ export type Screen =
   | 'adminLevelEditor' // Редактор уровней (админ)
   | 'adminDailyWord' // Редактор филлвордов дня (админ)
   | 'adminCampaignMaps' // Редактор карт уроков кампании (админ)
+  | 'adminDictionary' // Офлайн-редактор словаря (админ)
   | 'support'; // Поддержать проект
 
 // === Режимы игры ===

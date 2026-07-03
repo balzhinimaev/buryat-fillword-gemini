@@ -19,6 +19,16 @@ import { syncDictionary } from './services/offlineDict';
 import { syncCampaigns } from './services/offlineCampaign';
 import { syncCampaignProgress } from './services/offlineSync';
 import { syncQueue } from './services/contribSync';
+
+// Автопуш локальных правок админ-словаря: только если очередь непуста (сам проверяет сеть/токены).
+// Динамический импорт — чтобы не тащить код синка в главный чанк (он нужен только админу).
+const pushAdminEditsIfAny = () => {
+  import('./services/adminDictSync')
+    .then(async (m) => {
+      if (await m.hasPendingAdminEdits()) return m.pushAdminQueue();
+    })
+    .catch(() => {});
+};
 import { Browser } from '@capacitor/browser';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -45,6 +55,7 @@ const HowToPlayScreen = lazy(() => import('./screens/HowToPlayScreen'));
 const AdminLevelEditorScreen = lazy(() => import('./screens/AdminLevelEditorScreen'));
 const AdminDailyWordScreen = lazy(() => import('./screens/AdminDailyWordScreen'));
 const AdminCampaignMapVariantsScreen = lazy(() => import('./screens/AdminCampaignMapVariantsScreen'));
+const AdminDictionaryScreen = lazy(() => import('./screens/AdminDictionaryScreen'));
 const SupportScreen = lazy(() => import('./screens/SupportScreen'));
 const AuthScreen = lazy(() => import('./screens/AuthScreen'));
 
@@ -131,6 +142,7 @@ export default function App() {
         syncCampaignProgress().catch(() => {});
         syncQueue().catch(() => {});
       }
+      pushAdminEditsIfAny();
     })();
   }, []);
 
@@ -145,6 +157,12 @@ export default function App() {
     };
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
+  }, []);
+
+  // Правки админ-словаря пушим при появлении сети в любой сборке (и веб, и натив).
+  useEffect(() => {
+    window.addEventListener('online', pushAdminEditsIfAny);
+    return () => window.removeEventListener('online', pushAdminEditsIfAny);
   }, []);
 
   // VK OAuth deep-link: ru.burlive.app://vk?code=... → завершаем вход.
@@ -452,6 +470,8 @@ export default function App() {
         return <AdminDailyWordScreen store={store} />;
       case 'adminCampaignMaps':
         return <AdminCampaignMapVariantsScreen store={store} />;
+      case 'adminDictionary':
+        return <AdminDictionaryScreen store={store} />;
       case 'support':
         return <SupportScreen store={store} />;
       default:

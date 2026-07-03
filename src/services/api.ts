@@ -335,6 +335,27 @@ export interface CreateWordRequest {
   difficulty?: number;
 }
 
+// Запрос на обновление слова (PATCH /words/:id) — все поля опциональны.
+// status применяется сервером только для модератора/админа.
+export interface UpdateWordRequest {
+  bur?: string;
+  ru?: string;
+  categoryId?: string;
+  dialectId?: string;
+  partOfSpeechId?: string;
+  exampleBur?: string;
+  exampleRu?: string;
+  pronunciation?: string;
+  audioUrl?: string;
+  synonyms?: string[];
+  antonyms?: string[];
+  sources?: string[];
+  tags?: string[];
+  difficulty?: number;
+  isActiveInGame?: boolean;
+  status?: WordStatus;
+}
+
 // Статистика проекта
 export interface ProjectStats {
   wordsCount: number;
@@ -883,6 +904,44 @@ export async function createWord(data: CreateWordRequest): Promise<CreateWordRes
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+// =========================
+// Админ-редактор словаря: всегда сеть, без офлайн-заглушек.
+// Решение «когда пушить» принимает adminDictSync, а не этот слой.
+// =========================
+
+/** Обновление слова (PATCH /words/:id) — только модератор/админ меняет чужие слова и status */
+export async function updateWord(id: string, data: UpdateWordRequest): Promise<ApiWord> {
+  return apiRequest<ApiWord>(`/words/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+/** Удаление слова (DELETE /words/:id) */
+export async function deleteWord(id: string): Promise<void> {
+  await apiRequest<void>(`/words/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** Список слов напрямую с сервера (для полной выгрузки словаря админом в офлайн-сборке) */
+export async function adminGetWords(params: GetWordsParams = {}): Promise<ApiWordsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.status) searchParams.set('status', params.status);
+  if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+  if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
+  const qs = searchParams.toString();
+  return apiRequest<ApiWordsResponse>(`/words${qs ? `?${qs}` : ''}`, { method: 'GET' });
+}
+
+/** Диалекты напрямую с сервера (для кэша админ-редактора) */
+export async function adminGetDialects(): Promise<ApiDialect[]> {
+  return apiRequest<ApiDialect[]>('/dialects', { method: 'GET' });
+}
+
+/** Категории напрямую с сервера (для кэша админ-редактора) */
+export async function adminGetCategories(): Promise<ApiCategory[]> {
+  return apiRequest<ApiCategory[]>('/categories', { method: 'GET' });
 }
 
 // Получение статистики проекта
@@ -2382,6 +2441,11 @@ export const api = {
   getDialects,
   getPartsOfSpeech,
   createWord,
+  updateWord,
+  deleteWord,
+  adminGetWords,
+  adminGetDialects,
+  adminGetCategories,
   getProjectStats,
   getWordsStats,
   getWords,

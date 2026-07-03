@@ -28,6 +28,9 @@ import { getMenuStyles } from '../theme/menuStyles';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
+
+// Тайл тематических модулей скрыт: они объединены в «Первую главу» (см. ниже по разметке)
+const SHOW_THEMATIC_MODULES_TILE = false;
 import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { api, type CampaignOverviewResponse, type LevelModeProgressResponse, type DailyWordTodayResponse } from '../services/api';
 
@@ -696,7 +699,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
         </motion.div>
 
         {/* Тематические модули — объединены в «Первую главу» выше (отдельный тайл скрыт, чтобы не дублировать). */}
-        {false && thematicModulesCount > 0 && (
+        {SHOW_THEMATIC_MODULES_TILE && thematicModulesCount > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

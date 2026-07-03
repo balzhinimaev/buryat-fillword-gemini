@@ -998,6 +998,14 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
             />
             <NavCard
               icon={<BookOpen size={18} className="text-white" />}
+              title="Словарь (офлайн-редактор)"
+              subtitle="Правка слов и диалектов без сети, push при подключении"
+              onClick={() => navigate('adminDictionary')}
+              isDark={isDark}
+              color={isDark ? "bg-teal-500/30" : "bg-teal-100"}
+            />
+            <NavCard
+              icon={<BookOpen size={18} className="text-white" />}
               title="Словарь"
               subtitle="Просмотр всех слов"
               onClick={() => navigate('dictionary')}
