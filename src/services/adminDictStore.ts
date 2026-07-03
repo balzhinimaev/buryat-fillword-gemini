@@ -15,6 +15,7 @@ export type DirtyState = 'none' | 'created' | 'updated' | 'deleted';
 export interface EditableWord {
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
   categoryId?: string;
   dialectId?: string;
   partOfSpeechId?: string;
@@ -193,6 +194,7 @@ export function apiWordToRecord(w: ApiWord): LocalWordRecord {
     word: {
       bur: w.bur,
       ru: w.ru,
+      translations: w.translations,
       categoryId: typeof w.categoryId === 'string' ? w.categoryId : undefined,
       dialectId: w.dialectId?._id,
       partOfSpeechId: w.partOfSpeechId?._id,
@@ -233,6 +235,7 @@ export function recordToUpdateRequest(record: LocalWordRecord): UpdateWordReques
   return compact({
     bur: w.bur,
     ru: w.ru,
+    translations: w.translations,
     categoryId: w.categoryId,
     dialectId: w.dialectId,
     partOfSpeechId: w.partOfSpeechId,
@@ -256,6 +259,7 @@ export function recordToCreateRequest(record: LocalWordRecord): CreateWordReques
   return compact({
     bur: w.bur,
     ru: w.ru,
+    translations: w.translations,
     categoryId: w.categoryId,
     dialectId: w.dialectId,
     partOfSpeechId: w.partOfSpeechId,

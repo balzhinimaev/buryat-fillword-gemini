@@ -16,6 +16,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { OFFLINE } from '../config/offline';
+import { GAME_LANGS, getGameLang, setGameLang, type GameLang } from '../services/gameLang';
 import { Modal, cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
@@ -55,6 +56,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
   useBackButton(() => goBack());
   
   const [showResetModal, setShowResetModal] = useState(false);
+  const [gameLang, setGameLangState] = useState<GameLang>(getGameLang());
   const [editingName, setEditingName] = useState(false);
   const backendPlayerName = authState.user?.name?.trim();
   const effectivePlayerName = useMemo(() => {
@@ -429,6 +431,52 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
               isDark={isDark}
               theme={theme}
             />
+          </div>
+        </motion.div>
+
+        {/* Hint language */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.34 }}
+          className={cn(
+            "rounded-2xl p-4",
+            isDark
+              ? cn(theme.backgrounds.card, "border", theme.borders.subtle)
+              : "bg-white shadow-sm border border-stone-100"
+          )}
+        >
+          <div className="mb-3">
+            <span className={cn("font-semibold", theme.text.primary)}>Язык подсказок</span>
+            <p className={cn("text-xs mt-0.5", theme.text.muted)}>
+              На каком языке показывать перевод бурятских слов в игре
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {GAME_LANGS.map((l) => {
+              const isSelected = gameLang === l.value;
+              return (
+                <motion.button
+                  key={l.value}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setGameLang(l.value);
+                    setGameLangState(l.value);
+                  }}
+                  className={cn(
+                    'p-3 rounded-xl border-2 text-sm font-semibold transition-all',
+                    isSelected
+                      ? 'border-amber-500 ring-2 ring-amber-500/30'
+                      : isDark
+                        ? 'border-stone-700/50 hover:border-stone-600'
+                        : 'border-stone-200 hover:border-stone-300',
+                    theme.text.primary
+                  )}
+                >
+                  {l.label}
+                </motion.button>
+              );
+            })}
           </div>
         </motion.div>
 

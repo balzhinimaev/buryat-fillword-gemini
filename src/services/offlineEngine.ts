@@ -14,6 +14,7 @@ import wordsData from '../data/offlineWords.json';
 interface OfflineWord {
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
   difficulty: number;
 }
 
@@ -123,7 +124,7 @@ export function offlineGetLevel(levelNumber: number): LevelModeLevelResponse {
   rememberSessionTotal(sessionId, picked.length);
   return {
     levelNumber,
-    words: picked.map((w, i) => ({ bur: w.bur, rus: w.ru, wordId: `offline-${levelNumber}-${i}` })),
+    words: picked.map((w, i) => ({ bur: w.bur, rus: w.ru, translations: w.translations, wordId: `offline-${levelNumber}-${i}` })),
     gridSize,
     timeLimitSeconds,
     maxStars: 3,

@@ -3,6 +3,8 @@
 export interface WordData {
   bur: string;
   ru: string;
+  /** переводы на другие языки подсказок: { en: "Dog" } */
+  translations?: Record<string, string>;
 }
 
 export interface Category {

@@ -456,6 +456,11 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                     {capitalize(word.bur)}
                   </h2>
                   <p className={cn('text-base mt-1', theme.text.secondary)}>{word.ru}</p>
+                  {word.translations?.en && (
+                    <p className={cn('text-sm mt-0.5', theme.text.muted)}>
+                      English: {word.translations.en}
+                    </p>
+                  )}
 
                   {/* Произношение */}
                   {word.pronunciation && (

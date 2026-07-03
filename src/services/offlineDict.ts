@@ -19,6 +19,7 @@ interface DictWord {
   id: string;
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
   difficulty: number;
   exampleBur?: string;
   exampleRu?: string;
@@ -27,6 +28,7 @@ interface DictWord {
 interface RawWord {
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
   difficulty?: number;
   exampleBur?: string;
   exampleRu?: string;
@@ -36,6 +38,7 @@ const BUILTIN: DictWord[] = (bundled as RawWord[]).map((w, i) => ({
   id: `dict-builtin-${i}`,
   bur: w.bur,
   ru: w.ru,
+  translations: w.translations,
   difficulty: w.difficulty ?? 5,
   exampleBur: w.exampleBur,
   exampleRu: w.exampleRu,
@@ -71,6 +74,7 @@ function toApiWord(w: DictWord): ApiWord {
     _id: w.id,
     bur: w.bur,
     ru: w.ru,
+    translations: w.translations,
     exampleBur: w.exampleBur,
     exampleRu: w.exampleRu,
     audioUrl: null,
@@ -146,7 +150,7 @@ export async function syncDictionary(maxPages = 20, pageSize = 100): Promise<{ a
       const url = `${API_BASE}/words?status=verified&isActiveInGame=true&limit=${pageSize}&offset=${page * pageSize}`;
       const r = await fetch(url, { cache: 'no-store' });
       if (!r.ok) break;
-      const data = (await r.json()) as { words?: Array<{ _id: string; bur: string; ru: string; difficulty?: number; exampleBur?: string; exampleRu?: string }>; total?: number };
+      const data = (await r.json()) as { words?: Array<{ _id: string; bur: string; ru: string; translations?: Record<string, string>; difficulty?: number; exampleBur?: string; exampleRu?: string }>; total?: number };
       const words = data.words ?? [];
       if (words.length === 0) break;
       for (const sw of words) {
@@ -157,6 +161,7 @@ export async function syncDictionary(maxPages = 20, pageSize = 100): Promise<{ a
           id: sw._id,
           bur: sw.bur.trim().toUpperCase(),
           ru: sw.ru,
+          translations: sw.translations,
           difficulty: sw.difficulty ?? 5,
           exampleBur: sw.exampleBur,
           exampleRu: sw.exampleRu,

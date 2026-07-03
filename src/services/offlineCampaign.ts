@@ -1,6 +1,7 @@
 // Офлайн-движок кампаний: overview/уровень/старт/submit из вшитых данных + прогресс в localStorage.
 // Воспроизводит ровно те же формы ответов, что и серверные эндпоинты (см. api.ts).
 import bundled from '../data/offlineCampaignLevels.json';
+import dictWords from '../data/offlineWords.json';
 import { API_BASE } from '../config/apiBase';
 import { localXpInfo } from './localStats';
 import type {
@@ -15,7 +16,19 @@ import type {
   MeCampaignStats,
 } from './api';
 
-interface BWord { bur: string; ru: string }
+interface BWord { bur: string; ru: string; translations?: Record<string, string> }
+
+// переводы из вшитого словаря (в уроках может не быть en) — лениво, по бурятскому слову
+let dictTrCache: Record<string, Record<string, string>> | null = null;
+function dictTranslationsByBur(): Record<string, Record<string, string>> {
+  if (!dictTrCache) {
+    dictTrCache = {};
+    for (const w of dictWords as Array<{ bur: string; translations?: Record<string, string> }>) {
+      if (w.translations) dictTrCache[w.bur.toUpperCase()] = w.translations;
+    }
+  }
+  return dictTrCache;
+}
 interface BPlacement { word: string; path: Array<{ r: number; c: number }> }
 interface BVariant { variantId?: string; difficultyLevel: number; gridSize: number; grid: string[][]; wordPlacements: BPlacement[] }
 interface BLesson {
@@ -152,16 +165,20 @@ export function offlineGetCampaignLevel(slug: string): CampaignLevelResponse {
   const rec = loadLevels()[slug];
   const variants = l.mapVariants || [];
   const v = variants[Math.floor(Math.random() * Math.max(1, variants.length))] || variants[0];
-  const ruByBur: Record<string, string> = {};
-  l.words.forEach(w => { ruByBur[w.bur.toUpperCase()] = w.ru; });
+  const wordByBur: Record<string, BWord> = {};
+  l.words.forEach(w => { wordByBur[w.bur.toUpperCase()] = w; });
+  const dictTr = dictTranslationsByBur();
+  const trOf = (bur: string): Record<string, string> | undefined =>
+    wordByBur[bur.toUpperCase()]?.translations ?? dictTr[bur.toUpperCase()];
   const wordPlacements = (v?.wordPlacements ?? []).map(wp => ({
     bur: wp.word,
-    ru: ruByBur[wp.word.toUpperCase()] ?? '',
+    ru: wordByBur[wp.word.toUpperCase()]?.ru ?? '',
+    translations: trOf(wp.word),
     path: wp.path,
   }));
   return {
     id: l.slug, slug: l.slug, name: l.name, nameBur: l.nameBur,
-    words: l.words.map(w => ({ bur: w.bur, ru: w.ru })),
+    words: l.words.map(w => ({ bur: w.bur, ru: w.ru, translations: w.translations ?? dictTr[w.bur.toUpperCase()] })),
     timeLimitSeconds: l.timeLimitSeconds, maxStars: l.maxStars,
     currentStars: rec?.stars ?? 0, bestTimeSeconds: rec?.bestTimeSeconds,
     gridSize: v?.gridSize, grid: v?.grid, wordPlacements,

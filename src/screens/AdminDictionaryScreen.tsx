@@ -165,6 +165,21 @@ const WordForm: React.FC<WordFormProps> = ({ record, dialects, categories, isDar
           </label>
         </div>
 
+        <label className="block">
+          <span className={labelCls}>Перевод (англ.)</span>
+          <input
+            className={inputCls}
+            value={fields.translations?.en ?? ''}
+            placeholder="English translation"
+            onChange={(e) =>
+              set(
+                'translations',
+                e.target.value.trim() ? { ...fields.translations, en: e.target.value } : undefined,
+              )
+            }
+          />
+        </label>
+
         <div className="grid grid-cols-2 gap-3">
           <label>
             <span className={labelCls}>Диалект</span>

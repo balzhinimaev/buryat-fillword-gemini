@@ -18,6 +18,7 @@ const TIME_LIMIT_SECONDS = 120;
 interface RawWord {
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
 }
 
 interface DailyRec {
@@ -54,6 +55,7 @@ function mulberry32(seed: number): () => number {
 export interface OfflineDailyWord {
   bur: string;
   rus: string;
+  translations?: Record<string, string>;
   wordId: string;
 }
 
@@ -63,6 +65,7 @@ export function offlineDailyWords(dateKey = offlineDailyDateKey()): OfflineDaily
     .map((w, i) => ({
       bur: w.bur.trim().toUpperCase(),
       rus: w.ru.trim(),
+      translations: w.translations,
       wordId: `offd-${dateKey}-${i}`,
     }))
     .filter(

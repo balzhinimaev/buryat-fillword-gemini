@@ -9,6 +9,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { getCategories, getWords, type ApiCategory, type ApiWord } from '../services/api';
+import { hintOf } from '../services/gameLang';
 
 const WORDS_PER_PAGE = 50;
 
@@ -453,7 +454,7 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                             )}
                           </div>
                           <div className={cn('text-[11px] truncate mt-0.5 leading-none', theme.text.muted)}>
-                            {word.ru}
+                            {hintOf(word)}
                           </div>
                         </div>
 

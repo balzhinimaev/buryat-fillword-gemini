@@ -327,6 +327,7 @@ export interface ApiPartOfSpeech {
 export interface CreateWordRequest {
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
   categoryId: string;
   dialectId?: string;
   partOfSpeechId?: string;
@@ -340,6 +341,7 @@ export interface CreateWordRequest {
 export interface UpdateWordRequest {
   bur?: string;
   ru?: string;
+  translations?: Record<string, string>;
   categoryId?: string;
   dialectId?: string;
   partOfSpeechId?: string;
@@ -413,6 +415,7 @@ export interface ApiWord {
   // Основное
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
   // Дополнительно
   exampleBur?: string;
   exampleRu?: string;
@@ -1078,6 +1081,7 @@ export type CampaignDifficulty = 'beginner' | 'intermediate' | 'expert' | string
 export interface CampaignWord extends ExtensibleRecord {
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
 }
 
 export interface CampaignOverviewLevel extends ExtensibleRecord {
@@ -1159,6 +1163,7 @@ export interface CampaignMapVariantMeta {
 export interface CampaignWordPlacement {
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
   path: Array<{ r: number; c: number }>;
 }
 
@@ -1975,6 +1980,7 @@ export interface LevelModeProgressResponse {
 export interface LevelModeLevelWord {
   bur: string;
   rus: string;
+  translations?: Record<string, string>;
   wordId: string;
 }
 
@@ -2196,6 +2202,7 @@ export async function updateLevelDifficultyThresholds(
 export interface DailyWordWord {
   bur: string;
   rus: string;
+  translations?: Record<string, string>;
   wordId: string;
 }
 
@@ -2203,6 +2210,7 @@ export interface DailyWordPlacement {
   wordId: string;
   bur: string;
   rus: string;
+  translations?: Record<string, string>;
   path: Array<{ r: number; c: number }>;
 }
 
@@ -2232,6 +2240,7 @@ export interface DailyWordSubmitRequest {
 export interface DailyWordSubmitWordInfo {
   bur: string;
   rus: string;
+  translations?: Record<string, string>;
 }
 
 export interface DailyWordSubmitResponse {

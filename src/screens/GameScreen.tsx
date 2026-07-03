@@ -21,6 +21,7 @@ import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
 import { generateServerLevel, generateCampaignLevel, findWordByPath, isPalindromeWord, type PlacedWord } from '../gameEngine';
 import type { Coord, CellStatus, WordData } from '../types';
+import { hintOf } from '../services/gameLang';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
 import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, type LevelModeLevelResponse, type LevelModeSubmitResponse, type LevelModeLevelLeaderboardResponse, type DailyWordTodayResponse, type DailyWordSubmitResponse, type DailyWordLeaderboardResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
@@ -137,7 +138,7 @@ const FlippableWordChip = React.memo(({
         className="px-3 py-1.5 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-all duration-300"
         style={{ backgroundColor: color.bg, color: color.text }}
       >
-        <span className="line-through opacity-60">{word.ru}</span>
+        <span className="line-through opacity-60">{hintOf(word)}</span>
         <span className="text-xs opacity-80">({word.bur})</span>
       </div>
     );
@@ -165,7 +166,7 @@ const FlippableWordChip = React.memo(({
         <span className="whitespace-nowrap font-bold">{word.bur}</span>
       ) : (
         <>
-          <span className="whitespace-nowrap">{word.ru}</span>
+          <span className="whitespace-nowrap">{hintOf(word)}</span>
           <Eye 
             size={14} 
             className={cn(
@@ -482,6 +483,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [gridLetters, setGridLetters] = useState<string[][]>([]);
   const [gridSize, setGridSize] = useState(5);
   const [placedWords, setPlacedWords] = useState<PlacedWord[]>([]);
+
+  // подсказка по бурятскому слову для итогового экрана (submit-ответ не несёт переводов)
+  const hintByBur = (bur: string, fallbackRu: string): string => {
+    const placed = placedWords.find(p => p.word.bur === bur.toUpperCase());
+    return placed ? hintOf(placed.word) : fallbackRu;
+  };
   const [foundWordIds, setFoundWordIds] = useState<Set<string>>(new Set());
   const [selectedPath, setSelectedPath] = useState<Coord[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -541,6 +548,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         .map(w => ({
           bur: String(w.bur ?? '').trim().toUpperCase(),
           ru: String(w.rus ?? '').trim(),
+          translations: w.translations,
         }))
         .filter(w => w.bur.length >= 2);
 
@@ -595,6 +603,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         .map(w => ({
           bur: String(w.bur ?? '').trim().toUpperCase(),
           ru: String(w.ru ?? '').trim(),
+          translations: w.translations,
         }))
         .filter(w => w.bur.length >= 2);
 
@@ -607,7 +616,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       ) {
         try {
           const staticPlaced: PlacedWord[] = campaignLevel.wordPlacements.map(wp => ({
-            word: { bur: String(wp.bur ?? '').trim().toUpperCase(), ru: String(wp.ru ?? '').trim() },
+            word: {
+              bur: String(wp.bur ?? '').trim().toUpperCase(),
+              ru: String(wp.ru ?? '').trim(),
+              translations: wp.translations,
+            },
             path: Array.isArray(wp.path) ? wp.path : [],
           }));
 
@@ -681,13 +694,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         .map(w => ({
           bur: String(w.bur ?? '').trim().toUpperCase(),
           ru: String(w.rus ?? '').trim(),
+          translations: w.translations,
         }))
         .filter(w => w.bur.length >= 2);
 
       // Если сервер прислал статичную сетку — используем напрямую (без генерации)
       if (data.grid && data.wordPlacements && data.grid.length > 0) {
         const staticPlaced: PlacedWord[] = data.wordPlacements.map(wp => ({
-          word: { bur: wp.bur.toUpperCase(), ru: wp.rus },
+          word: { bur: wp.bur.toUpperCase(), ru: wp.rus, translations: wp.translations },
           path: wp.path,
         }));
         setGridLetters(data.grid);
@@ -2122,7 +2136,7 @@ ${levelInfo}
                               <div className="flex flex-wrap gap-x-3 gap-y-0.5">
                                 {dailyResult.validFoundWords.map((w, i) => (
                                   <span key={i} className={cn('tabular-nums', styles.winModal.statCard.valueWords)}>
-                                    {w.bur} <span className={cn('opacity-60', styles.winModal.statCard.label)}>— {w.rus}</span>
+                                    {w.bur} <span className={cn('opacity-60', styles.winModal.statCard.label)}>— {hintByBur(w.bur, w.rus)}</span>
                                   </span>
                                 ))}
                               </div>
@@ -2135,7 +2149,7 @@ ${levelInfo}
                               </div>
                               <div className={cn('flex flex-wrap gap-x-3 gap-y-0.5 opacity-70', styles.winModal.statCard.valueDefault)}>
                                 {dailyResult.missedWords.map((w, i) => (
-                                  <span key={i}>{w.rus}</span>
+                                  <span key={i}>{hintByBur(w.bur, w.rus)}</span>
                                 ))}
                               </div>
                             </div>
