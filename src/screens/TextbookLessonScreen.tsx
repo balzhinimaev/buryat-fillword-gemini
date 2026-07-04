@@ -1,6 +1,6 @@
 // Урок учебника: цель, введение, лексика, фразы, грамматика, совет + практика-филлворды.
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle2, Layers, Lightbulb, Play, Star, Target } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Layers, Lightbulb, Play, Star, Target, Volume2 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
@@ -16,6 +16,7 @@ import {
 } from '../services/textbook';
 import { TextbookQuiz } from '../components/TextbookQuiz';
 import { TextbookFlashcards } from '../components/TextbookFlashcards';
+import { hasBurAudio, playBurAudio } from '../services/burAudio';
 
 interface Props {
   store: GameStore;
@@ -87,11 +88,26 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className={cn('text-sm block leading-snug', theme.text.secondary)}>{l.sound}</span>
-                    <span className={cn('text-xs', theme.text.muted)}>{l.example}</span>
+                    {(() => {
+                      const exBur = l.example.split(' — ')[0].trim();
+                      return hasBurAudio(exBur) ? (
+                        <button
+                          onClick={() => playBurAudio(exBur)}
+                          className={cn('text-xs flex items-center gap-1 text-amber-500 font-medium')}
+                        >
+                          <Volume2 size={12} /> {l.example}
+                        </button>
+                      ) : (
+                        <span className={cn('text-xs', theme.text.muted)}>{l.example}</span>
+                      );
+                    })()}
                   </span>
                 </div>
               ))}
             </div>
+            <p className={cn('text-[10px] mt-3', theme.text.muted)}>
+              🔊 Озвучка сгенерирована ИИ — произношение приближённое, ориентируйтесь на описания звуков.
+            </p>
           </div>
         )}
 
@@ -102,7 +118,18 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
               {unit.vocab.map((w) => (
                 <div key={w.bur} className="flex items-baseline justify-between gap-3">
                   <span className={cn('font-bold text-[15px] flex items-center gap-1.5', theme.text.primary)}>
-                    {w.bur}
+                    {hasBurAudio(w.bur) ? (
+                      <button
+                        onClick={() => playBurAudio(w.bur)}
+                        className="flex items-center gap-1.5 text-left"
+                        aria-label={`Произношение ${w.bur}`}
+                      >
+                        <Volume2 size={14} className="text-amber-500 flex-shrink-0" />
+                        {w.bur}
+                      </button>
+                    ) : (
+                      w.bur
+                    )}
                     {learned.has(w.bur.toUpperCase()) && (
                       <CheckCircle2 size={13} className="text-emerald-500" aria-label="выучено в игре" />
                     )}

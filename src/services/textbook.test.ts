@@ -171,6 +171,16 @@ describe('textbook', () => {
     expect(statuses.every((s) => !s.completed)).toBe(true);
   });
 
+  it('озвучка покрывает всю лексику урока алфавита и примеры букв', async () => {
+    const manifest = (await import('../data/burAudio.json')).default as Record<string, string>;
+    const alpha = getTextbook().units.find((u) => u.slug === 'alphabet')!;
+    for (const w of alpha.vocab) expect(manifest[w.bur], w.bur).toBeTruthy();
+    for (const l of alpha.letters!) {
+      const exBur = l.example.split(' — ')[0].trim();
+      expect(manifest[exBur], exBur).toBeTruthy();
+    }
+  });
+
   it('прогресс курса считается', () => {
     const statuses = getUnitStatuses({});
     expect(courseProgress(statuses)).toEqual({ done: 0, total: 12 });
