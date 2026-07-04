@@ -44,6 +44,8 @@ const SettingsScreen = lazy(() => import('./screens/SettingsScreen'));
 const StatsScreen = lazy(() => import('./screens/StatsScreen'));
 const LeaderboardScreen = lazy(() => import('./screens/LeaderboardScreen'));
 const DictionaryScreen = lazy(() => import('./screens/DictionaryScreen'));
+const TextbookScreen = lazy(() => import('./screens/TextbookScreen').then(m => ({ default: m.TextbookScreen })));
+const TextbookLessonScreen = lazy(() => import('./screens/TextbookLessonScreen').then(m => ({ default: m.TextbookLessonScreen })));
 const WordDetailScreen = lazy(() => import('./screens/WordDetailScreen'));
 const DebugGridScreen = lazy(() => import('./screens/DebugGridScreen'));
 const AdminScreen = lazy(() => import('./screens/AdminScreen'));
@@ -450,6 +452,10 @@ export default function App() {
         return <StatsScreen store={store} />;
       case 'leaderboard':
         return <LeaderboardScreen store={store} />;
+      case 'textbook':
+        return <TextbookScreen store={store} />;
+      case 'textbookLesson':
+        return <TextbookLessonScreen store={store} />;
       case 'dictionary':
         return <DictionaryScreen store={store} />;
       case 'wordDetail':

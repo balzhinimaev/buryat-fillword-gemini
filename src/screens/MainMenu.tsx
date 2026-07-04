@@ -7,6 +7,7 @@ import {
   BarChart3, 
   Trophy, 
   BookOpen,
+  GraduationCap,
   Flame,
   Shield,
   Sparkles,
@@ -790,6 +791,27 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
               </div>
             </motion.button>
           </div>
+
+          {/* Учебник */}
+          <motion.button
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('textbook')}
+            className={cn(
+              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
+              styles.buttons.card.background,
+              styles.buttons.card.border,
+              styles.buttons.card.borderHover
+            )}
+          >
+            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", styles.buttons.iconColors.dictionary.bg)}>
+              <GraduationCap size={22} className={styles.buttons.iconColors.dictionary.icon} />
+            </div>
+            <div className="text-left flex-1">
+              <div className={cn("font-semibold", styles.buttons.text.primary)}>Учебник</div>
+              <div className={cn("text-sm", styles.buttons.text.muted)}>12 уроков: от алфавита до фраз</div>
+            </div>
+          </motion.button>
 
           {/* Словарь */}
           <motion.button

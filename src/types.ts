@@ -76,6 +76,7 @@ export interface GameState {
   selectedLevelPack: string | null; // выбранный пакет уровней
   selectedEndlessLevel: number | null; // выбранный уровень в бесконечном режиме
   selectedWordId: string | null; // выбранное слово для детальной страницы
+  selectedTextbookUnit: string | null; // выбранный урок учебника
   gameMode: GameMode; // текущий режим игры
   campaignResumeSlug: string | null; // slug уровня для сценария resume-first-flow
   campaignLandingView: 'chapters' | 'modules' | null; // какой раздел открыть в экране первой главы
@@ -112,6 +113,8 @@ export type Screen =
   | 'adminDailyWord' // Редактор филлвордов дня (админ)
   | 'adminCampaignMaps' // Редактор карт уроков кампании (админ)
   | 'adminDictionary' // Офлайн-редактор словаря (админ)
+  | 'textbook' // Учебник бурятского (учебный план)
+  | 'textbookLesson' // Урок учебника
   | 'support'; // Поддержать проект
 
 // === Режимы игры ===
