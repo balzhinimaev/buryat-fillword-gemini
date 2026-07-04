@@ -1,21 +1,27 @@
-// Квиз урока учебника: вопросы по лексике с мгновенной обратной связью.
+// Квиз учебника: вопросы по лексике с мгновенной обратной связью.
+// Используется и в уроке (saveSlug задан — результат идёт в прогресс юнита),
+// и в «работе над ошибками» (без saveSlug). Каждый ответ обновляет трекер ошибок.
 import React, { useMemo, useState } from 'react';
 import { CheckCircle2, RotateCcw, Target, X } from 'lucide-react';
 import { cn } from './ui';
 import { useTheme } from '../theme/ThemeContext';
 import { hintOf, useGameLang } from '../services/gameLang';
 import {
-  buildQuiz,
   QUIZ_PASS_RATIO,
+  recordQuizAnswer,
   saveQuizResult,
-  type TextbookUnit,
+  type QuizQuestion,
   type TextbookWord,
 } from '../services/textbook';
 
 interface Props {
-  unit: TextbookUnit;
+  title: string;
+  /** генератор вопросов — вызывается на старте и при «Ещё раз» */
+  makeQuestions(): QuizQuestion[];
+  /** slug юнита — если задан, результат сохраняется в прогресс урока */
+  saveSlug?: string;
   onClose(): void;
-  /** дёргается после сохранения результата — родитель обновляет статусы */
+  /** после сохранения результата — родитель обновляет статусы */
   onFinished(): void;
 }
 
@@ -23,11 +29,12 @@ function trOf(w: TextbookWord): string {
   return hintOf({ ru: w.ru, translations: w.en ? { en: w.en } : undefined });
 }
 
-export const TextbookQuiz: React.FC<Props> = ({ unit, onClose, onFinished }) => {
+export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, onClose, onFinished }) => {
   const { theme, isDark } = useTheme();
   useGameLang();
   const [attempt, setAttempt] = useState(0);
-  const quiz = useMemo(() => buildQuiz(unit), [unit, attempt]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const quiz = useMemo(() => makeQuestions(), [attempt]);
   const [qi, setQi] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [correct, setCorrect] = useState(0);
@@ -37,14 +44,15 @@ export const TextbookQuiz: React.FC<Props> = ({ unit, onClose, onFinished }) => 
   const passNeed = Math.ceil(quiz.length * QUIZ_PASS_RATIO);
 
   const pick = (i: number) => {
-    if (picked !== null) return;
+    if (picked !== null || !q) return;
     setPicked(i);
     const ok = i === q.correctIndex;
+    recordQuizAnswer(q.word.bur, ok);
     const nextCorrect = correct + (ok ? 1 : 0);
     setCorrect(nextCorrect);
     setTimeout(() => {
       if (qi + 1 >= quiz.length) {
-        saveQuizResult(unit.slug, nextCorrect, quiz.length);
+        if (saveSlug) saveQuizResult(saveSlug, nextCorrect, quiz.length);
         setDone(true);
         onFinished();
       } else {
@@ -76,14 +84,16 @@ export const TextbookQuiz: React.FC<Props> = ({ unit, onClose, onFinished }) => 
         <div className="flex items-center justify-between mb-4">
           <div className={cn('font-bold flex items-center gap-2', theme.text.primary)}>
             <Target size={18} className="text-amber-500" />
-            Проверь себя
+            {title}
           </div>
           <button onClick={onClose} aria-label="Закрыть" className={cn('p-1.5 rounded-lg', theme.text.muted)}>
             <X size={18} />
           </button>
         </div>
 
-        {!done ? (
+        {!q ? (
+          <p className={cn('text-sm py-6 text-center', theme.text.muted)}>Нет слов для повторения.</p>
+        ) : !done ? (
           <>
             <div className="flex items-center justify-between mb-3">
               <span className={cn('text-xs', theme.text.muted)}>
@@ -139,7 +149,9 @@ export const TextbookQuiz: React.FC<Props> = ({ unit, onClose, onFinished }) => 
             </div>
             <p className={cn('text-sm mt-2', theme.text.secondary)}>
               {passed
-                ? 'Квиз пройден! Слова урока усвоены.'
+                ? saveSlug
+                  ? 'Квиз пройден! Слова урока усвоены.'
+                  : 'Отлично! Ошибки отработаны.'
                 : `Для зачёта нужно ${passNeed}+. Загляните в теорию и попробуйте ещё раз.`}
             </p>
             <div className="flex gap-2 justify-center mt-5">

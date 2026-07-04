@@ -1,14 +1,19 @@
-// Учебный план: список уроков учебника со статусами теории/практики и общим прогрессом.
+// Учебный план: список уроков учебника со статусами теории/практики/квиза,
+// общим прогрессом, рекомендацией следующего урока и «работой над ошибками».
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle2, Star, Target } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, RotateCcw, Star, Target } from 'lucide-react';
 import { cn } from '../components/ui';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
+import { TextbookQuiz } from '../components/TextbookQuiz';
 import {
+  buildReviewQuiz,
   courseProgress,
   fetchPracticeLessons,
+  getMistakeWords,
   getUnitStatuses,
   type PracticeLessonInfo,
+  type UnitStatus,
 } from '../services/textbook';
 
 interface Props {
@@ -18,6 +23,8 @@ interface Props {
 export const TextbookScreen: React.FC<Props> = ({ store }) => {
   const { theme, isDark } = useTheme();
   const [lessons, setLessons] = useState<Record<string, PracticeLessonInfo>>({});
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [mistakeCount, setMistakeCount] = useState(() => getMistakeWords().length);
 
   useEffect(() => {
     void fetchPracticeLessons().then(setLessons);
@@ -29,6 +36,59 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
   );
   const statuses = useMemo(() => getUnitStatuses(starsBySlug), [starsBySlug]);
   const progress = courseProgress(statuses);
+  const nextIdx = statuses.findIndex((s) => !s.completed);
+
+  const renderUnit = (s: UnitStatus, i: number, isNext: boolean) => (
+    <button
+      key={s.unit.slug}
+      onClick={() => store.navigateToTextbookUnit(s.unit.slug)}
+      className={cn(
+        'w-full text-left rounded-2xl p-4 flex items-start gap-3 border transition-all active:scale-[0.99]',
+        isDark ? cn(theme.backgrounds.card, theme.borders.subtle) : 'bg-white shadow-sm border-stone-100',
+        s.completed && 'border-emerald-500/50',
+        isNext && 'border-amber-500/70',
+      )}
+    >
+      <div
+        className={cn(
+          'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-sm',
+          s.completed
+            ? 'bg-emerald-500 text-white'
+            : isNext
+              ? 'bg-amber-500 text-white'
+              : isDark ? 'bg-white/10 text-white/70' : 'bg-stone-100 text-stone-500',
+        )}
+      >
+        {s.completed ? <CheckCircle2 size={18} /> : i + 1}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <div className={cn('font-bold text-[15px] leading-tight', theme.text.primary)}>
+            {s.unit.title.replace(/^Урок \d+\. /, '')}
+          </div>
+          {isNext && (
+            <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-500 flex-shrink-0">
+              следующий
+            </span>
+          )}
+        </div>
+        <div className={cn('text-xs mt-1', theme.text.muted)}>{s.unit.goal}</div>
+        <div className="flex items-center gap-3 mt-2 text-[11px]">
+          <span className={cn('flex items-center gap-1', s.theoryRead ? 'text-emerald-500' : theme.text.muted)}>
+            <BookOpen size={11} /> теория{s.theoryRead ? ' ✓' : ''}
+          </span>
+          {s.unit.practiceSlugs.length > 0 && (
+            <span className={cn('flex items-center gap-1', s.practiceStars > 0 ? 'text-amber-500' : theme.text.muted)}>
+              <Star size={11} /> практика{s.practiceStars > 0 ? ` ${s.practiceStars}★` : ''}
+            </span>
+          )}
+          <span className={cn('flex items-center gap-1', s.quizPassed ? 'text-emerald-500' : theme.text.muted)}>
+            <Target size={11} /> квиз{s.quizPassed ? ' ✓' : s.quizBest ? ` ${s.quizBest.correct}/${s.quizBest.total}` : ''}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
 
   return (
     <div className={cn('min-h-screen flex flex-col', theme.backgrounds.primaryGradient)}>
@@ -55,51 +115,44 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
       </header>
 
       <main className="flex-1 p-4 space-y-3 pb-8">
-        {statuses.map((s, i) => (
+        {mistakeCount >= 3 && (
           <button
-            key={s.unit.slug}
-            onClick={() => store.navigateToTextbookUnit(s.unit.slug)}
+            onClick={() => setReviewOpen(true)}
             className={cn(
-              'w-full text-left rounded-2xl p-4 flex items-start gap-3 border transition-all active:scale-[0.99]',
-              isDark ? cn(theme.backgrounds.card, theme.borders.subtle) : 'bg-white shadow-sm border-stone-100',
-              s.completed && 'border-emerald-500/50',
+              'w-full text-left rounded-2xl p-4 flex items-center gap-3 border-2 border-amber-500/60 active:scale-[0.99]',
+              isDark ? theme.backgrounds.card : 'bg-amber-50',
             )}
           >
-            <div
-              className={cn(
-                'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-sm',
-                s.completed
-                  ? 'bg-emerald-500 text-white'
-                  : isDark ? 'bg-white/10 text-white/70' : 'bg-stone-100 text-stone-500',
-              )}
-            >
-              {s.completed ? <CheckCircle2 size={18} /> : i + 1}
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
+              <RotateCcw size={17} />
             </div>
             <div className="flex-1 min-w-0">
-              <div className={cn('font-bold text-[15px] leading-tight', theme.text.primary)}>
-                {s.unit.title.replace(/^Урок \d+\. /, '')}
-              </div>
-              <div className={cn('text-xs mt-1', theme.text.muted)}>{s.unit.goal}</div>
-              <div className="flex items-center gap-3 mt-2 text-[11px]">
-                <span className={cn('flex items-center gap-1', s.theoryRead ? 'text-emerald-500' : theme.text.muted)}>
-                  <BookOpen size={11} /> теория{s.theoryRead ? ' ✓' : ''}
-                </span>
-                {s.unit.practiceSlugs.length > 0 && (
-                  <span className={cn('flex items-center gap-1', s.practiceStars > 0 ? 'text-amber-500' : theme.text.muted)}>
-                    <Star size={11} /> практика{s.practiceStars > 0 ? ` ${s.practiceStars}★` : ''}
-                  </span>
-                )}
-                <span className={cn('flex items-center gap-1', s.quizPassed ? 'text-emerald-500' : theme.text.muted)}>
-                  <Target size={11} /> квиз{s.quizPassed ? ' ✓' : s.quizBest ? ` ${s.quizBest.correct}/${s.quizBest.total}` : ''}
-                </span>
+              <div className={cn('font-bold text-[15px]', theme.text.primary)}>Работа над ошибками</div>
+              <div className={cn('text-xs mt-0.5', theme.text.muted)}>
+                Слов ждёт повторения: {mistakeCount} — закрепите их квизом
               </div>
             </div>
           </button>
-        ))}
+        )}
+
+        {statuses.map((s, i) => renderUnit(s, i, i === nextIdx))}
+
         <p className={cn('text-[10px] text-center pt-2', theme.text.muted)}>
           Материалы урока подготовлены с помощью ИИ и могут содержать неточности.
         </p>
       </main>
+
+      {reviewOpen && (
+        <TextbookQuiz
+          title="Работа над ошибками"
+          makeQuestions={() => buildReviewQuiz()}
+          onClose={() => {
+            setReviewOpen(false);
+            setMistakeCount(getMistakeWords().length);
+          }}
+          onFinished={() => setMistakeCount(getMistakeWords().length)}
+        />
+      )}
     </div>
   );
 };

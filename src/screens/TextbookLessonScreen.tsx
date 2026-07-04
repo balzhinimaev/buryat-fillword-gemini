@@ -6,6 +6,7 @@ import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
 import { hintOf, useGameLang } from '../services/gameLang';
 import {
+  buildQuiz,
   fetchPracticeLessons,
   getQuizBest,
   getTextbook,
@@ -176,11 +177,30 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
             </div>
           </div>
         )}
+        {(() => {
+          const units = getTextbook().units;
+          const idx = units.findIndex((u) => u.slug === unit.slug);
+          const next = units[idx + 1];
+          if (!next) return null;
+          return (
+            <button
+              onClick={() => store.navigateToTextbookUnit(next.slug)}
+              className={cn(
+                'w-full rounded-2xl p-3.5 font-bold text-sm flex items-center justify-center gap-1.5 border active:scale-[0.99]',
+                isDark ? cn(theme.backgrounds.card, theme.borders.subtle, theme.text.secondary) : 'bg-white border-stone-200 text-stone-600',
+              )}
+            >
+              Следующий урок → {next.title.replace(/^Урок \d+\. /, '')}
+            </button>
+          );
+        })()}
       </main>
 
       {quizOpen && (
         <TextbookQuiz
-          unit={unit}
+          title="Проверь себя"
+          makeQuestions={() => buildQuiz(unit)}
+          saveSlug={unit.slug}
           onClose={() => setQuizOpen(false)}
           onFinished={() => setQuizBest(getQuizBest(unit.slug))}
         />

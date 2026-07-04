@@ -102,6 +102,74 @@ export function saveQuizResult(slug: string, correct: number, total: number): vo
   saveProgress(map);
 }
 
+// ---------- работа над ошибками ----------
+
+const MISTAKES_KEY = 'burlive_textbook_mistakes';
+
+interface MistakeEntry {
+  misses: number;
+  /** верных ответов подряд после последней ошибки */
+  streak: number;
+  lastMissAt: string;
+}
+
+type MistakesMap = Record<string, MistakeEntry>;
+
+function loadMistakes(): MistakesMap {
+  try {
+    const raw = localStorage.getItem(MISTAKES_KEY);
+    const parsed = raw ? (JSON.parse(raw) as MistakesMap) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveMistakes(map: MistakesMap): void {
+  try {
+    localStorage.setItem(MISTAKES_KEY, JSON.stringify(map));
+  } catch {
+    /* приватный режим */
+  }
+}
+
+/** два верных ответа подряд «закрывают» слово — оно уходит из повторения */
+export const MISTAKE_CLEAR_STREAK = 2;
+
+export function recordQuizAnswer(bur: string, correct: boolean): void {
+  const map = loadMistakes();
+  const e = map[bur];
+  if (correct) {
+    if (!e) return;
+    e.streak += 1;
+    if (e.streak >= MISTAKE_CLEAR_STREAK) delete map[bur];
+  } else {
+    map[bur] = {
+      misses: (e?.misses ?? 0) + 1,
+      streak: 0,
+      lastMissAt: new Date().toISOString(),
+    };
+  }
+  saveMistakes(map);
+}
+
+/** слова курса, ожидающие повторения (были ошибки, ещё не закрыты) */
+export function getMistakeWords(): TextbookWord[] {
+  const map = loadMistakes();
+  const out: TextbookWord[] = [];
+  const seen = new Set<string>();
+  for (const u of getTextbook().units) {
+    for (const w of u.vocab) {
+      if (map[w.bur] && !seen.has(w.bur)) {
+        seen.add(w.bur);
+        out.push(w);
+      }
+    }
+  }
+  // самые «проблемные» — первыми
+  return out.sort((a, b) => (map[b.bur]?.misses ?? 0) - (map[a.bur]?.misses ?? 0));
+}
+
 // ---------- квиз: генерируется из лексики, без ИИ ----------
 
 export interface QuizQuestion {
@@ -122,11 +190,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-/**
- * Квиз урока: до questionCount вопросов по лексике юнита, направления чередуются.
- * Дистракторы — из лексики всего курса (уникальные и по bur, и по ru).
- */
-export function buildQuiz(unit: TextbookUnit, questionCount = 8): QuizQuestion[] {
+function allCourseWords(): TextbookWord[] {
   const pool: TextbookWord[] = [];
   const seenBur = new Set<string>();
   for (const u of getTextbook().units) {
@@ -137,8 +201,11 @@ export function buildQuiz(unit: TextbookUnit, questionCount = 8): QuizQuestion[]
       }
     }
   }
-  const questions = shuffle(unit.vocab).slice(0, questionCount);
-  return questions.map((word, qi) => {
+  return pool;
+}
+
+function makeQuestions(words: TextbookWord[], pool: TextbookWord[]): QuizQuestion[] {
+  return words.map((word, qi) => {
     const distractors = shuffle(
       pool.filter((w) => w.bur !== word.bur && w.ru !== word.ru),
     ).slice(0, 3);
@@ -150,6 +217,25 @@ export function buildQuiz(unit: TextbookUnit, questionCount = 8): QuizQuestion[]
       correctIndex: options.findIndex((w) => w.bur === word.bur),
     } as QuizQuestion;
   });
+}
+
+/**
+ * Квиз урока: до questionCount вопросов по лексике юнита, направления чередуются.
+ * Слова с прошлыми ошибками попадают в квиз в первую очередь.
+ * Дистракторы — из лексики всего курса (уникальные и по bur, и по ru).
+ */
+export function buildQuiz(unit: TextbookUnit, questionCount = 8): QuizQuestion[] {
+  const mistakes = loadMistakes();
+  const withMistakes = shuffle(unit.vocab.filter((w) => mistakes[w.bur]));
+  const rest = shuffle(unit.vocab.filter((w) => !mistakes[w.bur]));
+  const questions = [...withMistakes, ...rest].slice(0, questionCount);
+  return makeQuestions(shuffle(questions), allCourseWords());
+}
+
+/** квиз «работа над ошибками»: слова с ошибками со всего курса */
+export function buildReviewQuiz(questionCount = 8): QuizQuestion[] {
+  const words = getMistakeWords().slice(0, questionCount);
+  return makeQuestions(shuffle(words), allCourseWords());
 }
 
 export interface UnitStatus {

@@ -281,7 +281,10 @@ export const useGameStore = () => {
   const navigateToTextbookUnit = useCallback((slug: string) => {
     setState(prev => ({
       ...prev,
-      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      // урок → урок («следующий») не копит историю: back всегда ведёт в план
+      screenHistory: prev.currentScreen === 'textbookLesson'
+        ? prev.screenHistory
+        : [...prev.screenHistory, prev.currentScreen],
       selectedTextbookUnit: slug,
       currentScreen: 'textbookLesson' as Screen,
     }));

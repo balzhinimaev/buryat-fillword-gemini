@@ -1,12 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   buildQuiz,
+  buildReviewQuiz,
   courseProgress,
+  getMistakeWords,
   getQuizBest,
   getTextbook,
   getUnitStatuses,
   isTheoryRead,
   markTheoryRead,
+  recordQuizAnswer,
   saveQuizResult,
 } from './textbook';
 
@@ -90,6 +93,50 @@ describe('textbook', () => {
     }
     expect(quiz[0].type).toBe('bur2tr');
     expect(quiz[1].type).toBe('tr2bur');
+  });
+
+  it('ошибки: копятся, закрываются двумя верными подряд', () => {
+    recordQuizAnswer('НОМ', false);
+    recordQuizAnswer('ГАР', false);
+    expect(getMistakeWords().map((w) => w.bur)).toContain('НОМ');
+    expect(getMistakeWords().length).toBe(2);
+
+    recordQuizAnswer('НОМ', true);
+    expect(getMistakeWords().map((w) => w.bur)).toContain('НОМ'); // 1 верный — мало
+    recordQuizAnswer('НОМ', true);
+    expect(getMistakeWords().map((w) => w.bur)).not.toContain('НОМ'); // 2 подряд — закрыто
+
+    // ошибка сбрасывает серию
+    recordQuizAnswer('ГАР', true);
+    recordQuizAnswer('ГАР', false);
+    recordQuizAnswer('ГАР', true);
+    expect(getMistakeWords().map((w) => w.bur)).toContain('ГАР');
+  });
+
+  it('верный ответ по слову без ошибок ничего не создаёт', () => {
+    recordQuizAnswer('САЙ', true);
+    expect(getMistakeWords().length).toBe(0);
+  });
+
+  it('buildQuiz ставит слова с ошибками в приоритет', () => {
+    const unit = getTextbook().units.find((u) => u.vocab.length > 8)!;
+    const target = unit.vocab[unit.vocab.length - 1]; // слово, которое иначе может не попасть
+    recordQuizAnswer(target.bur, false);
+    for (let t = 0; t < 5; t++) {
+      const quiz = buildQuiz(unit);
+      expect(quiz.map((q) => q.word.bur)).toContain(target.bur);
+    }
+  });
+
+  it('buildReviewQuiz строится из слов с ошибками', () => {
+    expect(buildReviewQuiz().length).toBe(0);
+    recordQuizAnswer('НОМ', false);
+    recordQuizAnswer('ГАР', false);
+    recordQuizAnswer('УҺАН', false);
+    const quiz = buildReviewQuiz();
+    expect(quiz.length).toBe(3);
+    expect(new Set(quiz.map((q) => q.word.bur))).toEqual(new Set(['НОМ', 'ГАР', 'УҺАН']));
+    for (const q of quiz) expect(q.options.length).toBe(4);
   });
 
   it('прогресс курса считается', () => {
