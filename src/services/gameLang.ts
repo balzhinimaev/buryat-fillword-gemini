@@ -1,5 +1,7 @@
 // Язык подсказок игры (перевод бурятских слов): ru — базовый, en — из word.translations.
-// Хранится локально; ru всегда fallback, если перевода на выбранный язык нет.
+// Реактивный модуль: setGameLang уведомляет подписчиков, useGameLang() перерисовывает
+// компоненты на лету (переключатель прямо в игре). ru всегда fallback.
+import { useSyncExternalStore } from 'react';
 
 export type GameLang = 'ru' | 'en';
 
@@ -10,21 +12,46 @@ export const GAME_LANGS: { value: GameLang; label: string }[] = [
   { value: 'en', label: 'English' },
 ];
 
-export function getGameLang(): GameLang {
+function readStored(): GameLang {
   try {
-    const v = localStorage.getItem(STORAGE_KEY);
-    return v === 'en' ? 'en' : 'ru';
+    return localStorage.getItem(STORAGE_KEY) === 'en' ? 'en' : 'ru';
   } catch {
     return 'ru';
   }
 }
 
+let current: GameLang = readStored();
+const listeners = new Set<() => void>();
+
+export function getGameLang(): GameLang {
+  return current;
+}
+
 export function setGameLang(lang: GameLang): void {
+  if (lang === current) return;
+  current = lang;
   try {
     localStorage.setItem(STORAGE_KEY, lang);
   } catch {
     /* приватный режим */
   }
+  listeners.forEach((fn) => fn());
+}
+
+export function toggleGameLang(): GameLang {
+  const next: GameLang = current === 'ru' ? 'en' : 'ru';
+  setGameLang(next);
+  return next;
+}
+
+function subscribe(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+/** реактивный язык подсказок — компонент перерисуется при переключении */
+export function useGameLang(): GameLang {
+  return useSyncExternalStore(subscribe, getGameLang);
 }
 
 export interface Translatable {
@@ -34,7 +61,6 @@ export interface Translatable {
 
 /** подсказка на выбранном языке с fallback на русский */
 export function hintOf(word: Translatable): string {
-  const lang = getGameLang();
-  if (lang === 'ru') return word.ru;
-  return word.translations?.[lang] || word.ru;
+  if (current === 'ru') return word.ru;
+  return word.translations?.[current] || word.ru;
 }

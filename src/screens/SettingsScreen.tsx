@@ -16,7 +16,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { OFFLINE } from '../config/offline';
-import { GAME_LANGS, getGameLang, setGameLang, type GameLang } from '../services/gameLang';
+import { GAME_LANGS, setGameLang, useGameLang } from '../services/gameLang';
 import { Modal, cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
@@ -56,7 +56,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
   useBackButton(() => goBack());
   
   const [showResetModal, setShowResetModal] = useState(false);
-  const [gameLang, setGameLangState] = useState<GameLang>(getGameLang());
+  const gameLang = useGameLang();
   const [editingName, setEditingName] = useState(false);
   const backendPlayerName = authState.user?.name?.trim();
   const effectivePlayerName = useMemo(() => {
@@ -459,10 +459,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
                 <motion.button
                   key={l.value}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    setGameLang(l.value);
-                    setGameLangState(l.value);
-                  }}
+                  onClick={() => setGameLang(l.value)}
                   className={cn(
                     'p-3 rounded-xl border-2 text-sm font-semibold transition-all',
                     isSelected

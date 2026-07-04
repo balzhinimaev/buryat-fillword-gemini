@@ -14,14 +14,15 @@ import {
   Lock,
   Info,
   Eye,
-  Settings2
+  Settings2,
+  Globe
 } from 'lucide-react';
 import { cn, StarsDisplay } from '../components/ui';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
 import { generateServerLevel, generateCampaignLevel, findWordByPath, isPalindromeWord, type PlacedWord } from '../gameEngine';
 import type { Coord, CellStatus, WordData } from '../types';
-import { hintOf } from '../services/gameLang';
+import { hintOf, toggleGameLang, useGameLang } from '../services/gameLang';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
 import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, type LevelModeLevelResponse, type LevelModeSubmitResponse, type LevelModeLevelLeaderboardResponse, type DailyWordTodayResponse, type DailyWordSubmitResponse, type DailyWordLeaderboardResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
@@ -84,16 +85,19 @@ const FlippableWordChip = React.memo(({
   styles,
   isDark,
   index,
-  onHint
+  onHint,
+  lang,
 }: { 
-  word: { bur: string; ru: string };
+  word: { bur: string; ru: string; translations?: Record<string, string> };
   isFound: boolean;
   color: { bg: string; text: string };
   styles: GameThemeStyles;
   isDark: boolean;
   index: number;
   onHint?: () => void;
+  lang: string;
 }) => {
+  void lang; // используется только для инвалидации React.memo при смене языка
   const [isRevealed, setIsRevealed] = useState(false);
   const [hasBeenClicked, setHasBeenClicked] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -483,6 +487,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [gridLetters, setGridLetters] = useState<string[][]>([]);
   const [gridSize, setGridSize] = useState(5);
   const [placedWords, setPlacedWords] = useState<PlacedWord[]>([]);
+  const gameLang = useGameLang();
 
   // подсказка по бурятскому слову для итогового экрана (submit-ответ не несёт переводов)
   const hintByBur = (bur: string, fallbackRu: string): string => {
@@ -1854,12 +1859,27 @@ ${levelInfo}
           <h3 className={cn("text-xs font-bold uppercase tracking-wider", styles.footer.title)}>
             Найди слова:
           </h3>
-          <div className={cn(
-            "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full",
-            isDark ? "bg-white/10 text-white/60" : "bg-black/5 text-black/50"
-          )}>
-            <Eye size={10} />
-            <span>нажми чтобы подсмотреть</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => toggleGameLang()}
+              aria-label="Язык подсказок"
+              className={cn(
+                "text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-full transition-colors",
+                gameLang === 'en'
+                  ? "bg-amber-500/90 text-white"
+                  : isDark ? "bg-white/10 text-white/60" : "bg-black/5 text-black/50"
+              )}
+            >
+              <Globe size={10} />
+              <span>{gameLang === 'en' ? 'EN' : 'РУС'}</span>
+            </button>
+            <div className={cn(
+              "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full",
+              isDark ? "bg-white/10 text-white/60" : "bg-black/5 text-black/50"
+            )}>
+              <Eye size={10} />
+              <span>нажми чтобы подсмотреть</span>
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 content-start max-h-36 overflow-y-auto overflow-x-hidden py-1">
@@ -1883,6 +1903,7 @@ ${levelInfo}
                 isDark={isDark}
                 index={isFound ? -1 : unfoundIndex}
                 onHint={() => showWordStartHint(pw)}
+                lang={gameLang}
               />
             );
           })}

@@ -9,7 +9,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { getCategories, getWords, type ApiCategory, type ApiWord } from '../services/api';
-import { hintOf } from '../services/gameLang';
+import { hintOf, useGameLang } from '../services/gameLang';
 
 const WORDS_PER_PAGE = 50;
 
@@ -18,6 +18,7 @@ interface DictionaryScreenProps {
 }
 
 export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => {
+  useGameLang(); // перерисовка подсказок при смене языка
   const { state, goBack, navigateToWord } = store;
   const { stats } = state;
   const { theme, isDark } = useTheme();
