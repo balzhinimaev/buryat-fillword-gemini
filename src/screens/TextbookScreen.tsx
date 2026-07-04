@@ -1,6 +1,6 @@
 // Учебный план: список уроков учебника со статусами теории/практики и общим прогрессом.
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle2, Star } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Star, Target } from 'lucide-react';
 import { cn } from '../components/ui';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
@@ -89,6 +89,9 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
                     <Star size={11} /> практика{s.practiceStars > 0 ? ` ${s.practiceStars}★` : ''}
                   </span>
                 )}
+                <span className={cn('flex items-center gap-1', s.quizPassed ? 'text-emerald-500' : theme.text.muted)}>
+                  <Target size={11} /> квиз{s.quizPassed ? ' ✓' : s.quizBest ? ` ${s.quizBest.correct}/${s.quizBest.total}` : ''}
+                </span>
               </div>
             </div>
           </button>

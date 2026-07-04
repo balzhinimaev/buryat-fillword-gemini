@@ -1,17 +1,19 @@
 // Урок учебника: цель, введение, лексика, фразы, грамматика, совет + практика-филлворды.
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle2, Lightbulb, Play, Star } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Lightbulb, Play, Star, Target } from 'lucide-react';
 import { cn } from '../components/ui';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
 import { hintOf, useGameLang } from '../services/gameLang';
 import {
   fetchPracticeLessons,
+  getQuizBest,
   getTextbook,
   isTheoryRead,
   markTheoryRead,
   type PracticeLessonInfo,
 } from '../services/textbook';
+import { TextbookQuiz } from '../components/TextbookQuiz';
 
 interface Props {
   store: GameStore;
@@ -24,6 +26,8 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
   const unit = getTextbook().units.find((u) => u.slug === slug);
   const [theoryRead, setTheoryRead] = useState(slug ? isTheoryRead(slug) : false);
   const [lessons, setLessons] = useState<Record<string, PracticeLessonInfo>>({});
+  const [quizOpen, setQuizOpen] = useState(false);
+  const [quizBest, setQuizBest] = useState(slug ? getQuizBest(slug) : null);
 
   useEffect(() => {
     void fetchPracticeLessons().then(setLessons);
@@ -127,6 +131,21 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
           {theoryRead ? 'Теория изучена' : 'Отметить теорию изученной'}
         </button>
 
+        <button
+          onClick={() => setQuizOpen(true)}
+          className={cn(
+            'w-full rounded-2xl p-3.5 font-bold text-sm flex items-center justify-center gap-2 border transition-all active:scale-[0.99]',
+            quizBest && quizBest.correct / quizBest.total >= 0.75
+              ? 'bg-amber-500 border-amber-500 text-white'
+              : isDark ? cn(theme.backgrounds.card, theme.borders.subtle, theme.text.primary) : 'bg-white border-stone-200 text-stone-700',
+          )}
+        >
+          <Target size={17} />
+          {quizBest
+            ? `Квиз: лучший результат ${quizBest.correct}/${quizBest.total}`
+            : 'Проверь себя — квиз по словам'}
+        </button>
+
         {unit.practiceSlugs.length > 0 && (
           <div className={cardCls}>
             <div className={cn('text-xs font-bold uppercase tracking-wider mb-2', theme.text.muted)}>
@@ -158,6 +177,14 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
           </div>
         )}
       </main>
+
+      {quizOpen && (
+        <TextbookQuiz
+          unit={unit}
+          onClose={() => setQuizOpen(false)}
+          onFinished={() => setQuizBest(getQuizBest(unit.slug))}
+        />
+      )}
     </div>
   );
 };

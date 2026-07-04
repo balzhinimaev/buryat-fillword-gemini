@@ -35,8 +35,14 @@ export interface TextbookData {
 
 const PROGRESS_KEY = 'burlive_textbook_progress';
 
+/** доля правильных ответов, с которой квиз считается пройденным */
+export const QUIZ_PASS_RATIO = 0.75;
+
 interface UnitProgress {
   theoryReadAt?: string;
+  /** лучший результат квиза, например "7/8" числами */
+  quizBest?: { correct: number; total: number };
+  quizPassedAt?: string;
 }
 
 type ProgressMap = Record<string, UnitProgress>;
@@ -72,9 +78,78 @@ export function markTheoryRead(slug: string, read = true): void {
   if (read) {
     map[slug] = { ...map[slug], theoryReadAt: new Date().toISOString() };
   } else {
-    delete map[slug];
+    map[slug] = { ...map[slug], theoryReadAt: undefined };
   }
   saveProgress(map);
+}
+
+export function getQuizBest(slug: string): { correct: number; total: number } | null {
+  return loadProgress()[slug]?.quizBest ?? null;
+}
+
+/** сохраняет результат квиза; лучший результат не ухудшается */
+export function saveQuizResult(slug: string, correct: number, total: number): void {
+  const map = loadProgress();
+  const prev = map[slug]?.quizBest;
+  const better = !prev || correct / total > prev.correct / prev.total;
+  map[slug] = {
+    ...map[slug],
+    quizBest: better ? { correct, total } : prev,
+    quizPassedAt:
+      map[slug]?.quizPassedAt ??
+      (correct / total >= QUIZ_PASS_RATIO ? new Date().toISOString() : undefined),
+  };
+  saveProgress(map);
+}
+
+// ---------- квиз: генерируется из лексики, без ИИ ----------
+
+export interface QuizQuestion {
+  /** 'bur2tr' — показываем бурятское слово, варианты-переводы; 'tr2bur' — наоборот */
+  type: 'bur2tr' | 'tr2bur';
+  word: TextbookWord;
+  /** варианты: слова целиком, показ стороны зависит от type */
+  options: TextbookWord[];
+  correctIndex: number;
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * Квиз урока: до questionCount вопросов по лексике юнита, направления чередуются.
+ * Дистракторы — из лексики всего курса (уникальные и по bur, и по ru).
+ */
+export function buildQuiz(unit: TextbookUnit, questionCount = 8): QuizQuestion[] {
+  const pool: TextbookWord[] = [];
+  const seenBur = new Set<string>();
+  for (const u of getTextbook().units) {
+    for (const w of u.vocab) {
+      if (!seenBur.has(w.bur)) {
+        seenBur.add(w.bur);
+        pool.push(w);
+      }
+    }
+  }
+  const questions = shuffle(unit.vocab).slice(0, questionCount);
+  return questions.map((word, qi) => {
+    const distractors = shuffle(
+      pool.filter((w) => w.bur !== word.bur && w.ru !== word.ru),
+    ).slice(0, 3);
+    const options = shuffle([word, ...distractors]);
+    return {
+      type: qi % 2 === 0 ? 'bur2tr' : 'tr2bur',
+      word,
+      options,
+      correctIndex: options.findIndex((w) => w.bur === word.bur),
+    } as QuizQuestion;
+  });
 }
 
 export interface UnitStatus {
@@ -83,6 +158,8 @@ export interface UnitStatus {
   /** максимум звёзд среди уроков практики юнита */
   practiceStars: number;
   practiceDone: boolean;
+  quizBest: { correct: number; total: number } | null;
+  quizPassed: boolean;
   completed: boolean;
 }
 
@@ -91,13 +168,25 @@ export interface UnitStatus {
  * собирает вызывающая сторона из overview (онлайн и офлайн формы одинаковы).
  */
 export function getUnitStatuses(starsBySlug: Record<string, number>): UnitStatus[] {
+  const progress = loadProgress();
   return getTextbook().units.map((unit) => {
-    const theoryRead = isTheoryRead(unit.slug);
+    const p = progress[unit.slug];
+    const theoryRead = !!p?.theoryReadAt;
     const practiceStars = unit.practiceSlugs.length
       ? Math.max(0, ...unit.practiceSlugs.map((s) => starsBySlug[s] ?? 0))
       : 0;
     const practiceDone = unit.practiceSlugs.length === 0 || practiceStars > 0;
-    return { unit, theoryRead, practiceStars, practiceDone, completed: theoryRead && practiceDone };
+    const quizBest = p?.quizBest ?? null;
+    const quizPassed = !!p?.quizPassedAt;
+    return {
+      unit,
+      theoryRead,
+      practiceStars,
+      practiceDone,
+      quizBest,
+      quizPassed,
+      completed: theoryRead && practiceDone && quizPassed,
+    };
   });
 }
 
