@@ -46,6 +46,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- запись произношений в словаре (админ/модератор) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- navigator.vibrate() в WebView без этого разрешения молча игнорируется -->
     <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

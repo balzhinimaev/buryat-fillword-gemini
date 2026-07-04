@@ -421,6 +421,7 @@ export interface ApiWord {
   exampleRu?: string;
   pronunciation?: string;
   audioUrl?: string | null;
+  exampleAudioUrl?: string | null;
   // Лексические связи
   synonyms: string[];
   antonyms: string[];
@@ -2436,6 +2437,35 @@ export async function deleteDailyWord(date: string): Promise<void> {
 }
 
 // API экспорт
+
+// ---------- аудио-произношение слова (админ/модератор) ----------
+
+export async function uploadWordAudio(
+  wordId: string,
+  file: Blob,
+  target: 'word' | 'example',
+  fileName = 'audio.webm',
+): Promise<ApiWord> {
+  const tokens = getStoredTokens();
+  const fd = new FormData();
+  fd.append('file', file, fileName);
+  const r = await fetch(`${API_URL}/words/${wordId}/audio?target=${target}`, {
+    method: 'POST',
+    headers: tokens?.access_token
+      ? { Authorization: `Bearer ${tokens.access_token}` }
+      : undefined,
+    body: fd,
+  });
+  if (!r.ok) {
+    throw await r.json().catch(() => ({ statusCode: r.status, message: r.statusText }));
+  }
+  return r.json();
+}
+
+export function deleteWordAudio(wordId: string, target: 'word' | 'example'): Promise<ApiWord> {
+  return apiRequest<ApiWord>(`/words/${wordId}/audio?target=${target}`, { method: 'DELETE' });
+}
+
 export const api = {
   telegramAuth,
   requestEmailOtp,
@@ -2445,6 +2475,8 @@ export const api = {
   resolvePaywallEligibility,
   logout,
   getStoredTokens,
+  uploadWordAudio,
+  deleteWordAudio,
   clearStoredTokens,
   getCategories,
   getDialects,

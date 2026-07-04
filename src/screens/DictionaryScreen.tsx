@@ -445,6 +445,18 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                             )}>
                               {word.bur.charAt(0) + word.bur.slice(1).toLowerCase()}
                             </span>
+                            {word.audioUrl && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void new Audio(word.audioUrl!).play().catch(() => {});
+                                }}
+                                aria-label="Произношение"
+                                className="flex-shrink-0 text-amber-500 p-0.5"
+                              >
+                                <Volume2 size={13} />
+                              </button>
+                            )}
                             {isLearned && (
                               <span className={cn(
                                 'text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0',

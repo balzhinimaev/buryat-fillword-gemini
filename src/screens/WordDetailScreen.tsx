@@ -12,6 +12,8 @@ import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
+import { PronunciationControl } from '../components/PronunciationControl';
+import { api } from '../services/api';
 import type { GameStore } from '../store/gameStore';
 import {
   getWordDetail, voteWord, addComment, editComment, deleteComment,
@@ -265,6 +267,15 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
   }, []);
 
   const userRole = authState.user?.role ?? 'user';
+
+  // обновить аудио-поля после загрузки/удаления произношения
+  const applyAudioUpdate = useCallback((res: { audioUrl?: string | null; exampleAudioUrl?: string | null }) => {
+    setData(prev =>
+      prev
+        ? { ...prev, word: { ...prev.word, audioUrl: res.audioUrl ?? null, exampleAudioUrl: res.exampleAudioUrl ?? null } }
+        : prev,
+    );
+  }, []);
   const canModerate = userRole === 'moderator' || userRole === 'admin';
 
   // Добавить комментарий
@@ -462,6 +473,17 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                     </p>
                   )}
 
+                  {/* Аудио-произношение: слушают все, редактируют модератор/админ */}
+                  <div className="flex justify-center mt-3">
+                    <PronunciationControl
+                      label="Слово"
+                      url={word.audioUrl}
+                      canEdit={canModerate}
+                      onSave={async (f, name) => applyAudioUpdate(await api.uploadWordAudio(word._id, f, 'word', name))}
+                      onDelete={async () => applyAudioUpdate(await api.deleteWordAudio(word._id, 'word'))}
+                    />
+                  </div>
+
                   {/* Произношение */}
                   {word.pronunciation && (
                     <div className="flex items-center justify-center gap-1.5 mt-2">
@@ -636,6 +658,15 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                         {word.exampleRu}
                       </p>
                     )}
+                    <div className="mt-2">
+                      <PronunciationControl
+                        label="Аудио"
+                        url={word.exampleAudioUrl}
+                        canEdit={canModerate}
+                        onSave={async (f, name) => applyAudioUpdate(await api.uploadWordAudio(word._id, f, 'example', name))}
+                        onDelete={async () => applyAudioUpdate(await api.deleteWordAudio(word._id, 'example'))}
+                      />
+                    </div>
                   </div>
                 </div>
               </Card>
