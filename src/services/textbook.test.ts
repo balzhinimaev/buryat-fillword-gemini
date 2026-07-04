@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  buildExamQuiz,
   buildQuiz,
   buildReviewQuiz,
+  EXAM_SLUG,
+  getExamBest,
+  isExamPassed,
   courseProgress,
   getMistakeWords,
   getQuizBest,
@@ -137,6 +141,34 @@ describe('textbook', () => {
     expect(quiz.length).toBe(3);
     expect(new Set(quiz.map((q) => q.word.bur))).toEqual(new Set(['НОМ', 'ГАР', 'УҺАН']));
     for (const q of quiz) expect(q.options.length).toBe(4);
+  });
+
+  it('урок алфавита содержит таблицу букв с ү/ө/һ', () => {
+    const alpha = getTextbook().units.find((u) => u.slug === 'alphabet')!;
+    expect(alpha.letters?.length).toBeGreaterThanOrEqual(3);
+    const letters = alpha.letters!.map((l) => l.letter).join(' ');
+    for (const ch of ['Ү', 'Ө', 'Һ']) expect(letters).toContain(ch);
+  });
+
+  it('экзамен: 16 вопросов, покрывает лексику курса, результат сохраняется', () => {
+    const exam = buildExamQuiz();
+    expect(exam.length).toBe(16);
+    expect(new Set(exam.map((q) => q.word.bur)).size).toBe(16);
+    for (const q of exam) expect(q.options.length).toBe(4);
+
+    expect(isExamPassed()).toBe(false);
+    saveQuizResult(EXAM_SLUG, 10, 16); // 62% — не сдан
+    expect(isExamPassed()).toBe(false);
+    saveQuizResult(EXAM_SLUG, 13, 16); // 81% — сдан
+    expect(isExamPassed()).toBe(true);
+    expect(getExamBest()).toEqual({ correct: 13, total: 16 });
+  });
+
+  it('экзамен не влияет на статусы юнитов', () => {
+    saveQuizResult(EXAM_SLUG, 16, 16);
+    const statuses = getUnitStatuses({});
+    expect(statuses.length).toBe(12);
+    expect(statuses.every((s) => !s.completed)).toBe(true);
   });
 
   it('прогресс курса считается', () => {

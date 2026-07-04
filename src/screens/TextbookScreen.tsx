@@ -1,17 +1,21 @@
 // Учебный план: список уроков учебника со статусами теории/практики/квиза,
 // общим прогрессом, рекомендацией следующего урока и «работой над ошибками».
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle2, RotateCcw, Star, Target } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, GraduationCap, RotateCcw, Star, Target } from 'lucide-react';
 import { cn } from '../components/ui';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
 import { TextbookQuiz } from '../components/TextbookQuiz';
 import {
+  buildExamQuiz,
   buildReviewQuiz,
   courseProgress,
+  EXAM_SLUG,
   fetchPracticeLessons,
+  getExamBest,
   getMistakeWords,
   getUnitStatuses,
+  isExamPassed,
   type PracticeLessonInfo,
   type UnitStatus,
 } from '../services/textbook';
@@ -24,6 +28,8 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
   const { theme, isDark } = useTheme();
   const [lessons, setLessons] = useState<Record<string, PracticeLessonInfo>>({});
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [examOpen, setExamOpen] = useState(false);
+  const [examBest, setExamBest] = useState(getExamBest());
   const [mistakeCount, setMistakeCount] = useState(() => getMistakeWords().length);
 
   useEffect(() => {
@@ -137,11 +143,59 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
 
         {statuses.map((s, i) => renderUnit(s, i, i === nextIdx))}
 
+        {(() => {
+          const allDone = progress.done === progress.total;
+          const passed = isExamPassed();
+          return (
+            <button
+              onClick={() => allDone && setExamOpen(true)}
+              disabled={!allDone}
+              className={cn(
+                'w-full text-left rounded-2xl p-4 flex items-center gap-3 border-2 active:scale-[0.99]',
+                passed
+                  ? 'border-emerald-500/70'
+                  : allDone
+                    ? 'border-amber-500/70'
+                    : cn('opacity-60', isDark ? 'border-white/10' : 'border-stone-200'),
+                isDark ? theme.backgrounds.card : 'bg-white',
+              )}
+            >
+              <div className={cn(
+                'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-white',
+                passed ? 'bg-emerald-500' : 'bg-amber-500',
+              )}>
+                <GraduationCap size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={cn('font-bold text-[15px]', theme.text.primary)}>
+                  Экзамен курса{passed ? ' — сдан ✓' : ''}
+                </div>
+                <div className={cn('text-xs mt-0.5', theme.text.muted)}>
+                  {allDone
+                    ? examBest
+                      ? `16 вопросов по всему курсу · лучший результат ${examBest.correct}/${examBest.total}`
+                      : '16 вопросов по всему курсу — проверьте себя!'
+                    : `Откроется после прохождения всех уроков (${progress.done}/${progress.total})`}
+                </div>
+              </div>
+            </button>
+          );
+        })()}
+
         <p className={cn('text-[10px] text-center pt-2', theme.text.muted)}>
           Материалы урока подготовлены с помощью ИИ и могут содержать неточности.
         </p>
       </main>
 
+      {examOpen && (
+        <TextbookQuiz
+          title="Экзамен курса"
+          makeQuestions={() => buildExamQuiz()}
+          saveSlug={EXAM_SLUG}
+          onClose={() => setExamOpen(false)}
+          onFinished={() => setExamBest(getExamBest())}
+        />
+      )}
       {reviewOpen && (
         <TextbookQuiz
           title="Работа над ошибками"

@@ -1,6 +1,6 @@
 // Урок учебника: цель, введение, лексика, фразы, грамматика, совет + практика-филлворды.
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle2, Lightbulb, Play, Star, Target } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Layers, Lightbulb, Play, Star, Target } from 'lucide-react';
 import { cn } from '../components/ui';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
@@ -15,6 +15,7 @@ import {
   type PracticeLessonInfo,
 } from '../services/textbook';
 import { TextbookQuiz } from '../components/TextbookQuiz';
+import { TextbookFlashcards } from '../components/TextbookFlashcards';
 
 interface Props {
   store: GameStore;
@@ -28,6 +29,8 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
   const [theoryRead, setTheoryRead] = useState(slug ? isTheoryRead(slug) : false);
   const [lessons, setLessons] = useState<Record<string, PracticeLessonInfo>>({});
   const [quizOpen, setQuizOpen] = useState(false);
+  const [cardsOpen, setCardsOpen] = useState(false);
+  const learned = new Set(store.state.stats.learnedWords.map((w: string) => w.toUpperCase()));
   const [quizBest, setQuizBest] = useState(slug ? getQuizBest(slug) : null);
 
   useEffect(() => {
@@ -71,13 +74,39 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
           {unit.intro && <p className={cn('text-sm mt-2 leading-relaxed', theme.text.secondary)}>{unit.intro}</p>}
         </div>
 
+        {unit.letters && unit.letters.length > 0 && (
+          <div className={cardCls}>
+            <div className={cn('text-xs font-bold uppercase tracking-wider mb-2', theme.text.muted)}>
+              Особые буквы и звуки
+            </div>
+            <div className="space-y-2.5">
+              {unit.letters.map((l) => (
+                <div key={l.letter} className="flex items-start gap-3">
+                  <span className={cn('font-extrabold text-lg min-w-[74px] leading-tight', theme.text.primary)}>
+                    {l.letter}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className={cn('text-sm block leading-snug', theme.text.secondary)}>{l.sound}</span>
+                    <span className={cn('text-xs', theme.text.muted)}>{l.example}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {unit.vocab.length > 0 && (
           <div className={cardCls}>
             <div className={cn('text-xs font-bold uppercase tracking-wider mb-2', theme.text.muted)}>Слова урока</div>
             <div className="space-y-1.5">
               {unit.vocab.map((w) => (
                 <div key={w.bur} className="flex items-baseline justify-between gap-3">
-                  <span className={cn('font-bold text-[15px]', theme.text.primary)}>{w.bur}</span>
+                  <span className={cn('font-bold text-[15px] flex items-center gap-1.5', theme.text.primary)}>
+                    {w.bur}
+                    {learned.has(w.bur.toUpperCase()) && (
+                      <CheckCircle2 size={13} className="text-emerald-500" aria-label="выучено в игре" />
+                    )}
+                  </span>
                   <span className={cn('text-sm text-right', theme.text.secondary)}>
                     {hintOf({ ru: w.ru, translations: w.en ? { en: w.en } : undefined })}
                   </span>
@@ -130,6 +159,17 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
         >
           <CheckCircle2 size={17} />
           {theoryRead ? 'Теория изучена' : 'Отметить теорию изученной'}
+        </button>
+
+        <button
+          onClick={() => setCardsOpen(true)}
+          className={cn(
+            'w-full rounded-2xl p-3.5 font-bold text-sm flex items-center justify-center gap-2 border transition-all active:scale-[0.99]',
+            isDark ? cn(theme.backgrounds.card, theme.borders.subtle, theme.text.primary) : 'bg-white border-stone-200 text-stone-700',
+          )}
+        >
+          <Layers size={17} />
+          Карточки — повторить слова
         </button>
 
         <button
@@ -196,6 +236,9 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
         })()}
       </main>
 
+      {cardsOpen && (
+        <TextbookFlashcards title="Карточки" words={unit.vocab} onClose={() => setCardsOpen(false)} />
+      )}
       {quizOpen && (
         <TextbookQuiz
           title="Проверь себя"

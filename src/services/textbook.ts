@@ -15,6 +15,12 @@ export interface TextbookPhrase {
   ru: string;
 }
 
+export interface TextbookLetter {
+  letter: string;
+  sound: string;
+  example: string;
+}
+
 export interface TextbookUnit {
   slug: string;
   title: string;
@@ -25,6 +31,8 @@ export interface TextbookUnit {
   grammar: { title: string; text: string } | null;
   tip: string;
   practiceSlugs: string[];
+  /** таблица букв/явлений произношения (урок алфавита) */
+  letters?: TextbookLetter[];
 }
 
 export interface TextbookData {
@@ -236,6 +244,43 @@ export function buildQuiz(unit: TextbookUnit, questionCount = 8): QuizQuestion[]
 export function buildReviewQuiz(questionCount = 8): QuizQuestion[] {
   const words = getMistakeWords().slice(0, questionCount);
   return makeQuestions(shuffle(words), allCourseWords());
+}
+
+// ---------- экзамен курса ----------
+
+/** служебный slug для результата экзамена в том же progress-хранилище */
+export const EXAM_SLUG = '__exam';
+
+/** финальный экзамен: вопросы по лексике всего курса, по слову из каждого юнита + добор */
+export function buildExamQuiz(questionCount = 16): QuizQuestion[] {
+  const units = getTextbook().units;
+  const picked: TextbookWord[] = [];
+  const seen = new Set<string>();
+  // по одному случайному слову из каждого урока — покрытие всего курса
+  for (const u of units) {
+    const w = shuffle(u.vocab)[0];
+    if (w && !seen.has(w.bur)) {
+      seen.add(w.bur);
+      picked.push(w);
+    }
+  }
+  // добор до questionCount из общего пула
+  for (const w of shuffle(allCourseWords())) {
+    if (picked.length >= questionCount) break;
+    if (!seen.has(w.bur)) {
+      seen.add(w.bur);
+      picked.push(w);
+    }
+  }
+  return makeQuestions(shuffle(picked).slice(0, questionCount), allCourseWords());
+}
+
+export function getExamBest(): { correct: number; total: number } | null {
+  return getQuizBest(EXAM_SLUG);
+}
+
+export function isExamPassed(): boolean {
+  return !!loadProgress()[EXAM_SLUG]?.quizPassedAt;
 }
 
 export interface UnitStatus {
