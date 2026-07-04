@@ -1,8 +1,9 @@
 // Компактный аудио-плеер «как в SoundCloud»: play/pause + полоска тонких
 // столбиков-волны. Во время воспроизведения столбики пульсируют в такт звуку
 // (Web Audio AnalyserNode), пройденная часть подсвечена, тап по полоске — перемотка.
+// Для md-размера: замедление 0.7x (🐢 — полезно ученикам) и таймер.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { Loader2, Pause, Play, Turtle } from 'lucide-react';
 import { cn } from './ui';
 
 interface Props {
@@ -42,18 +43,28 @@ function idleWave(src: string, n: number): number[] {
   return out;
 }
 
+function fmt(sec: number): string {
+  if (!isFinite(sec) || sec < 0) return '0:00';
+  const s = Math.floor(sec);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 export const WaveAudioButton: React.FC<Props> = ({ src, size = 'md', className }) => {
   const N = size === 'sm' ? 14 : 24;
   const H = size === 'sm' ? 16 : 22;
   const base = useMemo(() => idleWave(src, N), [src, N]);
 
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [time, setTime] = useState({ cur: 0, dur: 0 });
   const [levels, setLevels] = useState<number[] | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rafRef = useRef(0);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const slowRef = useRef(false);
 
   const stop = () => {
     cancelAnimationFrame(rafRef.current);
@@ -61,16 +72,30 @@ export const WaveAudioButton: React.FC<Props> = ({ src, size = 'md', className }
     audioRef.current = null;
     analyserRef.current = null;
     setPlaying(false);
+    setLoading(false);
     setLevels(null);
     setProgress(0);
+    setTime((t) => ({ ...t, cur: 0 }));
   };
 
   useEffect(() => stop, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const applyRate = (audio: HTMLAudioElement, isSlow: boolean) => {
+    audio.playbackRate = isSlow ? 0.7 : 1;
+    // тянем гласные, не меняя высоту голоса
+    try {
+      (audio as any).preservesPitch = true;
+      (audio as any).mozPreservesPitch = true;
+    } catch { /* не везде поддерживается */ }
+  };
+
   const tick = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (audio.duration > 0) setProgress(audio.currentTime / audio.duration);
+    if (audio.duration > 0) {
+      setProgress(audio.currentTime / audio.duration);
+      setTime({ cur: audio.currentTime, dur: audio.duration });
+    }
     const an = analyserRef.current;
     if (an) {
       const data = new Uint8Array(an.frequencyBinCount);
@@ -92,11 +117,14 @@ export const WaveAudioButton: React.FC<Props> = ({ src, size = 'md', className }
   const play = () => {
     activeStop?.();
     activeStop = stop;
+    setLoading(true);
     const audio = new Audio(src);
     audio.crossOrigin = 'anonymous';
     audioRef.current = audio;
+    applyRate(audio, slowRef.current);
     audio.onended = stop;
     audio.onerror = stop;
+    audio.onloadedmetadata = () => setTime({ cur: 0, dur: audio.duration || 0 });
     const ctx = getCtx();
     if (ctx) {
       try {
@@ -113,9 +141,17 @@ export const WaveAudioButton: React.FC<Props> = ({ src, size = 'md', className }
       }
     }
     void audio.play().then(() => {
+      setLoading(false);
       setPlaying(true);
       rafRef.current = requestAnimationFrame(tick);
     }).catch(stop);
+  };
+
+  const toggleSlow = () => {
+    const next = !slow;
+    setSlow(next);
+    slowRef.current = next;
+    if (audioRef.current) applyRate(audioRef.current, next);
   };
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -132,21 +168,30 @@ export const WaveAudioButton: React.FC<Props> = ({ src, size = 'md', className }
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2 py-1 align-middle select-none',
-        playing ? 'border-amber-500/60 bg-amber-500/10' : 'border-amber-500/30',
+        'inline-flex items-center gap-1.5 rounded-full border px-2 py-1 align-middle select-none transition-shadow',
+        playing
+          ? 'border-amber-500/70 bg-amber-500/10 shadow-[0_0_12px_rgba(245,158,11,0.35)]'
+          : 'border-amber-500/30',
         className,
       )}
     >
       <button
         onClick={(e) => {
           e.stopPropagation();
-          playing ? stop() : play();
+          playing || loading ? stop() : play();
         }}
         aria-label={playing ? 'Пауза' : 'Прослушать'}
         className="text-amber-500 flex-shrink-0"
       >
-        {playing ? <Pause size={size === 'sm' ? 12 : 14} /> : <Play size={size === 'sm' ? 12 : 14} />}
+        {loading ? (
+          <Loader2 size={size === 'sm' ? 12 : 14} className="animate-spin" />
+        ) : playing ? (
+          <Pause size={size === 'sm' ? 12 : 14} />
+        ) : (
+          <Play size={size === 'sm' ? 12 : 14} />
+        )}
       </button>
+
       <div
         className="flex items-center gap-[2px] cursor-pointer"
         style={{ height: H }}
@@ -170,6 +215,28 @@ export const WaveAudioButton: React.FC<Props> = ({ src, size = 'md', className }
           );
         })}
       </div>
+
+      {size === 'md' && (
+        <>
+          <span className="text-[10px] tabular-nums text-amber-600/80 min-w-[54px] text-center">
+            {playing || progress > 0 ? `${fmt(time.cur)} / ${fmt(time.dur)}` : time.dur ? fmt(time.dur) : ''}
+          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleSlow();
+            }}
+            aria-label="Медленно (0.7x)"
+            title="Медленно — 0.7x"
+            className={cn(
+              'flex-shrink-0 rounded-full p-1 transition-colors',
+              slow ? 'bg-amber-500 text-white' : 'text-amber-500/60',
+            )}
+          >
+            <Turtle size={13} />
+          </button>
+        </>
+      )}
     </span>
   );
 };
