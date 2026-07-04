@@ -10,6 +10,7 @@ import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { getCategories, getWords, type ApiCategory, type ApiWord } from '../services/api';
 import { hintOf, useGameLang } from '../services/gameLang';
+import { WaveAudioButton } from '../components/WaveAudioButton';
 
 const WORDS_PER_PAGE = 50;
 
@@ -446,16 +447,7 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                               {word.bur.charAt(0) + word.bur.slice(1).toLowerCase()}
                             </span>
                             {word.audioUrl && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void new Audio(word.audioUrl!).play().catch(() => {});
-                                }}
-                                aria-label="Произношение"
-                                className="flex-shrink-0 text-amber-500 p-0.5"
-                              >
-                                <Volume2 size={13} />
-                              </button>
+                              <WaveAudioButton src={word.audioUrl} size="sm" className="flex-shrink-0" />
                             )}
                             {isLearned && (
                               <span className={cn(

@@ -10,6 +10,11 @@ export function hasBurAudio(bur: string): boolean {
   return !!AUDIO[bur.toUpperCase()];
 }
 
+export function burAudioUrl(bur: string): string | null {
+  const path = AUDIO[bur.toUpperCase()];
+  return path ? import.meta.env.BASE_URL + path : null;
+}
+
 export function playBurAudio(bur: string): void {
   const path = AUDIO[bur.toUpperCase()];
   if (!path) return;

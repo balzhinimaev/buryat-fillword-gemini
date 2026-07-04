@@ -1,8 +1,9 @@
 // Произношение слова/примера: кнопка прослушивания для всех; для админа/модератора —
 // запись с микрофона (MediaRecorder) с предпрослушкой, загрузка файла и удаление.
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, Mic, Square, Trash2, Upload, Volume2, X } from 'lucide-react';
+import { Check, Mic, Square, Trash2, Upload, X } from 'lucide-react';
 import { cn } from './ui';
+import { WaveAudioButton } from './WaveAudioButton';
 import { useTheme } from '../theme/ThemeContext';
 
 interface Props {
@@ -31,19 +32,12 @@ export const PronunciationControl: React.FC<Props> = ({ label, url, canEdit, onS
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
-  const playerRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => () => {
     recRef.current?.stream.getTracks().forEach((t) => t.stop());
     if (preview) URL.revokeObjectURL(preview.url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const play = (src: string) => {
-    playerRef.current?.pause();
-    playerRef.current = new Audio(src);
-    void playerRef.current.play().catch(() => setError('Не удалось воспроизвести'));
-  };
 
   const startRecording = async () => {
     setError('');
@@ -114,11 +108,7 @@ export const PronunciationControl: React.FC<Props> = ({ label, url, canEdit, onS
           {label}
         </span>
 
-        {url && !preview && (
-          <button className={cn(btnCls, 'text-amber-500 border-amber-500/50')} onClick={() => play(url)}>
-            <Volume2 size={13} /> Слушать
-          </button>
-        )}
+        {url && !preview && <WaveAudioButton src={url} />}
 
         {canEdit && !recording && !preview && (
           <>
@@ -148,9 +138,7 @@ export const PronunciationControl: React.FC<Props> = ({ label, url, canEdit, onS
 
         {preview && (
           <>
-            <button className={cn(btnCls, 'text-amber-500 border-amber-500/50')} onClick={() => play(preview.url)}>
-              <Volume2 size={13} /> Прослушать
-            </button>
+            <WaveAudioButton src={preview.url} />
             <button
               className={cn(btnCls, 'bg-emerald-500 border-emerald-500 text-white')}
               disabled={busy}
