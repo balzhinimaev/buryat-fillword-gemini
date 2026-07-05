@@ -601,6 +601,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
                   <div className={cn("font-bold", styles.statsCard.text.primary)}>
                     {currentStreak} {getDaysWord(currentStreak)}
                   </div>
+                  <div className={cn("text-[10px] leading-tight", styles.statsCard.text.secondary)}>
+                    {nextRewardHint}
+                  </div>
                 </div>
               </div>
               
@@ -642,73 +645,50 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
         </div>
       </motion.div>
 
-      {/* Daily goal + streak widgets */}
+      {/* Цель дня — компактная строка */}
       <motion.section
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.36 }}
-        className="mx-5 mb-5 grid grid-cols-2 gap-3"
+        className="mx-5 mb-5"
       >
-        <div className={cn(
-          'rounded-2xl border p-4',
-          styles.buttons.card.background,
-          styles.buttons.card.border
-        )}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className={cn('text-xs mb-1', styles.buttons.text.muted)}>Цель дня</div>
-              <div className={cn('font-semibold', styles.buttons.text.primary)}>{dailyGoalCard.title}</div>
+        <button
+          type="button"
+          onClick={dailyGoalCard.onClick}
+          className={cn(
+            'w-full rounded-2xl border p-3 flex items-center gap-3 text-left active:scale-[0.985] transition-transform',
+            styles.buttons.card.background,
+            styles.buttons.card.border
+          )}
+        >
+          <div className={cn(
+            'w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0',
+            dailyGoalCard.iconDone ? 'bg-emerald-500/20' : 'bg-amber-500/20'
+          )}>
+            {dailyGoalCard.iconDone ? (
+              <CheckCircle2 size={17} className="text-emerald-400" />
+            ) : (
+              <Target size={17} className="text-amber-400" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className={cn('text-[10px] uppercase tracking-wider font-semibold', styles.buttons.text.muted)}>
+              Цель дня · {dailyGoalCard.progress}
             </div>
-            <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', dailyGoalCard.iconDone ? 'bg-emerald-500/20' : 'bg-amber-500/20')}>
-              {dailyGoalCard.iconDone ? (
-                <CheckCircle2 size={18} className="text-emerald-400" />
-              ) : (
-                <Target size={18} className="text-amber-400" />
-              )}
+            <div className={cn('text-sm font-semibold truncate mt-0.5', styles.buttons.text.primary)}>
+              {dailyGoalCard.title}
             </div>
           </div>
-
-          <div className={cn('mt-2 text-[11px]', styles.buttons.text.muted)}>
-            {dailyGoalCard.hint}
-          </div>
-
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <div className={cn('text-xs', styles.buttons.text.muted)}>
-              {dailyGoalCard.progress}
-            </div>
-            <button
-              type="button"
-              onClick={dailyGoalCard.onClick}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-black/5 hover:bg-black/10 text-stone-700'
-              )}
-            >
-              {dailyGoalCard.cta}
-              <ArrowRight size={13} />
-            </button>
-          </div>
-        </div>
-
-        <div className={cn(
-          'rounded-2xl border p-4',
-          styles.buttons.card.background,
-          styles.buttons.card.border
-        )}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className={cn('text-xs mb-1', styles.buttons.text.muted)}>Серия</div>
-              <div className={cn('font-semibold', styles.buttons.text.primary)}>
-                {currentStreak} {getDaysWord(currentStreak)} подряд
-              </div>
-            </div>
-            <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', styles.statsCard.streakIcon)}>
-              <Flame size={18} className="text-white" />
-            </div>
-          </div>
-
-          <div className={cn('mt-3 text-xs', styles.buttons.text.muted)}>{nextRewardHint}</div>
-        </div>
+          <span className={cn(
+            'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold flex-shrink-0',
+            dailyGoalCard.iconDone
+              ? 'bg-emerald-500/15 text-emerald-500'
+              : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+          )}>
+            {dailyGoalCard.cta}
+            <ArrowRight size={12} />
+          </span>
+        </button>
       </motion.section>
 
       {/* Menu buttons */}
