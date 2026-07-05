@@ -2,6 +2,7 @@
 // Используется и в уроке (saveSlug задан — результат идёт в прогресс юнита),
 // и в «работе над ошибками» (без saveSlug). Каждый ответ обновляет трекер ошибок.
 import React, { useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, RotateCcw, Target, X } from 'lucide-react';
 import { cn } from './ui';
 import { useTheme } from '../theme/ThemeContext';
@@ -74,7 +75,10 @@ export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
-      <div
+      <motion.div
+        initial={{ y: 60, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 300 }}
         className={cn(
           'w-full max-w-md rounded-t-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto',
           isDark ? 'bg-stone-900' : 'bg-white',
@@ -83,7 +87,9 @@ export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, 
       >
         <div className="flex items-center justify-between mb-4">
           <div className={cn('font-bold flex items-center gap-2', theme.text.primary)}>
-            <Target size={18} className="text-amber-500" />
+            <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center', isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-100 text-amber-600')}>
+              <Target size={15} />
+            </span>
             {title}
           </div>
           <button onClick={onClose} aria-label="Закрыть" className={cn('p-1.5 rounded-lg', theme.text.muted)}>
@@ -102,12 +108,21 @@ export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, 
               <span className={cn('text-xs font-bold', theme.text.secondary)}>✓ {correct}</span>
             </div>
             <div className="h-1.5 rounded-full bg-stone-500/20 mb-5 overflow-hidden">
-              <div
-                className="h-full bg-amber-500 rounded-full transition-all"
-                style={{ width: `${(qi / quiz.length) * 100}%` }}
+              <motion.div
+                className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full"
+                animate={{ width: `${(qi / quiz.length) * 100}%` }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
               />
             </div>
 
+            <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={qi}
+              initial={{ x: 46, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -46, opacity: 0 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+            >
             <div className={cn('text-center text-xs mb-1', theme.text.muted)}>
               {q.type === 'bur2tr' ? 'Как переводится?' : 'Выбери бурятское слово'}
             </div>
@@ -140,10 +155,19 @@ export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, 
                 );
               })}
             </div>
+            </motion.div>
+            </AnimatePresence>
           </>
         ) : (
           <div className="text-center py-4">
-            <div className="text-5xl mb-3">{passed ? '🎉' : '💪'}</div>
+            <motion.div
+              initial={{ scale: 0.3, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', damping: 12, stiffness: 240 }}
+              className="text-5xl mb-3"
+            >
+              {passed ? '🎉' : '💪'}
+            </motion.div>
             <div className={cn('text-xl font-extrabold', theme.text.primary)}>
               {correct} из {quiz.length}
             </div>
@@ -173,7 +197,7 @@ export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, 
             </div>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 };
