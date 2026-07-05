@@ -626,6 +626,57 @@ export const clearStoredTokens = (): void => {
   localStorage.removeItem(TOKEN_KEY);
 };
 
+// ---------------------------------------------------------------------------
+// Обновление токенов — single-flight.
+// Бэкенд РОТИРУЕТ refresh_token (одноразовый). Если несколько параллельных
+// запросов словили 401 и каждый шёл в /auth/refresh со старым токеном,
+// выигрывал только первый, остальные получали 401 и сносили сессию —
+// отсюда «Сессия истекла» и вечный повторный вход. Теперь refresh один на всех.
+// ---------------------------------------------------------------------------
+let refreshInFlight: Promise<StoredTokens | null> | null = null;
+
+/** null — сессия мертва (refresh отвергнут); StoredTokens — можно повторять запрос */
+export function refreshTokensOnce(): Promise<StoredTokens | null> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    const current = getStoredTokens();
+    if (!current?.refresh_token) return null;
+    try {
+      console.log('🔄 Пробуем обновить токен (single-flight)...');
+      const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: current.refresh_token }),
+      });
+      if (refreshResponse.ok) {
+        const refreshed: RefreshResponse = await refreshResponse.json();
+        const nextTokens: StoredTokens = {
+          access_token: refreshed.access_token,
+          refresh_token: refreshed.refresh_token ?? current.refresh_token,
+        };
+        console.log('✅ Токен обновлён успешно');
+        setStoredTokens(nextTokens);
+        return nextTokens;
+      }
+      const refreshStatus = refreshResponse.status;
+      console.log('❌ Не удалось обновить токен:', refreshStatus);
+      if (refreshStatus === 401 || refreshStatus === 403) {
+        clearStoredTokens();
+        return null;
+      }
+      // временная сетевая/серверная ошибка — сессию не трогаем
+      return current;
+    } catch (e) {
+      console.log('❌ Ошибка сети при обновлении токена, сохраняем сессию:', e);
+      return current;
+    } finally {
+      // ожидающие уже держат ссылку на этот promise — сброс безопасен сразу
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
 // Базовая функция для API запросов
 async function apiRequest<T>(
   endpoint: string,
@@ -668,44 +719,19 @@ async function apiRequest<T>(
     let authRecoveryTriggered = false;
 
     if (isUnauthorized && !isRetry && tokens?.refresh_token && !isAuthRefreshEndpoint) {
-      try {
-        console.log('🔄 Пробуем обновить токен...');
-        const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: tokens.refresh_token }),
-        });
-
-        if (refreshResponse.ok) {
-          const refreshed: RefreshResponse = await refreshResponse.json();
-          const nextTokens: StoredTokens = {
-            access_token: refreshed.access_token,
-            refresh_token: refreshed.refresh_token ?? tokens.refresh_token,
-          };
-
-          console.log('✅ Токен обновлён успешно');
-          setStoredTokens(nextTokens);
-          // Повторяем оригинальный запрос с новым токеном
+      // single-flight: параллельные 401 ждут ОДИН общий refresh
+      // (refresh_token одноразовый — гонка сжигала сессию, см. refreshTokensOnce)
+      const nextTokens = await refreshTokensOnce();
+      if (nextTokens) {
+        // если access сменился — повторяем запрос; иначе (временная ошибка
+        // refresh) отдаём исходную ошибку без сноса сессии
+        if (nextTokens.access_token !== tokens.access_token) {
           return apiRequest<T>(endpoint, options, true);
         }
-
-        const refreshStatus = refreshResponse.status;
-        const refreshBody = await refreshResponse.text();
-        console.log('❌ Не удалось обновить токен:', refreshStatus, refreshBody);
-
-        // Сессию сбрасываем только если refresh действительно невалиден.
-        if (refreshStatus === 401 || refreshStatus === 403) {
-          console.log('🔒 Refresh token недействителен, очищаем токены и запрашиваем переавторизацию...');
-          clearStoredTokens();
-          dispatchAuthRequiredIfNeeded();
-          authRecoveryTriggered = true;
-        } else {
-          // Временные сетевые/серверные ошибки: не теряем сессию принудительно.
-          console.log('⏳ Временная ошибка refresh, сохраняем текущие токены');
-        }
-      } catch (refreshError) {
-        console.log('❌ Ошибка сети при обновлении токена, сохраняем текущие токены:', refreshError);
-        // При сетевом сбое не сбрасываем сессию.
+      } else {
+        console.log('🔒 Refresh token недействителен, запрашиваем переавторизацию...');
+        dispatchAuthRequiredIfNeeded();
+        authRecoveryTriggered = true;
       }
     }
 
