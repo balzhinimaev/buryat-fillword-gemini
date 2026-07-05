@@ -17,6 +17,7 @@ import {
   ThumbsDown,
   ThumbsUp,
   Users,
+  Landmark,
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { useTheme } from '../theme/ThemeContext';
@@ -346,6 +347,16 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
             </p>
           </motion.div>
         )}
+
+        {/* Культурно-исторические секции (глава «О Бурятии») */}
+        {(unit.sections ?? []).map((section, i) => (
+          <motion.div key={section.title} {...fade(4 + i)} className={card}>
+            <SectionTitle icon={<Landmark size={14} />} label={section.title} isDark={isDark} muted={theme.text.dimmed} />
+            <p className={cn('text-[13px] leading-[1.7] whitespace-pre-line', theme.text.secondary)}>
+              {section.text}
+            </p>
+          </motion.div>
+        ))}
 
         {unit.tip && (
           <motion.div

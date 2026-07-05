@@ -2,13 +2,14 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Search, Check, Volume2, ArrowLeft, Loader2, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { BookOpen, Search, Check, Volume2, ArrowLeft, Loader2, RefreshCw, ChevronDown, ChevronRight, Mic, Square, X } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
-import { getCategories, getWords, type ApiCategory, type ApiWord } from '../services/api';
+import { getCategories, getWords, uploadWordAudio, type ApiCategory, type ApiWord } from '../services/api';
+import { useAuth } from '../store/authStore';
 import { hintOf, useGameLang } from '../services/gameLang';
 import { WaveAudioButton } from '../components/WaveAudioButton';
 
@@ -17,6 +18,133 @@ const WORDS_PER_PAGE = 50;
 interface DictionaryScreenProps {
   store: GameStore;
 }
+
+/**
+ * Быстрая запись озвучки из списка словаря (админ/модератор):
+ * тап 🎙 — запись, тап ⏹ — предпрослушка, ✓ — загрузка (сразу становится
+ * озвучкой слова), ✕ — отмена. Массовая озвучка без захода в карточки.
+ */
+const QuickRecord: React.FC<{
+  wordId: string;
+  hasAudio: boolean;
+  isDark: boolean;
+  onSaved: (audioUrl: string | null) => void;
+}> = ({ wordId, hasAudio, isDark, onSaved }) => {
+  const [phase, setPhase] = useState<'idle' | 'rec' | 'preview' | 'saving'>('idle');
+  const [preview, setPreview] = useState<{ blob: Blob; url: string } | null>(null);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => () => {
+    recRef.current?.stream.getTracks().forEach((t) => t.stop());
+    if (preview) URL.revokeObjectURL(preview.url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const start = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
+        .find((m) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) || '';
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunksRef.current = [];
+      rec.ondataavailable = (ev) => ev.data.size && chunksRef.current.push(ev.data);
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+        if (blob.size > 200) {
+          setPreview({ blob, url: URL.createObjectURL(blob) });
+          setPhase('preview');
+        } else {
+          setPhase('idle');
+        }
+      };
+      recRef.current = rec;
+      rec.start();
+      setPhase('rec');
+    } catch {
+      setPhase('idle');
+    }
+  };
+
+  const stop = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (recRef.current?.state === 'recording') recRef.current.stop();
+  };
+
+  const save = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!preview) return;
+    setPhase('saving');
+    try {
+      const ext = preview.blob.type.includes('mp4') ? 'm4a' : preview.blob.type.includes('ogg') ? 'ogg' : 'webm';
+      const updated = await uploadWordAudio(wordId, preview.blob, 'word', `rec.${ext}`);
+      onSaved(updated.audioUrl ?? null);
+      URL.revokeObjectURL(preview.url);
+      setPreview(null);
+      setPhase('idle');
+    } catch {
+      setPhase('preview');
+    }
+  };
+
+  const cancel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (preview) URL.revokeObjectURL(preview.url);
+    setPreview(null);
+    setPhase('idle');
+  };
+
+  const btn = 'w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition active:scale-95';
+
+  if (phase === 'rec') {
+    return (
+      <button type="button" onClick={stop} aria-label="Остановить запись"
+        className={cn(btn, 'bg-red-500 text-white animate-pulse')}>
+        <Square size={12} />
+      </button>
+    );
+  }
+
+  if (phase === 'preview' && preview) {
+    return (
+      <span className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <WaveAudioButton src={preview.url} size="sm" />
+        <button type="button" onClick={save} aria-label="Сохранить озвучку"
+          className={cn(btn, 'bg-emerald-500 text-white')}>
+          <Check size={13} />
+        </button>
+        <button type="button" onClick={cancel} aria-label="Отменить"
+          className={cn(btn, isDark ? 'bg-stone-700 text-stone-300' : 'bg-stone-200 text-stone-500')}>
+          <X size={13} />
+        </button>
+      </span>
+    );
+  }
+
+  if (phase === 'saving') {
+    return (
+      <span className={cn(btn, 'flex-shrink-0')}>
+        <Loader2 size={13} className="animate-spin text-amber-500" />
+      </span>
+    );
+  }
+
+  return (
+    <button type="button" onClick={start}
+      aria-label={hasAudio ? 'Перезаписать озвучку' : 'Записать озвучку'}
+      title={hasAudio ? 'Перезаписать озвучку' : 'Записать озвучку'}
+      className={cn(
+        btn,
+        hasAudio
+          ? isDark ? 'bg-white/[0.06] text-stone-500' : 'bg-stone-100 text-stone-400'
+          : isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-100 text-amber-600',
+      )}>
+      <Mic size={13} />
+    </button>
+  );
+};
 
 export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => {
   useGameLang(); // перерисовка подсказок при смене языка
@@ -38,6 +166,8 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
 
   // API data
   const [apiCategories, setApiCategories] = useState<ApiCategory[]>([]);
+  const { state: authState } = useAuth();
+  const canRecordAudio = authState.user?.role === 'moderator' || authState.user?.role === 'admin';
   const [words, setWords] = useState<ApiWord[]>([]);
   const [totalWords, setTotalWords] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -485,6 +615,18 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                             </span>
                             {word.audioUrl && (
                               <WaveAudioButton src={word.audioUrl} size="sm" className="flex-shrink-0" />
+                            )}
+                            {canRecordAudio && (
+                              <QuickRecord
+                                wordId={word._id}
+                                hasAudio={!!word.audioUrl}
+                                isDark={isDark}
+                                onSaved={(audioUrl) =>
+                                  setWords((prev) =>
+                                    prev.map((w) => (w._id === word._id ? { ...w, audioUrl } : w)),
+                                  )
+                                }
+                              />
                             )}
                             {isLearned && (
                               <span className={cn(

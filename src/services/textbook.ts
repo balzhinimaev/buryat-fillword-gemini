@@ -31,6 +31,8 @@ export interface TextbookUnit {
   grammar: { title: string; text: string } | null;
   tip: string;
   practiceSlugs: string[];
+  /** культурно-исторические секции (глава «О Бурятии») */
+  sections?: Array<{ title: string; text: string }>;
   /** таблица букв/явлений произношения (урок алфавита) */
   letters?: TextbookLetter[];
 }
