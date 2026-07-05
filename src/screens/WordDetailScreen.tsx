@@ -213,11 +213,20 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
+  // произношения подтягиваются заранее — play без ожидания.
+  // ВАЖНО: хук обязан быть выше всех ранних return (порядок хуков).
+  useEffect(() => {
+    const w = data?.word;
+    if (w) warmAudio([w.audioUrl, w.exampleAudioUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.word?.audioUrl, data?.word?.exampleAudioUrl]);
+
   // Текущий голос пользователя
   const userVote = useMemo(() => {
     if (!data?.word || !currentUserId) return null;
-    if (data.word.upvotes.includes(currentUserId)) return 'upvote' as const;
-    if (data.word.downvotes.includes(currentUserId)) return 'downvote' as const;
+    // у слов, добавленных скриптами напрямую в БД, массивов может не быть
+    if ((data.word.upvotes ?? []).includes(currentUserId)) return 'upvote' as const;
+    if ((data.word.downvotes ?? []).includes(currentUserId)) return 'downvote' as const;
     return null;
   }, [data, currentUserId]);
 
@@ -364,12 +373,6 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
   }
 
   const word = data?.word;
-
-  // произношения подтягиваются заранее — play без ожидания
-  useEffect(() => {
-    if (word) warmAudio([word.audioUrl, word.exampleAudioUrl]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [word?.audioUrl, word?.exampleAudioUrl]);
   const status = word ? statusCfg[word.status] ?? statusCfg.pending : null;
   const isLearned = word ? state.stats.learnedWords.includes(word.bur) : false;
 
