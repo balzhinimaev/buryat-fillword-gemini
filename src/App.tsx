@@ -14,7 +14,7 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 import { useTelegram } from './hooks/useTelegram';
 import { OFFLINE } from './config/offline';
 import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
-import { prefetchScreens } from './services/prefetch';
+import { prefetchData, prefetchScreens } from './services/prefetch';
 import { notifyReady, revertToBuiltin, applyOta, type OtaInfo } from './services/otaUpdate';
 import { syncDictionary } from './services/offlineDict';
 import { syncCampaigns } from './services/offlineCampaign';
@@ -127,6 +127,7 @@ export default function App() {
       // встроенный в APK. Обновления — только через установку нового APK.
       revertToBuiltin();
       prefetchScreens(); // фоновая догрузка чанков экранов (в простое)
+      prefetchData(); // прогрев обзора кампаний и первой страницы словаря
       // Баннер обновления APK — только в нативном приложении (в вебе бессмысленно).
       if (Capacitor.isNativePlatform()) {
         checkApkUpdate().then(setApkUpdate).catch(() => {});

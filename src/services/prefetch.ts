@@ -56,6 +56,26 @@ export function prefetchScreens(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Данные разделов: обзор кампаний и первая страница словаря.
+// Кладутся в handoff-кэш (consume-once, TTL 60с) — первый вход мгновенный,
+// дальше всегда живая сеть.
+// ---------------------------------------------------------------------------
+
+let dataPrefetched = false;
+
+export function prefetchData(): void {
+  if (dataPrefetched || !canPrefetch()) return;
+  dataPrefetched = true;
+  idle(async () => {
+    if (!canPrefetch()) { dataPrefetched = false; return; }
+    const { prefillCampaignOverview, prefillDictFirstPage } = await import('./api');
+    prefillCampaignOverview();
+    await sleep(300);
+    prefillDictFirstPage();
+  }, 3000);
+}
+
+// ---------------------------------------------------------------------------
 // Аудио: прогрев HTTP-кэша. Повторные вызовы по тому же URL — no-op.
 // ---------------------------------------------------------------------------
 
@@ -87,5 +107,6 @@ export function warmAudio(urls: Array<string | null | undefined>): void {
 /** для тестов */
 export function _resetPrefetchState(): void {
   screensPrefetched = false;
+  dataPrefetched = false;
   warmedAudio.clear();
 }

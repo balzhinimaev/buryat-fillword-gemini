@@ -4,6 +4,7 @@
 //  - онлайн-разделы (лидерборды, чужие профили, ачивки, вклад слов) — из сети, когда она есть,
 //    с безопасным локальным фолбэком, когда её нет.
 import { OFFLINE, isNetOnline } from '../config/offline';
+import { putHandoff, takeHandoff } from './handoffCache';
 import { API_BASE } from '../config/apiBase';
 import {
   offlineGetLevel,
@@ -987,8 +988,25 @@ export async function getWordsStats(): Promise<WordsStats> {
 }
 
 // Получение списка слов (публичный эндпоинт)
+/** дефолтная первая страница словаря — единственный прогреваемый вариант getWords */
+export const DICT_FIRST_PAGE: GetWordsParams = { status: 'verified', limit: 50, offset: 0 };
+
+function isDictFirstPage(params: GetWordsParams): boolean {
+  return (
+    params.status === 'verified' &&
+    params.limit === 50 &&
+    (params.offset ?? 0) === 0 &&
+    !params.categoryId && !params.dialectId && !params.partOfSpeechId &&
+    params.isActiveInGame === undefined && !params.tag && !params.sortBy
+  );
+}
+
 export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsResponse> {
   if (OFFLINE) return offlineGetWords(params);
+  if (isDictFirstPage(params)) {
+    const warmed = takeHandoff<ApiWordsResponse>('dictFirstPage');
+    if (warmed) return warmed;
+  }
   const searchParams = new URLSearchParams();
   if (params.status) searchParams.set('status', params.status);
   if (params.categoryId) searchParams.set('categoryId', params.categoryId);
@@ -1254,7 +1272,22 @@ export interface CampaignLevelResultResponse extends ExtensibleRecord {
 
 export async function getCampaignOverview(): Promise<CampaignOverviewResponse> {
   if (OFFLINE) return offlineGetCampaignOverview();
+  // прогретый prefetch'ем ответ используется ровно один раз (см. handoffCache)
+  const warmed = takeHandoff<CampaignOverviewResponse>('campaignOverview');
+  if (warmed) return warmed;
   return apiRequest<CampaignOverviewResponse>('/campaign/overview', { method: 'GET' });
+}
+
+/** прогрев первой страницы словаря (вызывается prefetch'ем в простое) */
+export function prefillDictFirstPage(): void {
+  if (OFFLINE) return;
+  putHandoff('dictFirstPage', getWords({ ...DICT_FIRST_PAGE }));
+}
+
+/** прогрев обзора кампаний (вызывается prefetch'ем в простое) */
+export function prefillCampaignOverview(): void {
+  if (OFFLINE) return;
+  putHandoff('campaignOverview', apiRequest<CampaignOverviewResponse>('/campaign/overview', { method: 'GET' }));
 }
 
 export async function getCampaignLevel(slug: string): Promise<CampaignLevelResponse> {
