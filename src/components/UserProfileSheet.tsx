@@ -196,7 +196,7 @@ interface ProfileContentProps {
   isDark: boolean;
 }
 
-const ProfileContent: React.FC<ProfileContentProps> = ({ profile, theme, isDark }) => {
+export const ProfileContent: React.FC<ProfileContentProps> = ({ profile, theme, isDark }) => {
   const { user, xp, streak, campaign, dictionary, xpByType, recentXpHistory } = profile;
 
   return (

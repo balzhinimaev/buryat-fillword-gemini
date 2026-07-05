@@ -60,13 +60,18 @@ const VoteWordCard: React.FC<{
   const [voteResult, setVoteResult] = useState<'upvote' | 'downvote' | null>(null);
   const [isShaking, setIsShaking] = useState(false);
 
+  // У слов, добавленных скриптами напрямую в БД, contributor/upvotes/downvotes может не быть —
+  // без guard'ов рендер падал TypeError'ом и (без ErrorBoundary) оставлял тёмный экран-тупик.
+  const upvotes = word.upvotes ?? [];
+  const downvotes = word.downvotes ?? [];
+
   // Проверяем, является ли пользователь автором слова (по telegramId)
-  const isOwnWord = currentUserTelegramId !== undefined && 
-    word.contributor.telegramId === currentUserTelegramId;
-  
+  const isOwnWord = currentUserTelegramId !== undefined &&
+    word.contributor?.telegramId === currentUserTelegramId;
+
   // Проверяем, голосовал ли пользователь
-  const hasUpvoted = currentUserId ? word.upvotes.includes(currentUserId) : false;
-  const hasDownvoted = currentUserId ? word.downvotes.includes(currentUserId) : false;
+  const hasUpvoted = currentUserId ? upvotes.includes(currentUserId) : false;
+  const hasDownvoted = currentUserId ? downvotes.includes(currentUserId) : false;
 
   const handleVote = async (type: 'upvote' | 'downvote') => {
     // Проверяем, уже голосовал ли пользователь
@@ -216,7 +221,7 @@ const VoteWordCard: React.FC<{
         )}>
           <div className={cn("flex items-center gap-1.5", theme.text.dimmed)}>
             <User size={12} />
-            <span>{word.contributor.name}</span>
+            <span>{word.contributor?.name ?? "аноним"}</span>
           </div>
           <div className={cn("flex items-center gap-1.5", theme.text.dimmed)}>
             <Clock size={12} />
@@ -231,22 +236,22 @@ const VoteWordCard: React.FC<{
         )}>
           <div className={cn(
             "flex items-center gap-1.5",
-            word.upvotes.length > 0 
+            upvotes.length > 0 
               ? (isDark ? "text-emerald-400" : "text-emerald-600")
               : theme.text.dimmed
           )}>
             <ThumbsUp size={14} />
-            <span className="font-medium">{word.upvotes.length}</span>
+            <span className="font-medium">{upvotes.length}</span>
           </div>
           <div className={cn("w-px h-4", isDark ? "bg-stone-600" : "bg-stone-300")} />
           <div className={cn(
             "flex items-center gap-1.5",
-            word.downvotes.length > 0 
+            downvotes.length > 0 
               ? (isDark ? "text-red-400" : "text-red-600")
               : theme.text.dimmed
           )}>
             <ThumbsDown size={14} />
-            <span className="font-medium">{word.downvotes.length}</span>
+            <span className="font-medium">{downvotes.length}</span>
           </div>
           <div className={cn("w-px h-4", isDark ? "bg-stone-600" : "bg-stone-300")} />
           <div className={cn("flex items-center gap-1.5", theme.text.dimmed)}>

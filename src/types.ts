@@ -115,7 +115,8 @@ export type Screen =
   | 'adminDictionary' // Офлайн-редактор словаря (админ)
   | 'textbook' // Учебник бурятского (учебный план)
   | 'textbookLesson' // Урок учебника
-  | 'support'; // Поддержать проект
+  | 'support' // Поддержать проект
+  | 'profile'; // Мой профиль
 
 // === Режимы игры ===
 export type GameMode = 'campaign' | 'endless' | 'daily';

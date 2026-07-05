@@ -24,6 +24,7 @@ import { getMenuStyles } from '../theme/menuStyles';
 import { cn } from '../components/ui';
 import { useTelegram } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
+import { IS_VK_MINIAPP } from '../services/vkMiniApp';
 import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { api, getWordsStats } from '../services/api';
 import { courseProgress, fetchPracticeLessons, getUnitStatuses } from '../services/textbook';
@@ -447,7 +448,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   ]);
 
   const isColdUser = displayTotalStars <= 0 && currentStreak <= 0;
-  const allowDonateCta = !authState.isNewUser && !isColdUser;
+  // В VK Mini App донат-кнопки скрыты: правила ВК разрешают приём платежей
+  // в мини-аппах только через VK Pay — внешние платёжные ссылки заворачивает модерация.
+  const allowDonateCta = !IS_VK_MINIAPP && !authState.isNewUser && !isColdUser;
 
   const primaryAction = useMemo(() => {
     if (!state.settings.hasSeenHowTo) {
@@ -737,6 +740,41 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
                 Не хочу ежедневник сегодня
               </button>
             </div>
+          )}
+
+          {/* Мой профиль — компактная строка с аватаром */}
+          {authState.isAuthenticated && authState.user && (
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => navigate('profile')}
+              className={cn(
+                "w-full p-3 rounded-2xl border transition-all flex items-center gap-3",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                styles.buttons.card.borderHover
+              )}
+            >
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 p-0.5 flex-shrink-0">
+                {authState.user.photoUrl ? (
+                  <img src={authState.user.photoUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  <div className={cn(
+                    "w-full h-full rounded-full flex items-center justify-center font-bold text-sm",
+                    isDark ? "bg-stone-800 text-amber-400" : "bg-white text-amber-600"
+                  )}>
+                    {authState.user.name?.[0]?.toUpperCase() || '?'}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <div className={cn("font-semibold truncate", styles.buttons.text.primary)}>
+                  {authState.user.name || 'Игрок'}
+                </div>
+                <div className={cn("text-xs", styles.buttons.text.muted)}>Мой профиль</div>
+              </div>
+              <span className={cn("text-lg", styles.buttons.text.muted)}>›</span>
+            </motion.button>
           )}
 
           <div className={cn("flex items-center gap-2 pt-3 pb-0.5")}>

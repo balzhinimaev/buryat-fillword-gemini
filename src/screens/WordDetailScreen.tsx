@@ -13,6 +13,9 @@ import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
 import { PronunciationControl } from '../components/PronunciationControl';
+import { SuggestPronunciation } from '../components/contribution/SuggestPronunciation';
+import { EditWordModal } from '../components/contribution/EditWordModal';
+import { ReportIssueModal } from '../components/ReportIssueModal';
 import { warmAudio } from '../services/prefetch';
 import { api } from '../services/api';
 import type { GameStore } from '../store/gameStore';
@@ -287,6 +290,8 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
     );
   }, []);
   const canModerate = userRole === 'moderator' || userRole === 'admin';
+  const [editingWord, setEditingWord] = useState(false);
+  const [reportingWord, setReportingWord] = useState(false);
 
   // Добавить комментарий
   const handleAddComment = useCallback(async () => {
@@ -494,6 +499,11 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                     />
                   </div>
 
+                  {/* Обычный пользователь может предложить свою озвучку (уйдёт на модерацию) */}
+                  {!canModerate && authState.isAuthenticated && (
+                    <SuggestPronunciation wordId={word._id} />
+                  )}
+
                   {/* Произношение */}
                   {word.pronunciation && (
                     <div className="flex items-center justify-center gap-1.5 mt-2">
@@ -505,6 +515,45 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
 
                 {/* Мета-пилы */}
                 <div className="flex flex-wrap items-center justify-center gap-1.5 mb-3">
+                  {editingWord && (
+                    <EditWordModal
+                      word={word}
+                      willResetToPending={!canModerate}
+                      onSaved={() => { void fetchDetail(); }}
+                      onClose={() => setEditingWord(false)}
+                    />
+                  )}
+                  {reportingWord && (
+                    <ReportIssueModal
+                      wordId={word._id}
+                      targetLabel={`Слово: ${word.bur} — ${word.ru}`}
+                      onClose={() => setReportingWord(false)}
+                    />
+                  )}
+                  {isAuthenticated && word.contributor?.id !== currentUserId && (
+                    <button
+                      type="button"
+                      onClick={() => setReportingWord(true)}
+                      className={cn(
+                        'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition active:scale-95',
+                        isDark ? 'border-white/15 text-stone-400' : 'border-stone-300 text-stone-500',
+                      )}
+                    >
+                      🚩 Пожаловаться
+                    </button>
+                  )}
+                  {(canModerate || (currentUserId && word.contributor?.id === currentUserId)) && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingWord(true)}
+                      className={cn(
+                        'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition active:scale-95',
+                        isDark ? 'border-white/15 text-stone-300' : 'border-stone-300 text-stone-600',
+                      )}
+                    >
+                      ✏️ Редактировать
+                    </button>
+                  )}
                   {word.partOfSpeechId && (
                     <Pill isDark={isDark}>
                       <span>{word.partOfSpeechId.emoji}</span>

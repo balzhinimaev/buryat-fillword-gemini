@@ -9,14 +9,14 @@ import {
   ChevronUp,
   CheckCircle2,
   Star,
-  Lock,
-  Mic,
   Settings2,
   Loader2
 } from 'lucide-react';
 import { useTheme } from '../../theme/ThemeContext';
 import { cn } from '../ui';
 import { BuryatKeyboard } from './BuryatKeyboard';
+import { AudioRecorderField, releaseAudioDraft, type AudioDraft } from './AudioRecorderField';
+import { submitAudioSuggestion } from '../../services/api';
 import type { 
   ApiCategory, 
   ApiDialect, 
@@ -67,6 +67,16 @@ export const AddWordForm: React.FC<AddWordFormProps> = ({
   const [difficulty, setDifficulty] = useState(0);
   const [showDialects, setShowDialects] = useState(false);
   const [showPartsOfSpeech, setShowPartsOfSpeech] = useState(false);
+  const [audioDraft, setAudioDraft] = useState<AudioDraft | null>(null);
+  const [audioNote, setAudioNote] = useState('');
+
+  // По умолчанию — литературный диалект (все базовые слова словаря на нём)
+  useEffect(() => {
+    if (!dialect && dialects.some((d) => d.code === 'literary')) {
+      setDialect('literary');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialects]);
 
   const resetForm = () => {
     setBur('');
@@ -82,6 +92,8 @@ export const AddWordForm: React.FC<AddWordFormProps> = ({
     setShowCategories(false);
     setShowDialects(false);
     setShowPartsOfSpeech(false);
+    releaseAudioDraft(audioDraft);
+    setAudioDraft(null);
   };
 
   const localizeErrorMessage = (message: string): { text: string; isDuplicate: boolean } => {
@@ -155,7 +167,21 @@ export const AddWordForm: React.FC<AddWordFormProps> = ({
     try {
       const response = await onSubmit(requestData);
       console.log('✅ Слово успешно добавлено:', response);
-      
+
+      // Озвучка уходит отдельным предложением (на модерацию) — само слово уже создано
+      setAudioNote('');
+      if (audioDraft && response?._id) {
+        try {
+          await submitAudioSuggestion(response._id, audioDraft.blob, 'word', {
+            dialectId: selectedDialect?._id,
+            fileName: audioDraft.fileName,
+          });
+        } catch (audioErr) {
+          console.log('⚠️ Слово создано, но озвучку отправить не удалось:', audioErr);
+          setAudioNote('Слово отправлено, но озвучку загрузить не удалось — можно добавить её позже со страницы слова.');
+        }
+      }
+
       // Очистка формы
       resetForm();
       setSuccess(true);
@@ -194,7 +220,9 @@ export const AddWordForm: React.FC<AddWordFormProps> = ({
             <CheckCircle2 className="text-emerald-400" size={24} />
             <div>
               <p className="text-emerald-300 font-medium">Слово добавлено!</p>
-              <p className="text-emerald-400/70 text-sm">Спасибо за ваш вклад 💚</p>
+              <p className="text-emerald-400/70 text-sm">
+                {audioNote || 'Спасибо за ваш вклад 💚'}
+              </p>
             </div>
           </motion.div>
         )}
@@ -681,35 +709,23 @@ export const AddWordForm: React.FC<AddWordFormProps> = ({
                   </div>
                 </div>
 
-                {/* Запись голоса (заблокировано) */}
+                {/* Запись произношения — уйдёт на модерацию вместе со словом */}
                 <div>
                   <label className={cn("block text-sm font-medium mb-2", theme.text.secondary)}>
                     Произношение
                   </label>
-                  <div 
+                  <div
                     className={cn(
-                      "relative px-4 py-3.5 rounded-xl border-2 border-dashed flex items-center gap-3 cursor-not-allowed",
-                      isDark 
-                        ? "bg-stone-800/30 border-stone-700/50" 
+                      "px-4 py-3.5 rounded-xl border-2 border-dashed",
+                      isDark
+                        ? "bg-stone-800/30 border-stone-700/50"
                         : "bg-stone-50 border-stone-200"
                     )}
                   >
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center",
-                      isDark ? "bg-stone-700/50" : "bg-stone-200/80"
-                    )}>
-                      <Mic size={20} className={theme.text.dimmed} />
-                    </div>
-                    <div className="flex-1">
-                      <p className={theme.text.muted}>Записать произношение</p>
-                      <p className={cn("text-xs", theme.text.dimmed)}>Скоро будет доступно</p>
-                    </div>
-                    <div className={cn(
-                      "absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center",
-                      isDark ? "bg-stone-700" : "bg-stone-200"
-                    )}>
-                      <Lock size={12} className={theme.text.dimmed} />
-                    </div>
+                    <AudioRecorderField value={audioDraft} onChange={setAudioDraft} disabled={isSubmitting} />
+                    <p className={cn("text-xs mt-2", theme.text.dimmed)}>
+                      Озвучка появится у слова после проверки модератором
+                    </p>
                   </div>
                 </div>
               </div>

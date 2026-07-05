@@ -5,6 +5,7 @@ import { useMemo, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
 import { getTheme } from './theme';
 import { TelegramThemeSync } from './components/TelegramThemeSync';
+import { ScreenErrorBoundary } from './components/ScreenErrorBoundary';
 import { useAuth } from './store/authStore';
 import { api, type AnalyticsEventContext } from './services/api';
 import { getResumeFirstLevelSlug } from './utils/campaignResume';
@@ -42,6 +43,7 @@ const LevelsScreen = lazy(() => import('./screens/LevelsScreen'));
 const LevelPackScreen = lazy(() => import('./screens/LevelPackScreen'));
 const GameScreen = lazy(() => import('./screens/GameScreen'));
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen'));
+const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
 const StatsScreen = lazy(() => import('./screens/StatsScreen'));
 const LeaderboardScreen = lazy(() => import('./screens/LeaderboardScreen'));
 const DictionaryScreen = lazy(() => import('./screens/DictionaryScreen'));
@@ -451,6 +453,8 @@ export default function App() {
         return <GameScreen store={store} />;
       case 'settings':
         return <SettingsScreen store={store} />;
+      case 'profile':
+        return <ProfileScreen store={store} />;
       case 'stats':
         return <StatsScreen store={store} />;
       case 'leaderboard':
@@ -557,15 +561,17 @@ export default function App() {
             transition={pageTransition}
             className={`min-h-[100dvh] ${isTelegram ? '' : 'md:my-4 md:rounded-3xl md:shadow-2xl md:border md:border-stone-200/60 dark:md:border-stone-700/60 overflow-hidden'}`}
           >
-            <Suspense
-              fallback={(
-                <div className={`min-h-[100dvh] flex items-center justify-center text-sm ${currentTheme.text.muted}`}>
-                  Загрузка…
-                </div>
-              )}
-            >
-              {renderScreen()}
-            </Suspense>
+            <ScreenErrorBoundary resetKey={effectiveScreen} onGoHome={() => navigate('menu')}>
+              <Suspense
+                fallback={(
+                  <div className={`min-h-[100dvh] flex items-center justify-center text-sm ${currentTheme.text.muted}`}>
+                    Загрузка…
+                  </div>
+                )}
+              >
+                {renderScreen()}
+              </Suspense>
+            </ScreenErrorBoundary>
           </motion.div>
         </AnimatePresence>
       </div>

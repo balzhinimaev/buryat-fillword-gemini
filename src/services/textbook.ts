@@ -2,7 +2,7 @@
 // Юнит «пройден», когда теория отмечена изученной И хотя бы один урок практики
 // сыгран на ≥1★ (звёзды берём из прогресса кампаний).
 import bundled from '../data/textbook.json';
-import { getCampaignOverview } from './api';
+import { getCampaignOverview, completeTextbookLesson } from './api';
 
 export interface TextbookWord {
   bur: string;
@@ -100,6 +100,8 @@ export function saveQuizResult(slug: string, correct: number, total: number): vo
   const map = loadProgress();
   const prev = map[slug]?.quizBest;
   const better = !prev || correct / total > prev.correct / prev.total;
+  const passedNow =
+    !map[slug]?.quizPassedAt && correct / total >= QUIZ_PASS_RATIO;
   map[slug] = {
     ...map[slug],
     quizBest: better ? { correct, total } : prev,
@@ -108,6 +110,13 @@ export function saveQuizResult(slug: string, correct: number, total: number): vo
       (correct / total >= QUIZ_PASS_RATIO ? new Date().toISOString() : undefined),
   };
   saveProgress(map);
+
+  // Первая сдача — фиксируем веху на сервере (XP за квиз/экзамен).
+  // Fire-and-forget: офлайн/гость не ломают сохранение локального прогресса;
+  // сервер идемпотентен — повторная отправка XP не задвоит.
+  if (passedNow) {
+    void completeTextbookLesson(slug, 'quiz')?.catch?.(() => {});
+  }
 }
 
 // ---------- работа над ошибками ----------

@@ -15,9 +15,12 @@ import {
   Info,
   Eye,
   Settings2,
-  Globe
+  Globe,
+  Flag
 } from 'lucide-react';
 import { cn, StarsDisplay } from '../components/ui';
+import { ReportIssueModal } from '../components/ReportIssueModal';
+import { PostGameRating } from '../components/PostGameRating';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
 import { generateServerLevel, generateCampaignLevel, findWordByPath, isPalindromeWord, type PlacedWord } from '../gameEngine';
@@ -294,6 +297,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const isDailyMode = state.gameMode === 'daily';
   const endlessLevel = state.selectedEndlessLevel || 1;
   const campaignSlug = (!isEndlessMode && !isDailyMode) ? (state.selectedCategory || null) : null;
+  const [reportOpen, setReportOpen] = useState(false);
   const isCampaignMode = !isEndlessMode && !isDailyMode;
   const isTimerEnabled = state.settings.timerEnabled !== false;
   const isFirstCampaignLesson = campaignSlug === 'greetings';
@@ -1454,9 +1458,13 @@ ${levelInfo}
 
     if (campaignLevelError) {
       // Проверяем, является ли ошибка Unauthorized (истёкший токен)
-      const isUnauthorized = campaignLevelError.toLowerCase().includes('unauthorized') || 
+      const isUnauthorized = campaignLevelError.toLowerCase().includes('unauthorized') ||
                              campaignLevelError.toLowerCase().includes('401');
-      
+      // 403 — уровень заблокирован (не хватает звёзд): ретрай бессмысленен, выводим наружу
+      const isForbidden = campaignLevelError.toLowerCase().includes('403') ||
+                          campaignLevelError.toLowerCase().includes('заблокирован') ||
+                          campaignLevelError.toLowerCase().includes('forbidden');
+
       const handleErrorAction = () => {
         if (isUnauthorized) {
           // Очищаем токены и запрашиваем переавторизацию
@@ -1464,17 +1472,23 @@ ${levelInfo}
           window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
           // Перенаправляем на главную страницу
           navigate('menu');
+        } else if (isForbidden) {
+          navigate('menu');
         } else {
           // Просто повторяем попытку загрузки
           void initCampaignGame();
         }
       };
-      
+
       return (
         <div className={cn("min-h-[100dvh] flex items-center justify-center p-6 text-center", styles.page.background)}>
           <div>
-            <p className={cn("mb-2", styles.categoryTitle.text)}>Ошибка загрузки</p>
-            <p className={cn("text-sm opacity-70 mb-4", styles.categoryTitle.text)}>{campaignLevelError}</p>
+            <p className={cn("mb-2", styles.categoryTitle.text)}>
+              {isForbidden ? 'Уровень пока заблокирован' : 'Ошибка загрузки'}
+            </p>
+            <p className={cn("text-sm opacity-70 mb-4", styles.categoryTitle.text)}>
+              {isForbidden ? 'Наберите больше звёзд в открытых уровнях, чтобы открыть этот.' : campaignLevelError}
+            </p>
             <button
               onClick={handleErrorAction}
               className={cn(
@@ -1484,7 +1498,7 @@ ${levelInfo}
                 styles.headerButton.text
               )}
             >
-              {isUnauthorized ? 'На главную' : 'Повторить'}
+              {isUnauthorized || isForbidden ? 'На главную' : 'Повторить'}
             </button>
           </div>
         </div>
@@ -1493,8 +1507,21 @@ ${levelInfo}
 
     if (!campaignLevel) {
       return (
-        <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
-          <p className={styles.categoryTitle.text}>Уровень не найден</p>
+        <div className={cn("min-h-[100dvh] flex items-center justify-center p-6 text-center", styles.page.background)}>
+          <div>
+            <p className={cn("mb-4", styles.categoryTitle.text)}>Уровень не найден</p>
+            <button
+              onClick={() => navigate('menu')}
+              className={cn(
+                "px-4 py-2 rounded-xl transition-colors",
+                styles.headerButton.background,
+                styles.headerButton.backgroundHover,
+                styles.headerButton.text
+              )}
+            >
+              На главную
+            </button>
+          </div>
         </div>
       );
     }
@@ -1650,6 +1677,22 @@ ${levelInfo}
             </button>
           )}
 
+          {!isDailyMode && (
+            <button
+              onClick={() => setReportOpen(true)}
+              className={cn(
+                "p-2 rounded-xl transition-all duration-200",
+                styles.headerButton.background,
+                styles.headerButton.backgroundHover,
+                styles.headerButton.text
+              )}
+              title="Сообщить о проблеме"
+              aria-label="Сообщить о проблеме"
+            >
+              <Flag size={18} />
+            </button>
+          )}
+
           <button 
             onClick={() => {
               if (isEndlessMode) {
@@ -1671,6 +1714,15 @@ ${levelInfo}
           </div>
         </div>
         
+        {/* Жалоба на уровень (перевод/ошибки) */}
+        {reportOpen && (
+          <ReportIssueModal
+            levelSlug={isEndlessMode ? `level-${endlessLevel}` : (campaignSlug ?? 'unknown')}
+            targetLabel={`Уровень: ${levelTitle}`}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
+
         {/* Stats bar */}
         <div className="flex items-center justify-between gap-3">
           {isTimerEnabled && (
@@ -2104,6 +2156,9 @@ ${levelInfo}
                       )}
                     </div>
                   </motion.div>
+
+                  {/* Мини-рейтинг недели: ваша позиция после прохождения */}
+                  {!OFFLINE && <PostGameRating onOpenLeaderboard={() => navigate('leaderboard')} />}
                   
                   {/* Daily: итоги + рейтинг дня */}
                   {isDailyMode && dailyResult && (

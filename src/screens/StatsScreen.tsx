@@ -1,11 +1,11 @@
 // src/screens/StatsScreen.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { 
-  BarChart3, 
-  Clock, 
-  Target, 
-  Flame, 
+import {
+  BarChart3,
+  Clock,
+  Target,
+  Flame,
   Trophy,
   BookOpen,
   TrendingUp,
@@ -14,7 +14,18 @@ import {
   Plus,
   CheckCircle2,
   XCircle,
-  Shield
+  Shield,
+  Rocket,
+  CalendarCheck,
+  CalendarDays,
+  Users,
+  Lightbulb,
+  Zap,
+  Award,
+  Medal,
+  Sparkles,
+  Mic,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
@@ -69,10 +80,56 @@ const ACHIEVEMENT_CATEGORY_LABELS: Record<UserProfileAchievement['category'], st
   community: 'Комьюнити',
 };
 
+// Иконки достижений: бэкенд отдаёт эмодзи (стоковые смайлики) — рисуем свои,
+// консистентные с остальным приложением. По id, с фолбэком по категории.
+const ACHIEVEMENT_ICONS: Record<string, LucideIcon> = {
+  starter_level_1: Rocket,
+  starter_stars_5: Star,
+  progress_level_5: TrendingUp,
+  progress_level_10: Medal,
+  progress_xp_1000: Zap,
+  campaign_levels_5: Target,
+  campaign_levels_15: Trophy,
+  campaign_stars_25: Star,
+  campaign_stars_50: Sparkles,
+  streak_3: Flame,
+  streak_7: CalendarCheck,
+  streak_30: CalendarDays,
+  daily_3: CalendarCheck,
+  daily_14: CalendarDays,
+  community_words_added_5: Plus,
+  community_words_verified_25: CheckCircle2,
+  community_words_approved_10: Mic,
+  // локальные фолбэк-ачивки (офлайн)
+  first_level: Trophy,
+  all_stars: Star,
+};
+
+const ACHIEVEMENT_CATEGORY_ICONS: Record<UserProfileAchievement['category'], LucideIcon> = {
+  starter: Rocket,
+  progress: TrendingUp,
+  streak: Flame,
+  campaign: Target,
+  daily: CalendarCheck,
+  community: Users,
+};
+
+const AchievementIcon: React.FC<{
+  achievement: Pick<UserProfileAchievement, 'id' | 'category'>;
+  size?: number;
+  className?: string;
+}> = ({ achievement, size = 22, className }) => {
+  const Icon =
+    ACHIEVEMENT_ICONS[achievement.id] ??
+    ACHIEVEMENT_CATEGORY_ICONS[achievement.category] ??
+    Award;
+  return <Icon size={size} className={className} />;
+};
+
 export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const { state, goBack, xpProgress, xpToNextLevel } = store;
   const { stats, levelProgress } = state;
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { state: authState, refreshUser } = useAuth();
   const [xpHistory, setXpHistory] = useState<UserProfileXpHistoryItem[]>([]);
   const [profileAchievements, setProfileAchievements] = useState<UserProfileAchievement[]>([]);
@@ -424,8 +481,8 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
             theme.borders.subtle,
           )}>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/30 to-orange-500/20 flex items-center justify-center text-xl">
-                {newAchievementToast.icon}
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/30 to-orange-500/20 flex items-center justify-center">
+                <AchievementIcon achievement={newAchievementToast} size={20} className="text-amber-400" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className={cn("text-xs", theme.text.muted)}>Новое достижение</div>
@@ -459,47 +516,51 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
         <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl" />
       </div>
 
-      {/* Header */}
-      <header className="relative z-10 p-4 pb-6">
-        <div className="flex items-center gap-4 mb-5">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => goBack()}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
+      {/* Hero-шапка */}
+      <header className={cn(
+        'relative overflow-hidden p-4 pb-5 z-10',
+        isDark ? '' : 'rounded-b-3xl shadow-lg',
+        theme.header.bg,
+        theme.header.text
+      )}>
+        <div className="absolute -top-12 -right-8 w-44 h-44 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
+
+        <div className="relative z-10">
+          <div className="flex items-center gap-2">
+            <button onClick={() => goBack()} aria-label="Назад" className="p-2 -ml-2 rounded-xl active:bg-white/10">
+              <ArrowLeft size={22} />
+            </button>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">
+              прогресс
+            </span>
+          </div>
+          <h1 className="text-2xl font-extrabold leading-tight mt-1 px-1 mb-4">Статистика</h1>
+
+          {/* Уровень + XP-полоса прямо в хиро */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-4 rounded-2xl bg-white/10 backdrop-blur-sm p-3.5"
           >
-            <ArrowLeft size={24} className={theme.text.primary} />
-          </motion.button>
-          <h1 className={cn("text-2xl font-bold flex-1", theme.text.primary)}>Статистика</h1>
-        </div>
-        
-        {/* XP Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-4")}
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-steppe-500 to-steppe-700 flex items-center justify-center shadow-lg shadow-steppe-500/20">
-              <span className="text-white font-bold text-xl">{displayLevel}</span>
+            <div className="w-13 h-13 min-w-[52px] min-h-[52px] rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/25">
+              <span className="text-white font-extrabold text-xl drop-shadow">{displayLevel}</span>
             </div>
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-2">
-                <span className={cn("font-semibold", theme.text.primary)}>Уровень {displayLevel}</span>
-                <span className={theme.text.muted}>{displayXpRemaining} XP до след.</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="font-semibold text-sm">Уровень {displayLevel}</span>
+                <span className="text-xs opacity-70">{displayXpRemaining} XP до след.</span>
               </div>
-              <div className={cn("h-3 rounded-full overflow-hidden", theme.progress.track)}>
+              <div className="h-2.5 rounded-full overflow-hidden bg-black/20">
                 <motion.div
-                  className={theme.progress.fill.primary}
-                  style={{ height: '100%' }}
+                  className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-400"
                   initial={{ width: 0 }}
                   animate={{ width: `${displayXpProgress * 100}%` }}
                   transition={{ type: 'spring', stiffness: 50 }}
                 />
               </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </header>
 
       {/* Content */}
@@ -517,8 +578,31 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
                 <div className={cn("font-semibold truncate", theme.text.primary)}>
                   {authState.user.name}
                 </div>
-                <div className={cn("text-xs truncate", theme.text.muted)}>
-                  @{authState.user.telegramUsername || '—'} • роль: {authState.user.role} • trust: {authState.user.trustScore}
+                <div className={cn("text-xs truncate mb-1.5", theme.text.muted)}>
+                  @{authState.user.telegramUsername || '—'}
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className={cn(
+                    'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                    authState.user.role === 'admin' || authState.user.role === 'moderator'
+                      ? 'bg-violet-500/15 text-violet-400'
+                      : authState.user.role === 'trusted'
+                        ? 'bg-emerald-500/15 text-emerald-500'
+                        : isDark ? 'bg-white/10 text-stone-400' : 'bg-stone-100 text-stone-500',
+                  )}>
+                    <Shield size={10} />
+                    {authState.user.role === 'admin' ? 'Админ'
+                      : authState.user.role === 'moderator' ? 'Модератор'
+                      : authState.user.role === 'trusted' ? 'Доверенный'
+                      : 'Участник'}
+                  </span>
+                  <span className={cn(
+                    'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                    isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-50 text-amber-600',
+                  )}>
+                    <Award size={10} />
+                    Доверие {authState.user.trustScore ?? 0}
+                  </span>
                 </div>
               </div>
               {authState.user.isPremium && (
@@ -653,7 +737,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
           className={cn(theme.backgrounds.card, theme.borders.subtle, "border rounded-2xl p-4")}
         >
           <h3 className={cn("font-semibold mb-3 flex items-center gap-2", theme.text.primary)}>
-            <BarChart3 size={18} className="text-cyan-400" />
+            <BarChart3 size={18} className="text-amber-400" />
             XP за 7 дней
           </h3>
 
@@ -693,8 +777,8 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
                         "w-full rounded-md",
                         day.xp > 0
                           ? (isSelected
-                              ? 'bg-gradient-to-t from-cyan-400 to-blue-400 shadow-lg shadow-cyan-500/30'
-                              : 'bg-gradient-to-t from-cyan-500 to-blue-500')
+                              ? 'bg-gradient-to-t from-amber-400 to-orange-400 shadow-lg shadow-amber-500/30'
+                              : 'bg-gradient-to-t from-amber-500 to-orange-500')
                           : 'bg-transparent'
                       )}
                     />
@@ -725,15 +809,16 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
                 {selectedChartDay.topTypeLabel && (
                   <span className={cn(
                     "text-[10px] px-2 py-1 rounded-full font-semibold",
-                    "bg-cyan-500/15 text-cyan-300 border border-cyan-400/20"
+                    isDark ? "bg-amber-500/15 text-amber-300 border border-amber-400/20" : "bg-amber-50 text-amber-600 border border-amber-200"
                   )}>
                     {selectedChartDay.topTypeLabel}
                   </span>
                 )}
               </div>
 
-              <p className={cn("text-xs leading-relaxed", theme.text.secondary)}>
-                💡 {getXpTip(selectedChartDay)}
+              <p className={cn("text-xs leading-relaxed flex items-start gap-1.5", theme.text.secondary)}>
+                <Lightbulb size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                <span>{getXpTip(selectedChartDay)}</span>
               </p>
             </div>
           )}
@@ -858,20 +943,26 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
                   whileTap={{ scale: 0.96 }}
                   onClick={() => setSelectedAchievement(achievement)}
                   className={cn(
-                    "aspect-square rounded-xl flex flex-col items-center justify-center text-2xl transition-all relative overflow-hidden border",
+                    "aspect-square rounded-xl flex flex-col items-center justify-center transition-all relative overflow-hidden border",
                     achievement.isUnlocked
                       ? 'bg-gradient-to-br from-amber-500/30 to-orange-500/20 shadow-lg shadow-amber-500/10 border-amber-400/20'
-                      : 'bg-stone-800/50 grayscale opacity-70 border-white/5',
-                    isActive && 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-transparent'
+                      : isDark
+                        ? 'bg-stone-800/50 border-white/5'
+                        : 'bg-stone-100 border-stone-200',
+                    isActive && 'ring-2 ring-amber-400/70 ring-offset-1 ring-offset-transparent'
                   )}
                   title={`${achievement.name}: ${achievement.description}`}
                   aria-label={`Открыть достижение: ${achievement.name}`}
                 >
-                  <span>{achievement.icon}</span>
+                  <AchievementIcon
+                    achievement={achievement}
+                    size={22}
+                    className={achievement.isUnlocked ? 'text-amber-400' : isDark ? 'text-stone-600' : 'text-stone-400'}
+                  />
                   {!achievement.isUnlocked && typeof achievement.progressPercent === 'number' && (
-                    <div className="absolute bottom-1 left-1 right-1 h-1 rounded-full bg-black/25 overflow-hidden">
+                    <div className={cn("absolute bottom-1 left-1 right-1 h-1 rounded-full overflow-hidden", isDark ? 'bg-black/25' : 'bg-stone-200')}>
                       <div
-                        className="h-full bg-cyan-400"
+                        className="h-full bg-amber-400"
                         style={{ width: `${Math.max(4, achievement.progressPercent)}%` }}
                       />
                     </div>
@@ -887,8 +978,9 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
               <div className="space-y-1.5">
                 {nextAchievementHints.map((item) => (
                   <div key={item.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className={cn("truncate", theme.text.secondary)}>
-                      {item.icon} {item.name}
+                    <span className={cn("truncate flex items-center gap-1.5", theme.text.secondary)}>
+                      <AchievementIcon achievement={item} size={13} className="text-amber-400 flex-shrink-0" />
+                      {item.name}
                     </span>
                     <span className={cn("tabular-nums", theme.text.dimmed)}>
                       {item.progress}/{item.target}
@@ -918,9 +1010,17 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
               return (
                 <div 
                   key={category.id}
-                  className="flex items-center gap-3 p-2.5 rounded-xl bg-stone-800/30 hover:bg-stone-800/50 transition-colors"
+                  className={cn(
+                    "flex items-center gap-3 p-2.5 rounded-xl transition-colors",
+                    isDark ? "bg-stone-800/30 hover:bg-stone-800/50" : "bg-stone-50 hover:bg-stone-100"
+                  )}
                 >
-                  <span className="text-xl">{category.emoji}</span>
+                  <span className={cn(
+                    "w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0",
+                    isDark ? "bg-amber-500/10" : "bg-amber-50"
+                  )}>
+                    {category.emoji}
+                  </span>
                   <span className={cn("flex-1 text-sm truncate", theme.text.secondary)}>{category.name}</span>
                   <div className="flex gap-0.5">
                     {[1, 2, 3].map((star) => (
@@ -975,12 +1075,16 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
             >
               <div className="flex items-start gap-3">
                 <div className={cn(
-                  "w-14 h-14 rounded-2xl text-3xl flex items-center justify-center border",
+                  "w-14 h-14 rounded-2xl flex items-center justify-center border",
                   selectedAchievement.isUnlocked
                     ? 'bg-gradient-to-br from-amber-500/30 to-orange-500/20 border-amber-400/20'
-                    : 'bg-stone-800/60 border-white/10'
+                    : isDark ? 'bg-stone-800/60 border-white/10' : 'bg-stone-100 border-stone-200'
                 )}>
-                  {selectedAchievement.icon}
+                  <AchievementIcon
+                    achievement={selectedAchievement}
+                    size={26}
+                    className={selectedAchievement.isUnlocked ? 'text-amber-400' : isDark ? 'text-stone-500' : 'text-stone-400'}
+                  />
                 </div>
 
                 <div className="min-w-0 flex-1">
@@ -1019,8 +1123,9 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
                 </div>
               </div>
 
-              <p className={cn("text-xs leading-relaxed mt-3", theme.text.secondary)}>
-                💡 {getAchievementTip(selectedAchievement)}
+              <p className={cn("text-xs leading-relaxed mt-3 flex items-start gap-1.5", theme.text.secondary)}>
+                <Lightbulb size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                <span>{getAchievementTip(selectedAchievement)}</span>
               </p>
 
               <div className="mt-4 flex justify-end">

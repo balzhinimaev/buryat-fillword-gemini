@@ -191,6 +191,10 @@ const loadState = (): GameState => {
         ...defaultGameState,
         ...parsed,
         screenHistory: [], // не восстанавливаем историю навигации
+        // Не восстанавливаем и текущий экран: рестарт прямо в 'game' сразу открывал
+        // последний уровень, и если тот заблокирован (не хватает звёзд) — пользователь
+        // запирался на экране «Уровень заблокирован» при каждом запуске приложения.
+        currentScreen: defaultGameState.currentScreen,
         settings: { ...defaultSettings, ...parsed.settings },
         stats: { ...defaultStats, ...parsed.stats },
         endlessProgress: { ...defaultEndlessProgress, ...parsed.endlessProgress },

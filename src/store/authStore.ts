@@ -20,10 +20,15 @@ import {
   type AgeRange,
   type BuriatLevel,
   type ReminderPlan,
-  type ReminderTime
+  type ReminderTime,
+  emailPasswordLogin,
+  emailPasswordRegister,
+  resetPasswordWithCode,
+  vkMiniAppAuth,
 } from '../services/api';
 import { useTelegram } from '../hooks/useTelegram';
 import { OFFLINE } from '../config/offline';
+import { IS_VK_MINIAPP, VK_LAUNCH_PARAMS } from '../services/vkMiniApp';
 import { offlineMe } from '../services/offlineStubs';
 import { takePkce, VK_REDIRECT_URI, type VkReturn } from '../services/vkAuth';
 
@@ -85,6 +90,9 @@ export interface AuthStore {
   vkLogin: (ret: VkReturn) => Promise<void>;
   requestEmailOtp: (email: string) => Promise<EmailOtpRequestResponse>;
   verifyEmailOtp: (email: string, code: string) => Promise<void>;
+  passwordLogin: (email: string, password: string) => Promise<void>;
+  passwordRegister: (email: string, name: string, password: string) => Promise<void>;
+  passwordReset: (email: string, code: string, newPassword: string) => Promise<void>;
   clearError: () => void;
   logout: () => void;
   setOnboardingCompleted: (user: User) => void;
@@ -351,6 +359,72 @@ export function useAuthStore(): AuthStore {
     }
   }, []);
 
+  // Общий финал входа: маппинг ответа, догрузка /auth/me, установка сессии
+  const applyAuthResponse = useCallback(async (response: AuthResponse) => {
+    let user: User = mapAuthResponseToUser(response);
+    try {
+      const me = await getMe();
+      user = mapMeResponseToUser(me, user);
+    } catch (e) {
+      console.log('⚠️ Не удалось загрузить /auth/me после входа:', e);
+    }
+    saveUser(user);
+    setState({
+      user,
+      isAuthenticated: true,
+      isLoading: false,
+      isCheckingSession: false,
+      error: null,
+      isNewUser: !!response.isNewUser,
+      onboardingCompleted: response.onboardingCompleted,
+    });
+  }, []);
+
+  const passwordLogin = useCallback(async (email: string, password: string) => {
+    setState(prev => ({ ...prev, isLoading: true, isCheckingSession: false, error: null }));
+    try {
+      const response = await emailPasswordLogin(email, password);
+      await applyAuthResponse(response);
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: normalizeAuthErrorMessage(error, 'Неверный email или пароль'),
+      }));
+      throw error;
+    }
+  }, [applyAuthResponse]);
+
+  const passwordRegister = useCallback(async (email: string, name: string, password: string) => {
+    setState(prev => ({ ...prev, isLoading: true, isCheckingSession: false, error: null }));
+    try {
+      const response = await emailPasswordRegister(email, name, password);
+      await applyAuthResponse(response);
+    } catch (error) {
+      const raw = (error as { message?: string })?.message || '';
+      const friendly = /already exists/i.test(raw)
+        ? 'Такой email уже зарегистрирован — попробуйте войти'
+        : normalizeAuthErrorMessage(error, 'Не удалось зарегистрироваться');
+      setState(prev => ({ ...prev, isLoading: false, error: friendly }));
+      throw error;
+    }
+  }, [applyAuthResponse]);
+
+  const passwordReset = useCallback(async (email: string, code: string, newPassword: string) => {
+    setState(prev => ({ ...prev, isLoading: true, isCheckingSession: false, error: null }));
+    try {
+      const response = await resetPasswordWithCode(email, code, newPassword);
+      await applyAuthResponse(response);
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: normalizeAuthErrorMessage(error, 'Неверный или просроченный код'),
+      }));
+      throw error;
+    }
+  }, [applyAuthResponse]);
+
   const clearError = useCallback(() => {
     setState(prev => ({ ...prev, error: null }));
   }, []);
@@ -532,6 +606,26 @@ export function useAuthStore(): AuthStore {
         return;
       }
 
+      // VK Mini App: подписанные launch-параметры — автологин без экрана входа
+      if (IS_VK_MINIAPP && VK_LAUNCH_PARAMS) {
+        console.log('🔐 Автовход VK Mini App...');
+        setState(prev => ({ ...prev, isLoading: true, error: null }));
+        try {
+          const response = await vkMiniAppAuth(VK_LAUNCH_PARAMS);
+          await applyAuthResponse(response);
+          console.log('✅ VK Mini App: вход выполнен');
+        } catch (error) {
+          console.error('❌ VK Mini App auth failed:', error);
+          setState(prev => ({
+            ...prev,
+            isLoading: false,
+            isCheckingSession: false,
+            error: normalizeAuthErrorMessage(error, 'Не удалось войти через ВКонтакте'),
+          }));
+        }
+        return;
+      }
+
       // Если мы в Telegram и есть initData - логинимся заново
       if (isTelegram && initData) {
         console.log('🔐 Выполняем авторизацию через Telegram...');
@@ -612,6 +706,28 @@ export function useAuthStore(): AuthStore {
         isNewUser: false,
         onboardingCompleted: false,
       });
+
+      // VK Mini App: подписанные launch-параметры — автологин без экрана входа
+      if (IS_VK_MINIAPP && VK_LAUNCH_PARAMS) {
+        console.log('🔐 Автовход VK Mini App...');
+        setState(prev => ({ ...prev, isLoading: true, error: null }));
+        try {
+          const response = await vkMiniAppAuth(VK_LAUNCH_PARAMS);
+          await applyAuthResponse(response);
+          console.log('✅ VK Mini App: вход выполнен');
+        } catch (error) {
+          console.error('❌ VK Mini App auth failed:', error);
+          setState(prev => ({
+            ...prev,
+            isLoading: false,
+            isCheckingSession: false,
+            error: normalizeAuthErrorMessage(error, 'Не удалось войти через ВКонтакте'),
+          }));
+        } finally {
+          isReauthenticatingRef.current = false;
+        }
+        return;
+      }
 
       // Если мы в Telegram и есть initData - логинимся заново
       if (isTelegram && initData) {
@@ -736,6 +852,9 @@ export function useAuthStore(): AuthStore {
     vkLogin,
     requestEmailOtp: requestEmailOtpCode,
     verifyEmailOtp: verifyEmailOtpCode,
+    passwordLogin,
+    passwordRegister,
+    passwordReset,
     clearError,
     logout,
     setOnboardingCompleted,

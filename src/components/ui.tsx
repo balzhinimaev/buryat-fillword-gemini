@@ -68,6 +68,9 @@ interface CategoryCardProps {
   name: string;
   description: string;
   stars: number;
+  /** для агрегатов (модуль/глава): вместо шкалы из 3 звёзд рисуем прогресс X/Y —
+      сумма звёзд модуля в 3-звёздочной шкале выглядела как «всё пройдено» */
+  starsTotal?: number;
   isLocked: boolean;
   difficulty: 'easy' | 'medium' | 'hard';
   onClick: () => void;
@@ -90,6 +93,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
   name,
   description,
   stars,
+  starsTotal,
   isLocked,
   difficulty,
   onClick,
@@ -152,7 +156,22 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
             {description}
           </p>
           
-          <StarsDisplay stars={stars} theme={theme} />
+          {typeof starsTotal === 'number' && starsTotal > 0 ? (
+            <div className="flex items-center gap-2">
+              <Star size={14} className={cn('flex-shrink-0', stars > 0 ? theme.stars.filled : theme.stars.empty)} />
+              <div className={cn('flex-1 h-1.5 rounded-full overflow-hidden', isDark ? 'bg-stone-700/60' : 'bg-stone-200')}>
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all"
+                  style={{ width: `${Math.min(100, Math.round((stars / starsTotal) * 100))}%` }}
+                />
+              </div>
+              <span className={cn('text-[11px] font-semibold tabular-nums flex-shrink-0', theme.text.muted)}>
+                {stars}/{starsTotal}
+              </span>
+            </div>
+          ) : (
+            <StarsDisplay stars={stars} theme={theme} />
+          )}
         </div>
       </div>
     </motion.button>

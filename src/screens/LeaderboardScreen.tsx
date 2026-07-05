@@ -1,7 +1,7 @@
 // src/screens/LeaderboardScreen.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, ArrowLeft, Star, Zap, Flame, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
+import { Trophy, ArrowLeft, Star, Zap, Flame, RefreshCw, AlertCircle } from 'lucide-react';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
@@ -143,8 +143,10 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
   useBackButton(() => goBack());
 
   // Фильтры
-  const [type, setType] = useState<LeaderboardType>('stars');
-  const [period, setPeriod] = useState<LeaderboardPeriod>('all');
+  // Дефолт — недельный XP: обнуляется каждую неделю, новичок может побороться
+  // с первого дня (звёзды/за всё время у старожилов недосягаемы)
+  const [type, setType] = useState<LeaderboardType>('xp');
+  const [period, setPeriod] = useState<LeaderboardPeriod>('week');
 
   // Данные
   const [data, setData] = useState<LeaderboardResponse | null>(null);
@@ -366,19 +368,28 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
         <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl" />
       </div>
 
-      {/* Header */}
-      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-4 rounded-b-3xl shadow-lg")}>
-        <div className="flex items-center gap-4 mb-4">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => goBack()}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
-          >
-            <ArrowLeft size={24} className={theme.header.text} />
-          </motion.button>
-          <h1 className="text-xl font-bold flex-1">Таблица рекордов</h1>
-          <Trophy size={24} />
+      {/* Hero-шапка */}
+      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-4 overflow-hidden", !isDark && "rounded-b-3xl shadow-lg")}>
+        <div className="absolute -top-12 -right-8 w-44 h-44 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
+
+        <div className="flex items-center gap-2 relative z-10">
+          <button onClick={() => goBack()} aria-label="Назад" className="p-2 -ml-2 rounded-xl active:bg-white/10">
+            <ArrowLeft size={22} />
+          </button>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">
+            сообщество
+          </span>
+        </div>
+        <div className="flex items-end justify-between gap-3 mt-1 mb-4 relative z-10">
+          <div>
+            <h1 className="text-2xl font-extrabold leading-tight">
+              {isPrizeMode ? 'Турнир месяца' : 'Рекорды'}
+            </h1>
+            <p className="text-xs opacity-70 mt-1">
+              {isPrizeMode ? 'Топ-3 по опыту за месяц получают призы' : 'Лучшие игроки Буряад үгэнүүд'}
+            </p>
+          </div>
+          <span className="text-3xl drop-shadow">{isPrizeMode ? '💰' : '🏆'}</span>
         </div>
 
         {/* Табы: тип рейтинга */}
@@ -476,11 +487,27 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
 
       {/* Content */}
       <main className="flex-1 p-4 overflow-auto relative z-10 pb-24">
-        {/* Loading */}
+        {/* Loading: скелетоны с каскадным pulse */}
         {isLoading && (
-          <div className="flex flex-col items-center justify-center h-64">
-            <Loader2 size={36} className={cn("animate-spin mb-3", theme.text.muted)} />
-            <p className={theme.text.muted}>Загрузка рейтинга...</p>
+          <div className="space-y-1.5 pt-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'rounded-2xl px-3 py-2.5 flex items-center gap-3 animate-pulse',
+                  isDark ? 'bg-white/[0.05]' : 'bg-white/70',
+                )}
+                style={{ animationDelay: `${i * 90}ms` }}
+              >
+                <div className={cn('w-7 h-4 rounded', isDark ? 'bg-white/10' : 'bg-stone-200')} />
+                <div className={cn('w-10 h-10 rounded-full flex-shrink-0', isDark ? 'bg-white/10' : 'bg-stone-200')} />
+                <div className="flex-1 space-y-1.5">
+                  <div className={cn('h-3.5 rounded w-2/5', isDark ? 'bg-white/10' : 'bg-stone-200')} />
+                  <div className={cn('h-2.5 rounded w-3/5', isDark ? 'bg-white/[0.07]' : 'bg-stone-100')} />
+                </div>
+                <div className={cn('w-12 h-5 rounded', isDark ? 'bg-white/10' : 'bg-stone-200')} />
+              </div>
+            ))}
           </div>
         )}
 
@@ -541,8 +568,79 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
           </motion.div>
         )}
 
-        {/* Leaderboard entries */}
-        {!isLoading && !error && entries.length > 0 && (
+        {/* Пьедестал топ-3 + остальной список */}
+        {!isLoading && !error && entries.length >= 3 && (
+          <>
+            <div className="flex items-end justify-center gap-2 mb-5 pt-8">
+              {[entries[1], entries[0], entries[2]].map((entry, i) => {
+                const isWinner = i === 1; // центр — 1 место
+                const place = isWinner ? 1 : i === 0 ? 2 : 3;
+                const podiumH = isWinner ? 'h-20' : place === 2 ? 'h-14' : 'h-10';
+                const medal = place === 1 ? '🥇' : place === 2 ? '🥈' : '🥉';
+                return (
+                  <motion.button
+                    key={entry.userId}
+                    type="button"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 + i * 0.08 }}
+                    onClick={() => setSelectedUserId(entry.userId)}
+                    className="flex-1 max-w-[110px] flex flex-col items-center"
+                  >
+                    <div className="relative mb-1.5">
+                      {entry.photoUrl ? (
+                        <img
+                          src={entry.photoUrl}
+                          alt=""
+                          className={cn(
+                            'rounded-full object-cover',
+                            isWinner ? 'w-16 h-16 ring-2 ring-amber-400 ring-offset-2' : 'w-12 h-12',
+                            isWinner && (isDark ? 'ring-offset-slate-900' : 'ring-offset-stone-50'),
+                          )}
+                        />
+                      ) : (
+                        <div className={cn(
+                          'rounded-full flex items-center justify-center font-bold',
+                          isWinner ? 'w-16 h-16 text-xl' : 'w-12 h-12 text-base',
+                          isDark ? 'bg-white/10 text-white/60' : 'bg-stone-200 text-stone-500',
+                        )}>
+                          {entry.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className={cn('absolute -bottom-1.5 left-1/2 -translate-x-1/2 drop-shadow', isWinner ? 'text-xl' : 'text-base')}>
+                        {medal}
+                      </span>
+                    </div>
+                    <span className={cn('text-xs font-semibold truncate w-full text-center mt-1', theme.text.primary)}>
+                      {entry.name}
+                    </span>
+                    <span className={cn('text-[11px] font-bold tabular-nums', place === 1 ? 'text-amber-500' : theme.text.muted)}>
+                      {entry.value.toLocaleString()}
+                    </span>
+                    <div className={cn(
+                      'w-full mt-1.5 rounded-t-xl bg-gradient-to-b',
+                      podiumH,
+                      place === 1
+                        ? 'from-amber-400/80 to-amber-500/30'
+                        : place === 2
+                          ? (isDark ? 'from-slate-400/50 to-slate-500/15' : 'from-slate-300/80 to-slate-300/25')
+                          : 'from-amber-700/50 to-amber-800/15',
+                    )} />
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            <div className="space-y-1.5">
+              <AnimatePresence mode="popLayout">
+                {entries.slice(3).map((entry) => renderEntry(entry))}
+              </AnimatePresence>
+            </div>
+          </>
+        )}
+
+        {/* Меньше трёх участников — обычный список */}
+        {!isLoading && !error && entries.length > 0 && entries.length < 3 && (
           <div className="space-y-1.5">
             <AnimatePresence mode="popLayout">
               {entries.map((entry) => renderEntry(entry))}

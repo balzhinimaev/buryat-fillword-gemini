@@ -413,6 +413,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                           name={module.title ?? module.titleBur ?? 'Модуль'}
                           description={moduleDescription}
                           stars={moduleStars}
+                          starsTotal={moduleTotalStars}
                           isLocked={moduleLocked}
                           difficulty={moduleDifficulty}
                           onClick={() => {
@@ -431,8 +432,6 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
 
                         <div className={cn('flex items-center justify-between px-2', theme.text.muted)}>
                           <div className="flex items-center gap-2 text-[11px]">
-                            <span>⭐ {moduleStars}/{moduleTotalStars}</span>
-                            <span>•</span>
                             <span>{sortedLevels.length} ур.</span>
                           </div>
 

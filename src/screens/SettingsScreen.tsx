@@ -25,7 +25,7 @@ import { themeList } from '../theme';
 import type { GameStore } from '../store/gameStore';
 import type { ThemeId, Difficulty } from '../types';
 import { useAuth } from '../store/authStore';
-import { updateName } from '../services/api';
+import { updateName, getDialects, getSettings, patchSettings, type ApiDialect } from '../services/api';
 
 interface SettingsScreenProps {
   store: GameStore;
@@ -57,6 +57,29 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
   
   const [showResetModal, setShowResetModal] = useState(false);
   const gameLang = useGameLang();
+
+  // Диалект контента: фильтрует главы кампаний с указанным диалектом
+  const [dialects, setDialects] = useState<ApiDialect[]>([]);
+  const [dialectCode, setDialectCode] = useState<string>('');
+  const [dialectSaving, setDialectSaving] = useState(false);
+  useEffect(() => {
+    if (OFFLINE) return;
+    let cancelled = false;
+    getDialects()
+      .then((d) => { if (!cancelled) setDialects(d.sort((a, b) => a.sortOrder - b.sortOrder)); })
+      .catch(() => {});
+    getSettings()
+      .then((s) => { if (!cancelled) setDialectCode(s.preferredDialectCode ?? ''); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const selectDialect = (code: string) => {
+    setDialectCode(code);
+    setDialectSaving(true);
+    patchSettings({ preferredDialectCode: code })
+      .catch(() => {})
+      .finally(() => setDialectSaving(false));
+  };
   const [editingName, setEditingName] = useState(false);
   const backendPlayerName = authState.user?.name?.trim();
   const effectivePlayerName = useMemo(() => {
@@ -476,6 +499,53 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
             })}
           </div>
         </motion.div>
+
+        {/* Диалект контента */}
+        {!OFFLINE && dialects.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            className={cn(
+              "rounded-2xl p-4",
+              isDark
+                ? cn(theme.backgrounds.card, "border", theme.borders.subtle)
+                : "bg-white shadow-sm border border-stone-100"
+            )}
+          >
+            <div className="mb-3">
+              <span className={cn("font-semibold", theme.text.primary)}>
+                Диалект{dialectSaving ? ' · сохраняем…' : ''}
+              </span>
+              <p className={cn("text-xs mt-0.5", theme.text.muted)}>
+                Главы кампаний на других диалектах будут скрыты. «Любой» — показывать всё.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[{ code: '', name: 'Любой' }, ...dialects.map((d) => ({ code: d.code, name: d.name }))].map((d) => {
+                const isSelected = dialectCode === d.code;
+                return (
+                  <motion.button
+                    key={d.code || 'any'}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => selectDialect(d.code)}
+                    className={cn(
+                      'p-3 rounded-xl border-2 text-sm font-semibold transition-all',
+                      isSelected
+                        ? 'border-amber-500 ring-2 ring-amber-500/30'
+                        : isDark
+                          ? 'border-stone-700/50 hover:border-stone-600'
+                          : 'border-stone-200 hover:border-stone-300',
+                      theme.text.primary
+                    )}
+                  >
+                    {d.name}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Theme Selection */}
         <motion.div

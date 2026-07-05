@@ -16,8 +16,10 @@
     <meta name="apple-mobile-web-app-title" content="Burlive" />
     <meta name="mobile-web-app-capable" content="yes" />
 
-    <!-- Telegram Web App SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Telegram Web App SDK — самозахощенная копия (public/telegram-web-app.js):
+         загрузка с telegram.org из браузеров в РФ бывает медленной и блокировала
+         первый рендер на секунды -->
+    <script src="%BASE_URL%telegram-web-app.js"></script>
   </head>
   <body>
     <div id="root"></div>

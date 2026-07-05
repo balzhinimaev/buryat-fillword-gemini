@@ -14,6 +14,9 @@ import {
   SpellCheck,
   Star,
   Target,
+  ThumbsDown,
+  ThumbsUp,
+  Users,
 } from 'lucide-react';
 import { cn } from '../components/ui';
 import { useTheme } from '../theme/ThemeContext';
@@ -31,6 +34,15 @@ import {
 import { TextbookQuiz } from '../components/TextbookQuiz';
 import { TextbookFlashcards } from '../components/TextbookFlashcards';
 import { burAudioUrl, hasBurAudio } from '../services/burAudio';
+import {
+  completeTextbookLesson,
+  getTextbookMyState,
+  getTextbookStats,
+  unvoteTextbookLesson,
+  voteTextbookLesson,
+  type LessonVoteType,
+  type TextbookLessonStats,
+} from '../services/api';
 import { warmAudio } from '../services/prefetch';
 import { WaveAudioButton } from '../components/WaveAudioButton';
 
@@ -65,7 +77,53 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
   const [quizOpen, setQuizOpen] = useState(false);
   const [cardsOpen, setCardsOpen] = useState(false);
   const [quizBest, setQuizBest] = useState(slug ? getQuizBest(slug) : null);
+  const [lessonStats, setLessonStats] = useState<TextbookLessonStats | null>(null);
+  const [myVote, setMyVote] = useState<LessonVoteType | null>(null);
+  const [voteBusy, setVoteBusy] = useState(false);
   const learned = new Set(store.state.stats.learnedWords.map((w: string) => w.toUpperCase()));
+
+  // Статистика урока: сколько людей прошло + лайки/дизлайки (мягко падает офлайн)
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    getTextbookStats()
+      .then((s) => {
+        if (cancelled) return;
+        setLessonStats(
+          s.lessons.find((l) => l.lessonSlug === slug)
+            ?? { lessonSlug: slug, completedUsers: 0, likes: 0, dislikes: 0 },
+        );
+      })
+      .catch(() => {});
+    getTextbookMyState()
+      .then((my) => {
+        if (!cancelled) setMyVote(my?.votes[slug] ?? null);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  const handleLessonVote = async (type: LessonVoteType) => {
+    if (voteBusy || !slug) return;
+    setVoteBusy(true);
+    try {
+      if (myVote === type) {
+        const r = await unvoteTextbookLesson(slug);
+        setMyVote(null);
+        if (r) setLessonStats((prev) => (prev ? { ...prev, likes: r.likes, dislikes: r.dislikes } : prev));
+      } else {
+        const r = await voteTextbookLesson(slug, type);
+        if (r) {
+          setMyVote(r.myVote);
+          setLessonStats((prev) => (prev ? { ...prev, likes: r.likes, dislikes: r.dislikes } : prev));
+        }
+      }
+    } catch {
+      // офлайн/не авторизован — просто не обновляем
+    } finally {
+      setVoteBusy(false);
+    }
+  };
 
   useEffect(() => {
     void fetchPracticeLessons().then(setLessons);
@@ -108,8 +166,25 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
   );
 
   const toggleTheory = () => {
-    markTheoryRead(unit.slug, !theoryRead);
-    setTheoryRead(!theoryRead);
+    const next = !theoryRead;
+    markTheoryRead(unit.slug, next);
+    setTheoryRead(next);
+    if (next) {
+      // фиксируем прохождение на сервере (уникальность — на бэкенде)
+      void completeTextbookLesson(unit.slug)
+        .then((r) => {
+          if (r) setLessonStats((prev) => (prev ? { ...prev, completedUsers: r.completedUsers } : prev));
+        })
+        .catch(() => {});
+    }
+  };
+
+  const completedLabel = (n: number): string => {
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return `${n} человек прошёл урок`;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} человека прошли урок`;
+    return `${n} человек прошли урок`;
   };
 
   const fade = (i: number) => ({
@@ -135,6 +210,46 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
           {unit.title.replace(/^Урок \d+\. /, '')}
         </h1>
         <p className="text-xs opacity-70 mt-1.5 px-1 leading-relaxed">{unit.goal}</p>
+
+        {/* Сколько людей прошло + оценка урока */}
+        {lessonStats && (
+          <div className="flex items-center justify-between mt-3 px-1">
+            <span className="flex items-center gap-1.5 text-xs opacity-75">
+              <Users size={13} />
+              {lessonStats.completedUsers > 0
+                ? completedLabel(lessonStats.completedUsers)
+                : 'станьте первым, кто пройдёт урок'}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => void handleLessonVote('upvote')}
+                disabled={voteBusy}
+                aria-label="Нравится урок"
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition active:scale-95',
+                  myVote === 'upvote' ? 'bg-emerald-500/25 text-emerald-300' : 'bg-white/10 opacity-80',
+                )}
+              >
+                <ThumbsUp size={13} />
+                {lessonStats.likes}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleLessonVote('downvote')}
+                disabled={voteBusy}
+                aria-label="Не нравится урок"
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition active:scale-95',
+                  myVote === 'downvote' ? 'bg-red-500/25 text-red-300' : 'bg-white/10 opacity-80',
+                )}
+              >
+                <ThumbsDown size={13} />
+                {lessonStats.dislikes}
+              </button>
+            </span>
+          </div>
+        )}
       </header>
 
       <main className="flex-1 p-4 space-y-3.5 pb-10">

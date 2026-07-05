@@ -258,6 +258,8 @@ export interface ApiSettings {
   soundEffectsEnabled: boolean;
   theme: 'steppe' | 'light' | 'dark';
   difficulty: 'easy' | 'medium' | 'hard';
+  /** code диалекта ('' = любой) — фильтрует главы кампаний по диалекту */
+  preferredDialectCode?: string;
 }
 
 // Частичное обновление — все поля опциональные
@@ -636,12 +638,31 @@ export const clearStoredTokens = (): void => {
 // ---------------------------------------------------------------------------
 let refreshInFlight: Promise<StoredTokens | null> | null = null;
 
+// Межвкладочная защита: localStorage общий, а refresh_token одноразовый.
+// Две вкладки (или PWA + вкладка) на старте одновременно шлют один токен →
+// бэкенд видит reuse и отзывает все сессии. Web Locks сериализует refresh
+// между вкладками; внутри замка перечитываем localStorage — если другая
+// вкладка уже обновила токены, сеть не трогаем.
+async function withCrossTabLock<T>(fn: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  if (locks?.request) {
+    return locks.request('fillword_auth_refresh', fn) as Promise<T>;
+  }
+  return fn();
+}
+
 /** null — сессия мертва (refresh отвергнут); StoredTokens — можно повторять запрос */
 export function refreshTokensOnce(): Promise<StoredTokens | null> {
   if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = (async () => {
+  const snapshot = getStoredTokens();
+  refreshInFlight = withCrossTabLock(async () => {
     const current = getStoredTokens();
     if (!current?.refresh_token) return null;
+    // Пока ждали замок, другая вкладка успела обновить токены — берём их.
+    if (snapshot?.refresh_token && current.refresh_token !== snapshot.refresh_token) {
+      console.log('✅ Токены уже обновлены другой вкладкой');
+      return current;
+    }
     try {
       console.log('🔄 Пробуем обновить токен (single-flight)...');
       const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
@@ -674,7 +695,7 @@ export function refreshTokensOnce(): Promise<StoredTokens | null> {
       // ожидающие уже держат ссылку на этот promise — сброс безопасен сразу
       refreshInFlight = null;
     }
-  })();
+  });
   return refreshInFlight;
 }
 
@@ -838,6 +859,66 @@ export async function verifyEmailOtp(email: string, code: string): Promise<AuthR
   return response;
 }
 
+// Вход VK Mini App: подписанные launch-параметры → наши токены
+export async function vkMiniAppAuth(launchParams: string): Promise<AuthResponse> {
+  const response = await apiRequest<AuthResponse>('/auth/vk-miniapp', {
+    method: 'POST',
+    body: JSON.stringify({ launchParams }),
+  });
+  setStoredTokens({
+    access_token: response.access_token,
+    refresh_token: response.refresh_token,
+  });
+  return response;
+}
+
+// Классические вход/регистрация по email+паролю (логин = email)
+export async function emailPasswordRegister(
+  email: string,
+  name: string,
+  password: string,
+): Promise<AuthResponse> {
+  const response = await apiRequest<AuthResponse>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, name, password }),
+  });
+  setStoredTokens({
+    access_token: response.access_token,
+    refresh_token: response.refresh_token,
+  });
+  return response;
+}
+
+export async function emailPasswordLogin(email: string, password: string): Promise<AuthResponse> {
+  const response = await apiRequest<AuthResponse>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  setStoredTokens({
+    access_token: response.access_token,
+    refresh_token: response.refresh_token,
+  });
+  return response;
+}
+
+// Сброс пароля по одноразовому коду (код запрашивается requestEmailOtp);
+// сервер отзывает все старые сессии и сразу выдаёт новую
+export async function resetPasswordWithCode(
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<AuthResponse> {
+  const response = await apiRequest<AuthResponse>('/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify({ email, code, newPassword }),
+  });
+  setStoredTokens({
+    access_token: response.access_token,
+    refresh_token: response.refresh_token,
+  });
+  return response;
+}
+
 export async function registerPushDevice(payload: PushDeviceRegisterRequest): Promise<void> {
   if (!authedNetUsable()) return undefined;
   await apiRequest('/push/devices/register', {
@@ -854,25 +935,23 @@ export async function unregisterPushDevice(token: string): Promise<void> {
   });
 }
 
-// Обновление токена
+// Обновление токена — через тот же single-flight, что и авто-refresh при 401.
+// Раньше здесь был отдельный прямой запрос: при старте приложения он гнался с
+// refreshTokensOnce() (prefetch/настройки ловили 401 параллельно), оба слали один
+// и тот же одноразовый refresh_token → бэкенд видел reuse и отзывал ВСЕ сессии.
 export async function refreshToken(): Promise<RefreshResponse> {
   const tokens = getStoredTokens();
-  
+
   if (!tokens?.refresh_token) {
     throw new Error('No refresh token available');
   }
 
-  const response = await apiRequest<RefreshResponse>('/auth/refresh', {
-    method: 'POST',
-    body: JSON.stringify({ refresh_token: tokens.refresh_token }),
-  });
+  const next = await refreshTokensOnce();
+  if (!next) {
+    throw { statusCode: 401, message: 'Invalid refresh token' } as ApiError;
+  }
 
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token ?? tokens.refresh_token,
-  });
-
-  return response;
+  return { access_token: next.access_token, refresh_token: next.refresh_token } as RefreshResponse;
 }
 
 // Текущий пользователь
@@ -1105,6 +1184,62 @@ export async function voteWord(data: VoteRequest): Promise<VoteResponse> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Теоретические уроки учебника: статистика прохождений и лайки/дизлайки
+// ---------------------------------------------------------------------------
+
+export interface TextbookLessonStats {
+  lessonSlug: string;
+  completedUsers: number;
+  likes: number;
+  dislikes: number;
+}
+
+export type LessonVoteType = 'upvote' | 'downvote';
+
+export async function completeTextbookLesson(
+  slug: string,
+  kind: 'theory' | 'quiz' = 'theory',
+): Promise<{ completedUsers: number; xpGained?: number } | undefined> {
+  if (!authedNetUsable()) return undefined;
+  return apiRequest(`/textbook/lesson/${encodeURIComponent(slug)}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ kind }),
+  });
+}
+
+export async function getTextbookStats(): Promise<{ lessons: TextbookLessonStats[] }> {
+  if (!netUsable()) return { lessons: [] };
+  return apiRequest('/textbook/stats', { method: 'GET' });
+}
+
+export async function getTextbookMyState(): Promise<
+  { completed: string[]; votes: Record<string, LessonVoteType> } | undefined
+> {
+  if (!authedNetUsable()) return undefined;
+  return apiRequest('/textbook/my', { method: 'GET' });
+}
+
+export async function voteTextbookLesson(
+  slug: string,
+  type: LessonVoteType,
+): Promise<{ likes: number; dislikes: number; myVote: LessonVoteType } | undefined> {
+  if (!authedNetUsable()) return undefined;
+  return apiRequest(`/textbook/lesson/${encodeURIComponent(slug)}/vote`, {
+    method: 'POST',
+    body: JSON.stringify({ type }),
+  });
+}
+
+export async function unvoteTextbookLesson(
+  slug: string,
+): Promise<{ likes: number; dislikes: number } | undefined> {
+  if (!authedNetUsable()) return undefined;
+  return apiRequest(`/textbook/lesson/${encodeURIComponent(slug)}/vote`, {
+    method: 'DELETE',
+  });
+}
+
 // Обновление онбординга
 export async function updateOnboarding(data: UpdateOnboardingRequest): Promise<UserResponse> {
   if (!authedNetUsable()) return offlineOnly();
@@ -1170,6 +1305,7 @@ export interface CampaignOverviewModule extends ExtensibleRecord {
   title?: string;
   titleBur?: string;
   order?: number;
+  dialectCode?: string;
   requiredStars?: number;
   isUnlocked?: boolean;
   levels: CampaignOverviewLevel[];
@@ -2519,6 +2655,127 @@ export async function uploadWordAudio(
     throw await r.json().catch(() => ({ statusCode: r.status, message: r.statusText }));
   }
   return r.json();
+}
+
+// ---------------------------------------------------------------------------
+// Пользовательские озвучки (предложения с модерацией)
+// ---------------------------------------------------------------------------
+
+export interface AudioSuggestion {
+  _id: string;
+  wordId: string;
+  target: 'word' | 'example';
+  dialectId?: { _id: string; code: string; name: string } | string | null;
+  fileUrl: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  wordBur?: string;
+  wordRu?: string;
+  contributor?: { id: string; name: string; telegramId?: number };
+  createdAt: string;
+}
+
+export async function submitAudioSuggestion(
+  wordId: string,
+  file: Blob,
+  target: 'word' | 'example' = 'word',
+  opts?: { dialectId?: string; fileName?: string },
+): Promise<AudioSuggestion> {
+  const tokens = getStoredTokens();
+  const fd = new FormData();
+  fd.append('file', file, opts?.fileName ?? 'audio.webm');
+  const qs = new URLSearchParams({ target });
+  if (opts?.dialectId) qs.set('dialectId', opts.dialectId);
+  const r = await fetch(`${API_URL}/audio-suggestions/word/${wordId}?${qs}`, {
+    method: 'POST',
+    headers: tokens?.access_token
+      ? { Authorization: `Bearer ${tokens.access_token}` }
+      : undefined,
+    body: fd,
+  });
+  if (!r.ok) {
+    throw await r.json().catch(() => ({ statusCode: r.status, message: r.statusText }));
+  }
+  return r.json();
+}
+
+export async function getMyAudioSuggestions(): Promise<AudioSuggestion[]> {
+  if (!authedNetUsable()) return [];
+  return apiRequest<AudioSuggestion[]>('/audio-suggestions/my', { method: 'GET' });
+}
+
+export async function getPendingAudioSuggestions(): Promise<AudioSuggestion[]> {
+  if (!authedNetUsable()) return [];
+  return apiRequest<AudioSuggestion[]>('/audio-suggestions/pending', { method: 'GET' });
+}
+
+export async function moderateAudioSuggestion(
+  id: string,
+  status: 'approved' | 'rejected',
+  rejectionReason?: string,
+): Promise<AudioSuggestion> {
+  return apiRequest<AudioSuggestion>(`/audio-suggestions/${id}/moderate`, {
+    method: 'POST',
+    body: JSON.stringify({ status, rejectionReason }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Жалобы на контент (уровень / слово): недостоверный перевод, ошибки и т.д.
+// ---------------------------------------------------------------------------
+
+export type ContentReportType = 'incorrect' | 'spam' | 'offensive' | 'duplicate' | 'other';
+
+export interface ContentReport {
+  _id: string;
+  wordId?: string | null;
+  levelSlug?: string | null;
+  type: ContentReportType;
+  message?: string;
+  status: 'open' | 'resolved' | 'dismissed' | string;
+  wordBur?: string;
+  wordRu?: string;
+  reporterName?: string;
+  createdAt: string;
+}
+
+export async function createContentReport(data: {
+  wordId?: string;
+  levelSlug?: string;
+  type: ContentReportType;
+  message?: string;
+}): Promise<ContentReport> {
+  if (!authedNetUsable()) return offlineOnly();
+  return apiRequest<ContentReport>('/reports', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getOpenContentReports(): Promise<ContentReport[]> {
+  if (!authedNetUsable()) return [];
+  const r = await apiRequest<ContentReport[] | { reports: ContentReport[] }>(
+    '/reports?status=open&limit=100',
+    { method: 'GET' },
+  );
+  return Array.isArray(r) ? r : (r.reports ?? []);
+}
+
+export async function resolveContentReport(
+  id: string,
+  status: 'resolved' | 'dismissed',
+): Promise<ContentReport> {
+  return apiRequest<ContentReport>(`/reports/${id}/resolve`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+// Мои добавленные слова (со статусами модерации)
+export async function getMyWords(status?: 'pending' | 'verified' | 'rejected'): Promise<ApiWord[]> {
+  if (!authedNetUsable()) return [];
+  const qs = status ? `?status=${status}` : '';
+  return apiRequest<ApiWord[]>(`/words/my${qs}`, { method: 'GET' });
 }
 
 export function deleteWordAudio(wordId: string, target: 'word' | 'example'): Promise<ApiWord> {
