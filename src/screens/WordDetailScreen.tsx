@@ -13,6 +13,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
 import { PronunciationControl } from '../components/PronunciationControl';
+import { warmAudio } from '../services/prefetch';
 import { api } from '../services/api';
 import type { GameStore } from '../store/gameStore';
 import {
@@ -363,6 +364,12 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
   }
 
   const word = data?.word;
+
+  // произношения подтягиваются заранее — play без ожидания
+  useEffect(() => {
+    if (word) warmAudio([word.audioUrl, word.exampleAudioUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [word?.audioUrl, word?.exampleAudioUrl]);
   const status = word ? statusCfg[word.status] ?? statusCfg.pending : null;
   const isLearned = word ? state.stats.learnedWords.includes(word.bur) : false;
 

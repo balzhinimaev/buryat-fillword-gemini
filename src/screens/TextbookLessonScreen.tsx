@@ -31,6 +31,7 @@ import {
 import { TextbookQuiz } from '../components/TextbookQuiz';
 import { TextbookFlashcards } from '../components/TextbookFlashcards';
 import { burAudioUrl, hasBurAudio } from '../services/burAudio';
+import { warmAudio } from '../services/prefetch';
 import { WaveAudioButton } from '../components/WaveAudioButton';
 
 interface Props {
@@ -74,6 +75,17 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
   useEffect(() => {
     setTheoryRead(slug ? isTheoryRead(slug) : false);
     setQuizBest(slug ? getQuizBest(slug) : null);
+  }, [slug]);
+
+  // прогреваем озвучку урока заранее — по тапу играет мгновенно
+  useEffect(() => {
+    if (!unit) return;
+    const urls = [
+      ...unit.vocab.map((w) => burAudioUrl(w.bur)),
+      ...(unit.letters ?? []).map((l) => burAudioUrl(l.example.split(' — ')[0].trim())),
+    ];
+    warmAudio(urls);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   if (!unit) {

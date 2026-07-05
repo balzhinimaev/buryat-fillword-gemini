@@ -14,6 +14,7 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 import { useTelegram } from './hooks/useTelegram';
 import { OFFLINE } from './config/offline';
 import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
+import { prefetchScreens } from './services/prefetch';
 import { notifyReady, revertToBuiltin, applyOta, type OtaInfo } from './services/otaUpdate';
 import { syncDictionary } from './services/offlineDict';
 import { syncCampaigns } from './services/offlineCampaign';
@@ -125,6 +126,7 @@ export default function App() {
       // Без OTA-магии: сбрасываем любой ранее применённый OTA-бандл и всегда используем
       // встроенный в APK. Обновления — только через установку нового APK.
       revertToBuiltin();
+      prefetchScreens(); // фоновая догрузка чанков экранов (в простое)
       // Баннер обновления APK — только в нативном приложении (в вебе бессмысленно).
       if (Capacitor.isNativePlatform()) {
         checkApkUpdate().then(setApkUpdate).catch(() => {});
