@@ -239,20 +239,37 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
 
       {/* Header */}
       <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-4 rounded-b-3xl shadow-lg overflow-visible")}>
-        <div className="flex items-center gap-4 mb-4">
+        <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
+        <div className="flex items-center gap-3 mb-1">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => goBack()}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
+            className="p-2 -ml-1 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
           >
-            <ArrowLeft size={24} className={theme.header.text} />
+            <ArrowLeft size={22} className={theme.header.text} />
           </motion.button>
-          <h1 className="text-xl font-bold flex-1">Словарь</h1>
-          <div className="text-sm bg-white/20 px-3 py-1 rounded-full flex items-center gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">раздел</span>
+        </div>
+        <div className="flex items-end justify-between gap-3 mb-3 px-1">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-[22px] font-extrabold leading-tight">Словарь</h1>
+            <p className="text-xs opacity-70 mt-0.5">
+              Выучено {stats.learnedWords.length} из {totalWords} слов
+            </p>
+          </div>
+          <div className="text-sm bg-white/20 px-3 py-1 rounded-full flex items-center gap-1 flex-shrink-0">
             <BookOpen size={14} />
             {stats.learnedWords.length}/{totalWords}
           </div>
+        </div>
+        <div className="mb-4 mx-1 h-1.5 rounded-full bg-white/20 overflow-hidden">
+          <motion.div
+            className="h-full rounded-full bg-amber-400"
+            initial={{ width: 0 }}
+            animate={{ width: `${totalWords > 0 ? (stats.learnedWords.length / totalWords) * 100 : 0}%` }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+          />
         </div>
 
         {/* Search */}
@@ -317,13 +334,23 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
       <main className="flex-1 p-4 overflow-auto relative z-10 pb-24">
         {/* Loading state */}
         {loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center h-64"
-          >
-            <Loader2 size={40} className={cn("animate-spin mb-4", theme.text.muted)} />
-            <p className={theme.text.muted}>Загрузка словаря...</p>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'rounded-2xl px-3 py-3 flex items-center gap-3 animate-pulse border',
+                  isDark ? 'bg-white/[0.05] border-white/[0.05]' : 'bg-white/80 border-stone-200/50',
+                )}
+                style={{ animationDelay: `${i * 90}ms` }}
+              >
+                <div className={cn('w-9 h-9 rounded-xl flex-shrink-0', isDark ? 'bg-white/10' : 'bg-stone-200/80')} />
+                <div className="flex-1 space-y-2">
+                  <div className={cn('h-3 rounded-full', isDark ? 'bg-white/10' : 'bg-stone-200/80')} style={{ width: `${45 + (i % 3) * 15}%` }} />
+                  <div className={cn('h-2 rounded-full', isDark ? 'bg-white/[0.07]' : 'bg-stone-200/60')} style={{ width: `${30 + (i % 4) * 10}%` }} />
+                </div>
+              </div>
+            ))}
           </motion.div>
         )}
 
@@ -438,6 +465,16 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                     >
                       {/* Collapsed row */}
                       <div className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-extrabold text-sm',
+                            isLearned
+                              ? isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700'
+                              : isDark ? 'bg-amber-500/12 text-amber-300' : 'bg-amber-50 text-amber-700',
+                          )}
+                        >
+                          {word.bur.charAt(0)}
+                        </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className={cn(
