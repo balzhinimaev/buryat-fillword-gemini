@@ -19,7 +19,9 @@ import { prefetchData, prefetchScreens } from './services/prefetch';
 import { notifyReady, revertToBuiltin, applyOta, type OtaInfo } from './services/otaUpdate';
 import { syncDictionary } from './services/offlineDict';
 import { syncCampaigns } from './services/offlineCampaign';
+import { syncLore } from './services/offlineLore';
 import { syncCampaignProgress } from './services/offlineSync';
+import { captureReferralCode, claimPendingReferral } from './services/referral';
 import { syncQueue } from './services/contribSync';
 
 // Автопуш локальных правок админ-словаря: только если очередь непуста (сам проверяет сеть/токены).
@@ -49,6 +51,7 @@ const LeaderboardScreen = lazy(() => import('./screens/LeaderboardScreen'));
 const DictionaryScreen = lazy(() => import('./screens/DictionaryScreen'));
 const TextbookScreen = lazy(() => import('./screens/TextbookScreen').then(m => ({ default: m.TextbookScreen })));
 const TextbookLessonScreen = lazy(() => import('./screens/TextbookLessonScreen').then(m => ({ default: m.TextbookLessonScreen })));
+const CommunityLoreScreen = lazy(() => import('./screens/CommunityLoreScreen'));
 const WordDetailScreen = lazy(() => import('./screens/WordDetailScreen'));
 const DebugGridScreen = lazy(() => import('./screens/DebugGridScreen'));
 const AdminScreen = lazy(() => import('./screens/AdminScreen'));
@@ -61,6 +64,8 @@ const AdminLevelEditorScreen = lazy(() => import('./screens/AdminLevelEditorScre
 const AdminDailyWordScreen = lazy(() => import('./screens/AdminDailyWordScreen'));
 const AdminCampaignMapVariantsScreen = lazy(() => import('./screens/AdminCampaignMapVariantsScreen'));
 const AdminDictionaryScreen = lazy(() => import('./screens/AdminDictionaryScreen'));
+const AdminVoiceStudioScreen = lazy(() => import('./screens/AdminVoiceStudioScreen'));
+const AdminWordReviewScreen = lazy(() => import('./screens/AdminWordReviewScreen'));
 const SupportScreen = lazy(() => import('./screens/SupportScreen'));
 const AuthScreen = lazy(() => import('./screens/AuthScreen'));
 
@@ -146,6 +151,7 @@ export default function App() {
       if (OFFLINE) {
         syncDictionary().catch(() => {});
         syncCampaigns().catch(() => {});
+        syncLore().catch(() => {});
         syncCampaignProgress().catch(() => {});
         syncQueue().catch(() => {});
       }
@@ -159,6 +165,7 @@ export default function App() {
     const onOnline = () => {
       syncDictionary().catch(() => {});
       syncCampaigns().catch(() => {});
+      syncLore().catch(() => {});
       syncCampaignProgress().catch(() => {});
       syncQueue().catch(() => {});
     };
@@ -231,6 +238,20 @@ export default function App() {
       loadSettingsFromApi();
     }
   }, [authState.isAuthenticated, authState.isLoading, loadSettingsFromApi]);
+
+  // Рефералка: захват кода на старте, claim после авторизации + тост о бонусе
+  const [refBonusXp, setRefBonusXp] = useState<number | null>(null);
+  useEffect(() => { captureReferralCode(); }, []);
+  useEffect(() => {
+    if (authState.isAuthenticated && !authState.isLoading) {
+      void claimPendingReferral().then((xp) => {
+        if (xp > 0) {
+          setRefBonusXp(xp);
+          setTimeout(() => setRefBonusXp(null), 7000);
+        }
+      });
+    }
+  }, [authState.isAuthenticated, authState.isLoading]);
 
   // Базовый heartbeat активности при входе в приложение
   useEffect(() => {
@@ -463,6 +484,8 @@ export default function App() {
         return <TextbookScreen store={store} />;
       case 'textbookLesson':
         return <TextbookLessonScreen store={store} />;
+      case 'community':
+        return <CommunityLoreScreen store={store} />;
       case 'dictionary':
         return <DictionaryScreen store={store} />;
       case 'wordDetail':
@@ -485,6 +508,10 @@ export default function App() {
         return <AdminCampaignMapVariantsScreen store={store} />;
       case 'adminDictionary':
         return <AdminDictionaryScreen store={store} />;
+      case 'adminVoiceStudio':
+        return <AdminVoiceStudioScreen store={store} />;
+      case 'adminWordReview':
+        return <AdminWordReviewScreen store={store} />;
       case 'support':
         return <SupportScreen store={store} />;
       default:
@@ -500,6 +527,20 @@ export default function App() {
       <div 
         className={`min-h-[100dvh] w-full ${isTelegram ? 'max-w-md shadow-2xl' : `${isWebNarrow ? 'max-w-2xl' : 'max-w-6xl'} px-0 md:px-4 lg:px-6`} mx-auto overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
       >
+        {refBonusXp !== null && (
+          <div className="w-full flex items-center gap-2 py-2 px-3 bg-amber-500 text-white text-sm font-semibold">
+            <span className="flex-1 text-center">🎁 +{refBonusXp} XP — бонус за вход по приглашению!</span>
+            <button
+              type="button"
+              onClick={() => setRefBonusXp(null)}
+              aria-label="Скрыть"
+              className="px-2 opacity-80 hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {otaInfo && (
           <div className="w-full py-2 px-3 bg-emerald-600 text-white text-sm font-medium">
             {otaPct === null ? (

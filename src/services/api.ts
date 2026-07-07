@@ -20,6 +20,7 @@ import {
   offlineWordsStats,
 } from './offlineDict';
 import { offlineGetDailyToday, offlineSubmitDaily } from './offlineDaily';
+import { offlineLessonLore, offlineAllLore } from './offlineLore';
 import {
   offlineGetCampaignOverview,
   offlineGetCampaignLevel,
@@ -425,6 +426,8 @@ export interface ApiWord {
   pronunciation?: string;
   audioUrl?: string | null;
   exampleAudioUrl?: string | null;
+  // Проверка носителем
+  nativeCheckedAt?: string | null;
   // Лексические связи
   synonyms: string[];
   antonyms: string[];
@@ -500,6 +503,14 @@ export interface GetWordsParams {
   partOfSpeechId?: string;
   isActiveInGame?: boolean;
   tag?: string;
+  /** фильтр по наличию озвучки слова */
+  hasAudio?: boolean;
+  /** фильтр по наличию примера (exampleBur) */
+  hasExample?: boolean;
+  /** фильтр по наличию озвучки примера */
+  hasExampleAudio?: boolean;
+  /** фильтр по отметке «проверено носителем» */
+  hasNativeCheck?: boolean;
   sortBy?: WordSortBy;
   limit?: number;
   offset?: number;
@@ -1034,10 +1045,15 @@ export async function deleteWord(id: string): Promise<void> {
   await apiRequest<void>(`/words/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
-/** Список слов напрямую с сервера (для полной выгрузки словаря админом в офлайн-сборке) */
+/** Список слов напрямую с сервера (для полной выгрузки словаря админом в офлайн-сборке
+ *  и очереди студии озвучки — без офлайн-перехвата) */
 export async function adminGetWords(params: GetWordsParams = {}): Promise<ApiWordsResponse> {
   const searchParams = new URLSearchParams();
   if (params.status) searchParams.set('status', params.status);
+  if (params.hasAudio !== undefined) searchParams.set('hasAudio', String(params.hasAudio));
+  if (params.hasExample !== undefined) searchParams.set('hasExample', String(params.hasExample));
+  if (params.hasExampleAudio !== undefined) searchParams.set('hasExampleAudio', String(params.hasExampleAudio));
+  if (params.hasNativeCheck !== undefined) searchParams.set('hasNativeCheck', String(params.hasNativeCheck));
   if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
   if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
   const qs = searchParams.toString();
@@ -1076,7 +1092,9 @@ function isDictFirstPage(params: GetWordsParams): boolean {
     params.limit === 50 &&
     (params.offset ?? 0) === 0 &&
     !params.categoryId && !params.dialectId && !params.partOfSpeechId &&
-    params.isActiveInGame === undefined && !params.tag && !params.sortBy
+    params.isActiveInGame === undefined && !params.tag && !params.sortBy &&
+    params.hasAudio === undefined && params.hasExample === undefined &&
+    params.hasExampleAudio === undefined && params.hasNativeCheck === undefined
   );
 }
 
@@ -1093,6 +1111,10 @@ export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsRes
   if (params.partOfSpeechId) searchParams.set('partOfSpeechId', params.partOfSpeechId);
   if (params.isActiveInGame !== undefined) searchParams.set('isActiveInGame', String(params.isActiveInGame));
   if (params.tag) searchParams.set('tag', params.tag);
+  if (params.hasAudio !== undefined) searchParams.set('hasAudio', String(params.hasAudio));
+  if (params.hasExample !== undefined) searchParams.set('hasExample', String(params.hasExample));
+  if (params.hasExampleAudio !== undefined) searchParams.set('hasExampleAudio', String(params.hasExampleAudio));
+  if (params.hasNativeCheck !== undefined) searchParams.set('hasNativeCheck', String(params.hasNativeCheck));
   if (params.sortBy) searchParams.set('sortBy', params.sortBy);
   if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
   if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
@@ -2026,7 +2048,7 @@ export interface UserProfileAchievement {
   name: string;
   description: string;
   icon: string;
-  category: 'starter' | 'progress' | 'streak' | 'campaign' | 'daily' | 'community';
+  category: 'starter' | 'progress' | 'streak' | 'campaign' | 'daily' | 'community' | 'learning' | 'referral';
   target: number;
   progress: number;
   progressPercent: number;
@@ -2771,11 +2793,177 @@ export async function resolveContentReport(
   });
 }
 
+// ===== Народный учебник (lore): факты/истории/пословицы от пользователей =====
+
+export type LoreType = 'fact' | 'story' | 'proverb' | 'example' | 'correction';
+export type LoreStatus = 'pending' | 'approved' | 'rejected';
+
+export interface LoreItem {
+  _id: string;
+  type: LoreType;
+  lessonSlug: string;
+  title: string;
+  bodyBur?: string;
+  bodyRu: string;
+  attribution?: string;
+  dialectId?: string | { _id: string; code: string; name: string } | null;
+  relatedBur?: string[];
+  audioUrl?: string;
+  upvotes?: string[];
+  nativeCheckedAt?: string | null;
+  contributorName?: string;
+  status: LoreStatus;
+  featured: boolean;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+/** Одобренные записи урока (публичный эндпоинт; featured первыми). В OFFLINE — из кэша. */
+export async function getLessonLore(lessonSlug: string): Promise<LoreItem[]> {
+  if (OFFLINE) return offlineLessonLore(lessonSlug);
+  if (!netUsable()) return [];
+  return apiRequest<LoreItem[]>(
+    `/lore?lessonSlug=${encodeURIComponent(lessonSlug)}&limit=50`,
+    { method: 'GET' },
+  );
+}
+
+/** Вся одобренная лента сообщества (для витрины на главном экране) */
+export async function getCommunityLore(): Promise<LoreItem[]> {
+  if (OFFLINE) return offlineAllLore();
+  if (!netUsable()) return [];
+  return apiRequest<LoreItem[]>('/lore?limit=100', { method: 'GET' });
+}
+
+/** Одобренные истории, привязанные к слову словаря (по bur) */
+export async function getWordLore(bur: string): Promise<LoreItem[]> {
+  if (!netUsable()) return [];
+  return apiRequest<LoreItem[]>(
+    `/lore?relatedBur=${encodeURIComponent(bur)}&limit=20`,
+    { method: 'GET' },
+  );
+}
+
+export async function createLoreItem(data: {
+  type: LoreType;
+  lessonSlug?: string;
+  title: string;
+  bodyBur?: string;
+  bodyRu: string;
+  attribution?: string;
+  dialectId?: string;
+  relatedBur?: string[];
+}): Promise<LoreItem> {
+  if (!authedNetUsable()) return offlineOnly();
+  return apiRequest<LoreItem>('/lore', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/** Голосовая история/произношение к записи (FormData мимо apiRequest) */
+export async function uploadLoreAudio(id: string, file: Blob, fileName = 'lore.webm'): Promise<LoreItem> {
+  const tokens = getStoredTokens();
+  const fd = new FormData();
+  fd.append('file', file, fileName);
+  const r = await fetch(`${API_URL}/lore/${id}/audio`, {
+    method: 'POST',
+    headers: tokens?.access_token ? { Authorization: `Bearer ${tokens.access_token}` } : undefined,
+    body: fd,
+  });
+  if (!r.ok) throw await r.json().catch(() => ({ statusCode: r.status, message: r.statusText }));
+  return r.json();
+}
+
+/** Голос 👍 сообщества (toggle) */
+export async function voteLoreItem(id: string): Promise<LoreItem> {
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/vote`, { method: 'POST' });
+}
+
+export async function getMyLore(): Promise<LoreItem[]> {
+  if (!authedNetUsable()) return [];
+  return apiRequest<LoreItem[]>('/lore/my', { method: 'GET' });
+}
+
+export async function updateLoreItem(id: string, data: Partial<{
+  title: string; bodyBur: string; bodyRu: string; attribution: string; dialectId: string; relatedBur: string[];
+}>): Promise<LoreItem> {
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteLoreItem(id: string): Promise<{ deleted: true }> {
+  return apiRequest<{ deleted: true }>(`/lore/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function getPendingLore(): Promise<LoreItem[]> {
+  if (!authedNetUsable()) return [];
+  return apiRequest<LoreItem[]>('/lore/pending?limit=100', { method: 'GET' });
+}
+
+export async function moderateLoreItem(
+  id: string,
+  status: 'approved' | 'rejected',
+  rejectionReason?: string,
+): Promise<LoreItem> {
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/moderate`, {
+    method: 'POST',
+    body: JSON.stringify({ status, rejectionReason }),
+  });
+}
+
+/** Отметка «проверено носителем» (модератор/админ) */
+export async function nativeCheckLoreItem(id: string): Promise<LoreItem> {
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/native-check`, { method: 'POST' });
+}
+
+/** Публичный бандл всего одобренного lore — для офлайн-кэша */
+export async function fetchLoreContentBundle(): Promise<LoreItem[]> {
+  return apiRequest<LoreItem[]>('/lore/content', { method: 'GET' });
+}
+
 // Мои добавленные слова (со статусами модерации)
 export async function getMyWords(status?: 'pending' | 'verified' | 'rejected'): Promise<ApiWord[]> {
   if (!authedNetUsable()) return [];
   const qs = status ? `?status=${status}` : '';
   return apiRequest<ApiWord[]>(`/words/my${qs}`, { method: 'GET' });
+}
+
+/** Отметка «проверено носителем» (панель проверки, модератор/админ) */
+export function setWordNativeCheck(wordId: string): Promise<ApiWord> {
+  return apiRequest<ApiWord>(`/words/${encodeURIComponent(wordId)}/native-check`, {
+    method: 'POST',
+  });
+}
+
+// ---------- рефералка ----------
+
+export interface ReferralInvitee {
+  name: string;
+  photoUrl?: string | null;
+  joinedAt?: string | null;
+}
+
+export interface MyReferralsResponse {
+  code: string;
+  invitedCount: number;
+  wasReferred: boolean;
+  inviterXp: number;
+  inviteeXp: number;
+  invitees?: ReferralInvitee[];
+}
+
+export function getMyReferrals(): Promise<MyReferralsResponse> {
+  return apiRequest<MyReferralsResponse>('/referrals/my', { method: 'GET' });
+}
+
+export function claimReferral(code: string): Promise<{ ok: boolean; alreadyClaimed: boolean; xpGained: number }> {
+  return apiRequest('/referrals/claim', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
 }
 
 export function deleteWordAudio(wordId: string, target: 'word' | 'example'): Promise<ApiWord> {
@@ -2793,6 +2981,9 @@ export const api = {
   getStoredTokens,
   uploadWordAudio,
   deleteWordAudio,
+  setWordNativeCheck,
+  getMyReferrals,
+  claimReferral,
   clearStoredTokens,
   getCategories,
   getDialects,

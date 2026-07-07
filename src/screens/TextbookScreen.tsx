@@ -8,6 +8,7 @@ import {
   Check,
   ChevronRight,
   GraduationCap,
+  Headphones,
   Lock,
   RotateCcw,
   Star,
@@ -19,17 +20,23 @@ import type { GameStore } from '../store/gameStore';
 import { TextbookQuiz } from '../components/TextbookQuiz';
 import {
   buildExamQuiz,
+  buildListeningQuiz,
   buildReviewQuiz,
   courseProgress,
   EXAM_SLUG,
   fetchPracticeLessons,
   getExamBest,
   getMistakeWords,
+  getQuizBest,
   getUnitStatuses,
   isExamPassed,
+  LISTENING_SLUG,
+  listeningWords,
   type PracticeLessonInfo,
   type UnitStatus,
 } from '../services/textbook';
+import { api } from '../services/api';
+import { OFFLINE } from '../config/offline';
 
 interface Props {
   store: GameStore;
@@ -86,10 +93,32 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
   const [examOpen, setExamOpen] = useState(false);
   const [examBest, setExamBest] = useState(getExamBest());
   const [mistakeCount, setMistakeCount] = useState(() => getMistakeWords().length);
+  const [listeningOpen, setListeningOpen] = useState(false);
+  const [listeningBest, setListeningBest] = useState(() => getQuizBest(LISTENING_SLUG));
+  const [audioMap, setAudioMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     void fetchPracticeLessons().then(setLessons);
   }, []);
+
+  // Аудирование: подтягиваем озвученные слова словаря (онлайн)
+  useEffect(() => {
+    if (OFFLINE || !navigator.onLine) return;
+    let alive = true;
+    api.getWords({ status: 'verified', hasAudio: true, limit: 500 })
+      .then((res) => {
+        if (!alive) return;
+        const map: Record<string, string> = {};
+        for (const w of res.words) {
+          if (w.audioUrl) map[w.bur] = w.audioUrl;
+        }
+        setAudioMap(map);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const listeningCount = useMemo(() => listeningWords(audioMap).length, [audioMap]);
 
   const starsBySlug = useMemo(
     () => Object.fromEntries(Object.entries(lessons).map(([slug, l]) => [slug, l.stars])),
@@ -190,7 +219,7 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
           <div className="flex-1 min-w-0">
             <h1 className="text-[22px] font-extrabold leading-tight">Учебник бурятского</h1>
             <p className="text-xs opacity-70 mt-1.5 leading-relaxed">
-              12 уроков: от алфавита до свободных фраз.
+              {progress.total} уроков: от алфавита до свободных фраз.
               {allDone ? ' Курс пройден — остался экзамен!' : ' Двигайтесь по пути сверху вниз.'}
             </p>
           </div>
@@ -220,6 +249,34 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
               <div className={cn('font-bold text-sm', theme.text.primary)}>Работа над ошибками</div>
               <div className={cn('text-[11px] mt-0.5', theme.text.muted)}>
                 {mistakeCount} слов ждут повторения
+              </div>
+            </div>
+            <ChevronRight size={16} className={theme.text.dimmed} />
+          </motion.button>
+        )}
+
+        {/* Аудирование — тренировка на слух (появляется, когда в словаре есть озвучки) */}
+        {listeningCount >= 4 && (
+          <motion.button
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={() => setListeningOpen(true)}
+            className={cn(
+              'w-full text-left rounded-2xl p-3.5 mb-5 flex items-center gap-3 border active:scale-[0.985]',
+              'bg-gradient-to-r',
+              isDark
+                ? 'from-sky-500/15 to-cyan-500/10 border-sky-500/40'
+                : 'from-sky-50 to-cyan-50 border-sky-300',
+            )}
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-cyan-500 text-white flex items-center justify-center flex-shrink-0 shadow-md">
+              <Headphones size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className={cn('font-bold text-sm', theme.text.primary)}>Аудирование</div>
+              <div className={cn('text-[11px] mt-0.5', theme.text.muted)}>
+                Узнай слово на слух · {listeningCount} озвученных слов
+                {listeningBest ? ` · лучший ${listeningBest.correct}/${listeningBest.total}` : ''}
               </div>
             </div>
             <ChevronRight size={16} className={theme.text.dimmed} />
@@ -297,6 +354,15 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
           saveSlug={EXAM_SLUG}
           onClose={() => setExamOpen(false)}
           onFinished={() => setExamBest(getExamBest())}
+        />
+      )}
+      {listeningOpen && (
+        <TextbookQuiz
+          title="Аудирование"
+          makeQuestions={() => buildListeningQuiz(audioMap)}
+          saveSlug={LISTENING_SLUG}
+          onClose={() => setListeningOpen(false)}
+          onFinished={() => setListeningBest(getQuizBest(LISTENING_SLUG))}
         />
       )}
       {reviewOpen && (

@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, RotateCcw, Target, X } from 'lucide-react';
 import { cn } from './ui';
+import { WaveAudioButton } from './WaveAudioButton';
 import { useTheme } from '../theme/ThemeContext';
 import { hintOf, useGameLang } from '../services/gameLang';
 import {
@@ -124,15 +125,26 @@ export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, 
               transition={{ duration: 0.22, ease: 'easeOut' }}
             >
             <div className={cn('text-center text-xs mb-1', theme.text.muted)}>
-              {q.type === 'bur2tr' ? 'Как переводится?' : 'Выбери бурятское слово'}
+              {q.type === 'bur2tr' ? 'Как переводится?'
+                : q.type === 'audio2tr' ? 'Послушайте — что за слово?'
+                : 'Выбери бурятское слово'}
             </div>
-            <div className={cn('text-center text-2xl font-extrabold mb-5', theme.text.primary)}>
-              {q.type === 'bur2tr' ? q.word.bur : trOf(q.word)}
-            </div>
+            {q.type === 'audio2tr' ? (
+              <div className="flex flex-col items-center gap-1 mb-5">
+                {q.audioUrl && <WaveAudioButton src={q.audioUrl} />}
+                {picked !== null && (
+                  <div className={cn('text-lg font-extrabold', theme.text.primary)}>{q.word.bur}</div>
+                )}
+              </div>
+            ) : (
+              <div className={cn('text-center text-2xl font-extrabold mb-5', theme.text.primary)}>
+                {q.type === 'bur2tr' ? q.word.bur : trOf(q.word)}
+              </div>
+            )}
 
             <div className="space-y-2">
               {q.options.map((opt, i) => {
-                const label = q.type === 'bur2tr' ? trOf(opt) : opt.bur;
+                const label = q.type === 'tr2bur' ? opt.bur : trOf(opt);
                 const isCorrect = picked !== null && i === q.correctIndex;
                 const isWrongPick = picked === i && i !== q.correctIndex;
                 return (

@@ -16,7 +16,8 @@ import {
   Heart,
   Target,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  ScrollText
 } from 'lucide-react';
 import type { GameStore } from '../store/gameStore';
 import { useTheme } from '../theme/ThemeContext';
@@ -27,7 +28,7 @@ import { useAuth } from '../store/authStore';
 import { IS_VK_MINIAPP } from '../services/vkMiniApp';
 import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { api, getWordsStats } from '../services/api';
-import { courseProgress, fetchPracticeLessons, getUnitStatuses } from '../services/textbook';
+import { courseProgress, fetchPracticeLessons, getUnitStatuses, globalWeeklyPrompt } from '../services/textbook';
 
 interface MainMenuProps {
   store: GameStore;
@@ -240,6 +241,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const displayTotalStars = authState.user?.campaignStats?.totalStars ?? stats.totalStars;
 
   const todayKey = useMemo(() => dateToLocalKey(new Date()), []);
+  const weeklyLore = useMemo(() => globalWeeklyPrompt(), []);
   const [isDailyNudgeDismissedToday, setIsDailyNudgeDismissedToday] = useState(() => isDailyNudgeDismissedForDate(todayKey));
 
   const dismissDailyNudgeForToday = useCallback(() => {
@@ -856,6 +858,34 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
               </div>
               <ArrowRight size={18} className="text-white/80 flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
             </div>
+          </motion.button>
+
+          {/* Из сообщества — витрина народного учебника + вопрос недели */}
+          <motion.button
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('community')}
+            className={cn(
+              "relative w-full p-3.5 rounded-2xl border overflow-hidden text-left flex items-center gap-3 group",
+              isDark ? "bg-amber-500/[0.07] border-amber-500/25" : "bg-amber-50/70 border-amber-200",
+            )}
+          >
+            <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full bg-amber-400/10 blur-2xl pointer-events-none" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-md">
+              <ScrollText size={20} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className={cn("font-bold text-sm", styles.buttons.text.primary)}>Из сообщества</span>
+                {weeklyLore && (
+                  <span className={cn("text-[9px] font-bold uppercase tracking-wide px-1.5 py-[2px] rounded", isDark ? "bg-amber-500/20 text-amber-300" : "bg-amber-100 text-amber-700")}>вопрос недели</span>
+                )}
+              </div>
+              <div className={cn("text-[11px] mt-0.5 line-clamp-2 leading-snug", styles.buttons.text.muted)}>
+                {weeklyLore ? weeklyLore.prompt : 'Истории, факты и пословицы от носителей языка'}
+              </div>
+            </div>
+            <ArrowRight size={16} className={cn("flex-shrink-0 group-hover:translate-x-0.5 transition-transform", isDark ? "text-amber-400" : "text-amber-500")} />
           </motion.button>
 
           <div className="grid grid-cols-2 gap-3">

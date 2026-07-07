@@ -13,6 +13,7 @@ import {
   Mic,
   SpellCheck,
   Flag,
+  ScrollText,
 } from 'lucide-react';
 import type { GameStore } from '../store/gameStore';
 import { useTelegram, useBackButton } from '../hooks/useTelegram';
@@ -40,12 +41,14 @@ import {
   joinLanguageKeepers,
   getPendingAudioSuggestions,
   getOpenContentReports,
+  getPendingLore,
 } from '../services/api';
 import { WordVerificationPanel } from '../components/WordVerificationPanel';
 import { WelcomeScreen, AddWordForm, StatsView, type Tab } from '../components/contribution';
 import { MyWordsView } from '../components/contribution/MyWordsView';
 import { AudioModerationPanel } from '../components/contribution/AudioModerationPanel';
 import { ReportsModerationPanel } from '../components/contribution/ReportsModerationPanel';
+import { LoreModerationPanel } from '../components/contribution/LoreModerationPanel';
 import { OFFLINE } from '../config/offline';
 import { submitWordOfflineAware, syncQueue, queueStats } from '../services/contribSync';
 import { syncDictionary } from '../services/offlineDict';
@@ -77,9 +80,10 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
   useBackButton(() => goBack());
   const [activeTab, setActiveTab] = useState<Tab>('add');
   // подраздел вкладки «Проверка» для модераторов: слова | озвучки
-  const [verifyMode, setVerifyMode] = useState<'words' | 'audio' | 'reports'>('words');
+  const [verifyMode, setVerifyMode] = useState<'words' | 'audio' | 'reports' | 'lore'>('words');
   const [pendingAudioCount, setPendingAudioCount] = useState(0);
   const [openReportsCount, setOpenReportsCount] = useState(0);
+  const [pendingLoreCount, setPendingLoreCount] = useState(0);
 
   // Офлайн-синхронизация раздела (очередь выгрузки слов)
   const [qstats, setQstats] = useState(() => queueStats());
@@ -155,6 +159,9 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
     getOpenContentReports()
       .then((list) => setOpenReportsCount(list.length))
       .catch(() => {});
+    getPendingLore()
+      .then((list) => setPendingLoreCount(list.length))
+      .catch(() => {});
   }, [canModerate, activeTab]);
 
   // Синхронизация флага хранителя: после первого успешного join не
@@ -195,7 +202,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
 
   const tabs: Array<{ id: Tab; label: string; icon: typeof Plus; badge?: number }> = [
     { id: 'add', label: 'Добавить', icon: Plus },
-    { id: 'verify', label: 'Проверка', icon: Check, badge: canModerate ? pendingAudioCount + openReportsCount : 0 },
+    { id: 'verify', label: 'Проверка', icon: Check, badge: canModerate ? pendingAudioCount + openReportsCount + pendingLoreCount : 0 },
     { id: 'mine', label: 'Моё', icon: FolderHeart },
     { id: 'stats', label: 'Рейтинг', icon: Trophy },
   ];
@@ -402,6 +409,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
                         { id: 'words' as const, label: 'Слова', icon: SpellCheck },
                         { id: 'audio' as const, label: `Озвучки${pendingAudioCount ? ` · ${pendingAudioCount}` : ''}`, icon: Mic },
                         { id: 'reports' as const, label: `Жалобы${openReportsCount ? ` · ${openReportsCount}` : ''}`, icon: Flag },
+                        { id: 'lore' as const, label: `Истории${pendingLoreCount ? ` · ${pendingLoreCount}` : ''}`, icon: ScrollText },
                       ]).map((m) => (
                         <button
                           key={m.id}
@@ -423,6 +431,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
 
                   {canModerate && verifyMode === 'audio' && <AudioModerationPanel />}
                   {canModerate && verifyMode === 'reports' && <ReportsModerationPanel />}
+                  {canModerate && verifyMode === 'lore' && <LoreModerationPanel />}
                   {(!canModerate || verifyMode === 'words') && <WordVerificationPanel categories={apiCategories} />}
                 </motion.div>
               )}

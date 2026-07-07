@@ -18,6 +18,7 @@ import { useAuth } from '../store/authStore';
 import { cn } from '../components/ui';
 import { StickyHeader } from '../components/StickyHeader';
 import { ProfileContent } from '../components/UserProfileSheet';
+import { ReferralCard } from '../components/ReferralCard';
 import { api, type UserProfileResponse } from '../services/api';
 import { OFFLINE } from '../config/offline';
 
@@ -158,6 +159,9 @@ export const ProfileScreen: React.FC<Props> = ({ store }) => {
             <ProfileContent profile={profile} theme={theme} isDark={isDark} />
           </motion.div>
         )}
+
+        {/* Пригласи друга */}
+        {myId && !OFFLINE && <ReferralCard />}
 
         {/* Быстрые действия */}
         <div className="space-y-2 pt-2">

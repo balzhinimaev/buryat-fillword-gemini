@@ -30,6 +30,7 @@ import {
   getTextbook,
   isTheoryRead,
   markTheoryRead,
+  weeklyPrompt,
   type PracticeLessonInfo,
 } from '../services/textbook';
 import { TextbookQuiz } from '../components/TextbookQuiz';
@@ -46,6 +47,7 @@ import {
 } from '../services/api';
 import { warmAudio } from '../services/prefetch';
 import { WaveAudioButton } from '../components/WaveAudioButton';
+import { CommunityLoreSection } from '../components/lore/CommunityLoreSection';
 
 interface Props {
   store: GameStore;
@@ -459,6 +461,15 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
             </div>
           </motion.div>
         )}
+
+        {/* Народный учебник: факты/истории/пословицы от пользователей */}
+        <motion.div {...fade(9)}>
+          <CommunityLoreSection
+            lessonSlug={unit.slug}
+            lessonTitle={unit.title.replace(/^Урок \d+\. /, '')}
+            prompt={weeklyPrompt(unit.prompts)}
+          />
+        </motion.div>
 
         {/* Следующий урок */}
         {nextUnit && (

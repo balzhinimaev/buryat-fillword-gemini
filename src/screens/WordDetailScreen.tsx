@@ -14,6 +14,7 @@ import { useBackButton } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
 import { PronunciationControl } from '../components/PronunciationControl';
 import { SuggestPronunciation } from '../components/contribution/SuggestPronunciation';
+import { WordLoreCard } from '../components/lore/WordLoreCard';
 import { EditWordModal } from '../components/contribution/EditWordModal';
 import { ReportIssueModal } from '../components/ReportIssueModal';
 import { warmAudio } from '../services/prefetch';
@@ -773,6 +774,11 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                 </div>
               </Card>
             )}
+
+            {/* ═══════════════════════════════
+               4.5 ИСТОРИИ С ЭТИМ СЛОВОМ (народный учебник)
+               ═══════════════════════════════ */}
+            <WordLoreCard bur={word.bur} />
 
             {/* ═══════════════════════════════
                5. ЛЕКСИЧЕСКИЕ СВЯЗИ (синонимы, антонимы)

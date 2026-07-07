@@ -1,15 +1,17 @@
-// «Моё» в мастерской: мои добавленные слова и мои озвучки со статусами модерации.
+// «Моё» в мастерской: мои слова, озвучки и истории для учебника со статусами модерации.
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Clock3, Loader2, Mic, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock3, Loader2, Mic, ScrollText, XCircle } from 'lucide-react';
 import { cn } from '../ui';
 import { useTheme } from '../../theme/ThemeContext';
 import { WaveAudioButton } from '../WaveAudioButton';
 import {
   getMyAudioSuggestions,
+  getMyLore,
   getMyWords,
   type ApiWord,
   type AudioSuggestion,
+  type LoreItem,
 } from '../../services/api';
 
 const statusMeta = {
@@ -35,6 +37,7 @@ export const MyWordsView: React.FC = () => {
   const { theme, isDark } = useTheme();
   const [words, setWords] = useState<ApiWord[] | null>(null);
   const [audios, setAudios] = useState<AudioSuggestion[] | null>(null);
+  const [lore, setLore] = useState<LoreItem[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +47,9 @@ export const MyWordsView: React.FC = () => {
     getMyAudioSuggestions()
       .then((a) => { if (!cancelled) setAudios(a); })
       .catch(() => { if (!cancelled) setAudios([]); });
+    getMyLore()
+      .then((l) => { if (!cancelled) setLore(l); })
+      .catch(() => { if (!cancelled) setLore([]); });
     return () => { cancelled = true; };
   }, []);
 
@@ -52,7 +58,7 @@ export const MyWordsView: React.FC = () => {
     isDark ? 'bg-stone-800/60 border-stone-700/50' : 'bg-white border-stone-200 shadow-sm',
   );
 
-  if (words === null || audios === null) {
+  if (words === null || audios === null || lore === null) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="animate-spin text-amber-500" size={28} />
@@ -133,6 +139,44 @@ export const MyWordsView: React.FC = () => {
                 </div>
                 {a.fileUrl && <WaveAudioButton src={a.fileUrl} size="sm" />}
                 <StatusChip status={a.status} />
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Мои истории для учебника */}
+      <section>
+        <h3 className={cn('text-[11px] font-bold uppercase tracking-[0.14em] mb-2 px-1', theme.text.muted)}>
+          Мои истории · {lore.length}
+        </h3>
+        {lore.length === 0 ? (
+          <div className={cn(card, 'text-sm text-center', theme.text.muted)}>
+            <ScrollText size={16} className="inline mr-1 -mt-0.5" />
+            Поделитесь фактом, историей или пословицей в любом уроке учебника
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {lore.map((l, i) => (
+              <motion.div
+                key={l._id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(i * 0.04, 0.4) }}
+                className={cn(card, 'flex items-center gap-3')}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={cn('font-bold text-sm truncate', theme.text.primary)}>{l.title}</span>
+                    {l.lessonSlug && (
+                      <span className={cn('text-[11px]', theme.text.dimmed)}>урок: {l.lessonSlug}</span>
+                    )}
+                  </div>
+                  {l.status === 'rejected' && l.rejectionReason && (
+                    <p className="text-xs text-red-400 mt-1">Причина: {l.rejectionReason}</p>
+                  )}
+                </div>
+                <StatusChip status={l.status} />
               </motion.div>
             ))}
           </div>

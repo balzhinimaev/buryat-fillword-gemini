@@ -35,6 +35,31 @@ export interface TextbookUnit {
   sections?: Array<{ title: string; text: string }>;
   /** таблица букв/явлений произношения (урок алфавита) */
   letters?: TextbookLetter[];
+  /** «Вопрос недели» — приглашения поделиться историей/фактом по теме урока */
+  prompts?: string[];
+}
+
+/** Номер недели года — общая база для детерминированной ротации */
+function weekOfYear(): number {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  return Math.floor((now.getTime() - start.getTime()) / (7 * 86_400_000));
+}
+
+/** Детерминированный «вопрос недели»: по номеру недели года, стабилен внутри недели */
+export function weeklyPrompt(prompts: string[] | undefined): string | null {
+  if (!prompts || prompts.length === 0) return null;
+  return prompts[weekOfYear() % prompts.length];
+}
+
+/** «Вопрос недели» для главного экрана: выбирает урок и его вопрос по неделе */
+export function globalWeeklyPrompt(): { prompt: string; slug: string; title: string } | null {
+  const units = getTextbook().units.filter((u) => u.prompts && u.prompts.length > 0);
+  if (units.length === 0) return null;
+  const week = weekOfYear();
+  const u = units[week % units.length];
+  const prompt = u.prompts![week % u.prompts!.length];
+  return { prompt, slug: u.slug, title: u.title.replace(/^Урок \d+\. /, '') };
 }
 
 export interface TextbookData {
@@ -192,12 +217,17 @@ export function getMistakeWords(): TextbookWord[] {
 // ---------- квиз: генерируется из лексики, без ИИ ----------
 
 export interface QuizQuestion {
-  /** 'bur2tr' — показываем бурятское слово, варианты-переводы; 'tr2bur' — наоборот */
-  type: 'bur2tr' | 'tr2bur';
+  /**
+   * 'bur2tr' — показываем бурятское слово, варианты-переводы; 'tr2bur' — наоборот;
+   * 'audio2tr' — играем озвучку слова, варианты-переводы (аудирование)
+   */
+  type: 'bur2tr' | 'tr2bur' | 'audio2tr';
   word: TextbookWord;
   /** варианты: слова целиком, показ стороны зависит от type */
   options: TextbookWord[];
   correctIndex: number;
+  /** озвучка вопроса (только для audio2tr) */
+  audioUrl?: string;
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -255,6 +285,38 @@ export function buildQuiz(unit: TextbookUnit, questionCount = 8): QuizQuestion[]
 export function buildReviewQuiz(questionCount = 8): QuizQuestion[] {
   const words = getMistakeWords().slice(0, questionCount);
   return makeQuestions(shuffle(words), allCourseWords());
+}
+
+// ---------- аудирование ----------
+
+/** служебный slug для результата аудирования в том же progress-хранилище */
+export const LISTENING_SLUG = '__listening';
+
+/** слова курса, у которых есть озвучка в словаре (bur → audioUrl) */
+export function listeningWords(audioMap: Record<string, string>): TextbookWord[] {
+  return allCourseWords().filter((w) => !!audioMap[w.bur]);
+}
+
+/**
+ * Аудирование: играем озвучку слова — выбираем перевод.
+ * Слова с прошлыми ошибками первыми; дистракторы из всего курса.
+ * Возвращает [] если озвученных слов меньше 4 (не из чего собрать вопрос).
+ */
+export function buildListeningQuiz(
+  audioMap: Record<string, string>,
+  questionCount = 8,
+): QuizQuestion[] {
+  const voiced = listeningWords(audioMap);
+  if (voiced.length < 4) return [];
+  const mistakes = loadMistakes();
+  const withMistakes = shuffle(voiced.filter((w) => mistakes[w.bur]));
+  const rest = shuffle(voiced.filter((w) => !mistakes[w.bur]));
+  const words = [...withMistakes, ...rest].slice(0, questionCount);
+  return makeQuestions(shuffle(words), allCourseWords()).map((q) => ({
+    ...q,
+    type: 'audio2tr' as const,
+    audioUrl: audioMap[q.word.bur],
+  }));
 }
 
 // ---------- экзамен курса ----------

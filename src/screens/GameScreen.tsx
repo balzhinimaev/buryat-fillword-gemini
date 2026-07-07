@@ -6,7 +6,8 @@ import {
   ArrowLeft, 
   Trophy, 
   Clock, 
-  Share2, 
+  Share2,
+  Camera,
   RotateCcw,
   Zap,
   ChevronRight,
@@ -31,6 +32,7 @@ import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
 import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, type LevelModeLevelResponse, type LevelModeSubmitResponse, type LevelModeLevelLeaderboardResponse, type DailyWordTodayResponse, type DailyWordSubmitResponse, type DailyWordLeaderboardResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
 import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { useAuth } from '../store/authStore';
+import { canShareStory, shareWinStory } from '../services/telegramStory';
 import { resolveLevelDifficulty, setLevelDifficultyThresholds } from '../config/levelDifficulty';
 import { playSfx } from '../utils/sfx';
 import { OFFLINE } from '../config/offline';
@@ -2557,7 +2559,7 @@ ${levelInfo}
                         <RotateCcw size={15} />
                         Ещё раз
                       </button>
-                      <button 
+                      <button
                         onClick={shareResult}
                         className={cn(
                           "flex-1 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200 text-sm",
@@ -2570,7 +2572,29 @@ ${levelInfo}
                         Поделиться
                       </button>
                     </div>
-                    
+
+                    {/* Telegram: результат в историю (с реф-ссылкой автора) */}
+                    {canShareStory() && (
+                      <button
+                        onClick={() => shareWinStory({
+                          stars: calculateStars(),
+                          wordsFound: foundWordIds.size,
+                          levelName: isDailyMode
+                            ? 'Филлворд дня'
+                            : isEndlessMode
+                              ? `Уровень ${endlessLevel}`
+                              : campaignLevel?.name,
+                        }, authState.user?._id)}
+                        className={cn(
+                          "w-full py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200 text-sm",
+                          "bg-gradient-to-r from-amber-500 to-orange-500 text-white active:opacity-90"
+                        )}
+                      >
+                        <Camera size={15} />
+                        Опубликовать в истории
+                      </button>
+                    )}
+
                     {/* Admin: кнопка редактирования уровня */}
                     {isAdmin && isEndlessMode && (
                       <button

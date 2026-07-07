@@ -25,6 +25,15 @@ import {
   Medal,
   Sparkles,
   Mic,
+  Radio,
+  Flag,
+  GraduationCap,
+  Gift,
+  Megaphone,
+  ScrollText,
+  Library,
+  Feather,
+  Sun,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../components/ui';
@@ -68,7 +77,9 @@ const ACHIEVEMENT_CATEGORY_ORDER: UserProfileAchievement['category'][] = [
   'streak',
   'campaign',
   'daily',
+  'learning',
   'community',
+  'referral',
 ];
 
 const ACHIEVEMENT_CATEGORY_LABELS: Record<UserProfileAchievement['category'], string> = {
@@ -77,7 +88,9 @@ const ACHIEVEMENT_CATEGORY_LABELS: Record<UserProfileAchievement['category'], st
   streak: 'Серия',
   campaign: 'Кампания',
   daily: 'Дейлики',
+  learning: 'Учебник',
   community: 'Комьюнити',
+  referral: 'Друзья',
 };
 
 // Иконки достижений: бэкенд отдаёт эмодзи (стоковые смайлики) — рисуем свои,
@@ -99,7 +112,19 @@ const ACHIEVEMENT_ICONS: Record<string, LucideIcon> = {
   daily_14: CalendarDays,
   community_words_added_5: Plus,
   community_words_verified_25: CheckCircle2,
-  community_words_approved_10: Mic,
+  community_words_approved_10: Shield,
+  daily_50: Sun,
+  community_audio_5: Mic,
+  community_audio_25: Radio,
+  community_reports_3: Flag,
+  lore_keeper_1: ScrollText,
+  lore_keeper_5: Library,
+  lore_keeper_25: Feather,
+  learning_theory_6: BookOpen,
+  learning_quiz_6: GraduationCap,
+  learning_exam_1: Trophy,
+  referral_1: Gift,
+  referral_5: Megaphone,
   // локальные фолбэк-ачивки (офлайн)
   first_level: Trophy,
   all_stars: Star,
@@ -111,7 +136,9 @@ const ACHIEVEMENT_CATEGORY_ICONS: Record<UserProfileAchievement['category'], Luc
   streak: Flame,
   campaign: Target,
   daily: CalendarCheck,
+  learning: GraduationCap,
   community: Users,
+  referral: Gift,
 };
 
 const AchievementIcon: React.FC<{

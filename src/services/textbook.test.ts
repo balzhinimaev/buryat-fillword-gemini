@@ -15,14 +15,35 @@ import {
   markTheoryRead,
   recordQuizAnswer,
   saveQuizResult,
+  weeklyPrompt,
 } from './textbook';
+
+describe('weeklyPrompt', () => {
+  it('returns null for empty or missing prompts', () => {
+    expect(weeklyPrompt(undefined)).toBeNull();
+    expect(weeklyPrompt([])).toBeNull();
+  });
+  it('returns a prompt from the list and is stable within a call', () => {
+    const prompts = ['a', 'b', 'c'];
+    const p = weeklyPrompt(prompts);
+    expect(prompts).toContain(p);
+    expect(weeklyPrompt(prompts)).toBe(p);
+  });
+  it('every textbook unit with prompts yields a non-null weekly prompt', () => {
+    for (const u of getTextbook().units) {
+      if (u.prompts && u.prompts.length > 0) {
+        expect(weeklyPrompt(u.prompts)).not.toBeNull();
+      }
+    }
+  });
+});
 
 describe('textbook', () => {
   beforeEach(() => localStorage.clear());
 
-  it('контент: 12 юнитов, у каждого есть лексика и цель', () => {
+  it('контент: 15 юнитов, у каждого есть лексика и цель', () => {
     const book = getTextbook();
-    expect(book.units.length).toBe(12);
+    expect(book.units.length).toBe(15);
     for (const u of book.units) {
       expect(u.slug).toBeTruthy();
       expect(u.goal).toBeTruthy();
@@ -31,7 +52,7 @@ describe('textbook', () => {
   });
 
   it('practiceSlugs юнитов ссылаются на известные уроки кампаний', () => {
-    const re = /^(chapter2-square-\d+x\d+|nature-\d+|home-\d+|colors-\d+|time-\d+|verbs-\d+|food-\d+)$/;
+    const re = /^(chapter2-square-\d+x\d+|nature-\d+|home-\d+|colors-\d+|time-\d+|verbs-\d+|food-\d+|clothing-\d+|body-\d+|weather-\d+)$/;
     for (const u of getTextbook().units) {
       for (const s of u.practiceSlugs) expect(s).toMatch(re);
     }
@@ -167,7 +188,7 @@ describe('textbook', () => {
   it('экзамен не влияет на статусы юнитов', () => {
     saveQuizResult(EXAM_SLUG, 16, 16);
     const statuses = getUnitStatuses({});
-    expect(statuses.length).toBe(12);
+    expect(statuses.length).toBe(15);
     expect(statuses.every((s) => !s.completed)).toBe(true);
   });
 
@@ -183,6 +204,6 @@ describe('textbook', () => {
 
   it('прогресс курса считается', () => {
     const statuses = getUnitStatuses({});
-    expect(courseProgress(statuses)).toEqual({ done: 0, total: 12 });
+    expect(courseProgress(statuses)).toEqual({ done: 0, total: 15 });
   });
 });
