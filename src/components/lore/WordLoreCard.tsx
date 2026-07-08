@@ -6,7 +6,6 @@ import { ScrollText } from 'lucide-react';
 import { cn } from '../ui';
 import { useTheme } from '../../theme/ThemeContext';
 import { getWordLore, type LoreItem } from '../../services/api';
-import { WaveAudioButton } from '../WaveAudioButton';
 import { LORE_TYPE_META } from './loreMeta';
 
 interface Props {
@@ -65,12 +64,7 @@ export const WordLoreCard: React.FC<Props> = ({ bur, onOpen }) => {
                     {item.type === 'proverb' ? `«${item.bodyBur}»` : item.bodyBur}
                   </div>
                 )}
-                <p className={cn('text-xs mt-1 leading-relaxed', theme.text.secondary)}>{item.bodyRu}</p>
-                {item.audioUrl && (
-                  <div className="mt-1.5">
-                    <WaveAudioButton src={item.audioUrl} size="sm" />
-                  </div>
-                )}
+                <p className={cn('text-xs mt-1 leading-relaxed line-clamp-2', theme.text.secondary)}>{item.bodyRu}</p>
                 {(item.contributorName || item.attribution) && (
                   <p className={cn('text-[10px] mt-1.5', theme.text.dimmed)}>
                     {item.contributorName ?? 'участник'}{item.attribution ? ` · ${item.attribution}` : ''}

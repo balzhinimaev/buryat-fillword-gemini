@@ -2849,6 +2849,7 @@ export async function addLoreComment(id: string, text: string): Promise<LoreItem
 }
 
 export async function editLoreComment(id: string, commentId: string, text: string): Promise<LoreItem> {
+  if (!authedNetUsable()) return offlineOnly();
   return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
     method: 'PATCH',
     body: JSON.stringify({ text }),
@@ -2856,6 +2857,7 @@ export async function editLoreComment(id: string, commentId: string, text: strin
 }
 
 export async function deleteLoreComment(id: string, commentId: string): Promise<LoreItem> {
+  if (!authedNetUsable()) return offlineOnly();
   return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
     method: 'DELETE',
   });

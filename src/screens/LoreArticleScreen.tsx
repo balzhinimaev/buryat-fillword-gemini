@@ -74,7 +74,8 @@ export const LoreArticleScreen: React.FC<Props> = ({ store }) => {
     return () => { cancelled = true; };
   }, [id]);
 
-  const blocks = useMemo(() => (article ? parseBody(article.bodyRu) : []), [article]);
+  const body = article?.bodyRu;
+  const blocks = useMemo(() => (body ? parseBody(body) : []), [body]);
 
   const toggleVote = async () => {
     if (!article || voting || !myId) return;

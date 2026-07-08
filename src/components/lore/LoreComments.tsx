@@ -43,6 +43,7 @@ export const LoreComments: React.FC<Props> = ({ article, onChanged }) => {
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  const [editError, setEditError] = useState('');
 
   const inputCls = cn(
     'w-full px-3.5 py-3 rounded-xl border-2 text-sm outline-none transition resize-none',
@@ -67,13 +68,14 @@ export const LoreComments: React.FC<Props> = ({ article, onChanged }) => {
 
   const saveEdit = async (c: LoreComment) => {
     if (busy || editText.trim().length < 1) return;
-    setBusy(true);
+    setBusy(true); setEditError('');
     try {
       const updated = await editLoreComment(article._id, c._id, editText.trim());
       onChanged(updated);
       setEditingId(null);
-    } catch {
-      /* оставляем режим правки */
+    } catch (e) {
+      const msg = (e as { message?: string })?.message || '';
+      setEditError(msg.includes('лексик') ? 'В комментарии есть недопустимые слова' : 'Не удалось сохранить');
     } finally {
       setBusy(false);
     }
@@ -138,7 +140,7 @@ export const LoreComments: React.FC<Props> = ({ article, onChanged }) => {
         <div className="space-y-2.5">
           <AnimatePresence>
             {comments.map((c) => {
-              const mine = c.userId === myId;
+              const mine = !!myId && String(c.userId) === String(myId);
               const canEdit = mine;
               const canDelete = mine || canModerate;
               return (
@@ -163,8 +165,9 @@ export const LoreComments: React.FC<Props> = ({ article, onChanged }) => {
                   {editingId === c._id ? (
                     <div className="mt-2">
                       <textarea rows={2} value={editText} onChange={(e) => setEditText(e.target.value)} maxLength={1000} className={inputCls} />
+                      {editError && <p className="text-xs text-red-400 mt-1">{editError}</p>}
                       <div className="flex justify-end gap-2 mt-1.5">
-                        <button type="button" onClick={() => setEditingId(null)} className={cn('text-xs px-2 py-1', theme.text.muted)}>Отмена</button>
+                        <button type="button" onClick={() => { setEditingId(null); setEditError(''); }} className={cn('text-xs px-2 py-1', theme.text.muted)}>Отмена</button>
                         <button type="button" disabled={busy} onClick={() => void saveEdit(c)} className="text-xs font-bold px-3 py-1 rounded-lg bg-amber-500 text-white disabled:opacity-50">Сохранить</button>
                       </div>
                     </div>
@@ -174,7 +177,7 @@ export const LoreComments: React.FC<Props> = ({ article, onChanged }) => {
                       {(canEdit || canDelete) && (
                         <div className="flex items-center gap-3 mt-2">
                           {canEdit && (
-                            <button type="button" onClick={() => { setEditingId(c._id); setEditText(c.text); }} className={cn('flex items-center gap-1 text-[11px] font-semibold', theme.text.dimmed)}>
+                            <button type="button" onClick={() => { setEditingId(c._id); setEditText(c.text); setEditError(''); }} className={cn('flex items-center gap-1 text-[11px] font-semibold', theme.text.dimmed)}>
                               <Pencil size={11} /> Править
                             </button>
                           )}
