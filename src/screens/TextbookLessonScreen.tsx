@@ -468,6 +468,7 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
             lessonSlug={unit.slug}
             lessonTitle={unit.title.replace(/^Урок \d+\. /, '')}
             prompt={weeklyPrompt(unit.prompts)}
+            onOpenArticle={store.navigateToLoreArticle}
           />
         </motion.div>
 

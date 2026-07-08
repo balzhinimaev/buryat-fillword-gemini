@@ -52,6 +52,7 @@ const DictionaryScreen = lazy(() => import('./screens/DictionaryScreen'));
 const TextbookScreen = lazy(() => import('./screens/TextbookScreen').then(m => ({ default: m.TextbookScreen })));
 const TextbookLessonScreen = lazy(() => import('./screens/TextbookLessonScreen').then(m => ({ default: m.TextbookLessonScreen })));
 const CommunityLoreScreen = lazy(() => import('./screens/CommunityLoreScreen'));
+const LoreArticleScreen = lazy(() => import('./screens/LoreArticleScreen'));
 const WordDetailScreen = lazy(() => import('./screens/WordDetailScreen'));
 const DebugGridScreen = lazy(() => import('./screens/DebugGridScreen'));
 const AdminScreen = lazy(() => import('./screens/AdminScreen'));
@@ -486,6 +487,8 @@ export default function App() {
         return <TextbookLessonScreen store={store} />;
       case 'community':
         return <CommunityLoreScreen store={store} />;
+      case 'loreArticle':
+        return <LoreArticleScreen store={store} />;
       case 'dictionary':
         return <DictionaryScreen store={store} />;
       case 'wordDetail':

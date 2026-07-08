@@ -778,7 +778,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
             {/* ═══════════════════════════════
                4.5 ИСТОРИИ С ЭТИМ СЛОВОМ (народный учебник)
                ═══════════════════════════════ */}
-            <WordLoreCard bur={word.bur} />
+            <WordLoreCard bur={word.bur} onOpen={store.navigateToLoreArticle} />
 
             {/* ═══════════════════════════════
                5. ЛЕКСИЧЕСКИЕ СВЯЗИ (синонимы, антонимы)

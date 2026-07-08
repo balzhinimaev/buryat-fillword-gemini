@@ -20,7 +20,7 @@ import {
   offlineWordsStats,
 } from './offlineDict';
 import { offlineGetDailyToday, offlineSubmitDaily } from './offlineDaily';
-import { offlineLessonLore, offlineAllLore } from './offlineLore';
+import { offlineLessonLore, offlineAllLore, offlineLoreItem } from './offlineLore';
 import {
   offlineGetCampaignOverview,
   offlineGetCampaignLevel,
@@ -2798,6 +2798,16 @@ export async function resolveContentReport(
 export type LoreType = 'fact' | 'story' | 'proverb' | 'example' | 'correction';
 export type LoreStatus = 'pending' | 'approved' | 'rejected';
 
+export interface LoreComment {
+  _id: string;
+  userId: string;
+  userName: string;
+  userPhotoUrl?: string;
+  text: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface LoreItem {
   _id: string;
   type: LoreType;
@@ -2815,7 +2825,40 @@ export interface LoreItem {
   status: LoreStatus;
   featured: boolean;
   rejectionReason?: string;
+  comments?: LoreComment[];
+  commentCount?: number;
   createdAt: string;
+}
+
+/** Одиночная статья по id (для страницы-статьи). В OFFLINE — из кэша. */
+export async function getLoreItem(id: string): Promise<LoreItem> {
+  if (OFFLINE) {
+    const cached = offlineLoreItem(id);
+    if (cached) return cached;
+    return offlineOnly();
+  }
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}`, { method: 'GET' });
+}
+
+export async function addLoreComment(id: string, text: string): Promise<LoreItem> {
+  if (!authedNetUsable()) return offlineOnly();
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function editLoreComment(id: string, commentId: string, text: string): Promise<LoreItem> {
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function deleteLoreComment(id: string, commentId: string): Promise<LoreItem> {
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
+    method: 'DELETE',
+  });
 }
 
 /** Одобренные записи урока (публичный эндпоинт; featured первыми). В OFFLINE — из кэша. */

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown,
+  MessageCircle,
   PenLine,
   Pin,
   ScrollText,
@@ -15,7 +16,6 @@ import { cn } from '../ui';
 import { useTheme } from '../../theme/ThemeContext';
 import { useAuth } from '../../store/authStore';
 import { getLessonLore, voteLoreItem, type LoreItem } from '../../services/api';
-import { WaveAudioButton } from '../WaveAudioButton';
 import { LoreSubmitSheet } from './LoreSubmitSheet';
 import { LORE_TYPE_META } from './loreMeta';
 
@@ -32,9 +32,11 @@ interface Props {
   lessonTitle: string;
   /** «Вопрос недели» по теме урока (из textbook.json) */
   prompt?: string | null;
+  /** открыть запись как отдельную страницу-статью */
+  onOpenArticle?: (id: string) => void;
 }
 
-export const CommunityLoreSection: React.FC<Props> = ({ lessonSlug, lessonTitle, prompt }) => {
+export const CommunityLoreSection: React.FC<Props> = ({ lessonSlug, lessonTitle, prompt, onOpenArticle }) => {
   const { theme, isDark } = useTheme();
   const { state: authState } = useAuth();
   const myId = authState.user?._id;
@@ -113,11 +115,15 @@ export const CommunityLoreSection: React.FC<Props> = ({ lessonSlug, lessonTitle,
             return (
               <motion.div
                 key={item._id}
+                role={onOpenArticle ? 'button' : undefined}
+                tabIndex={onOpenArticle ? 0 : undefined}
+                onClick={onOpenArticle ? () => onOpenArticle(item._id) : undefined}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(i * 0.05, 0.25), duration: 0.3 }}
                 className={cn(
                   'relative overflow-hidden rounded-xl px-3.5 py-3 border',
+                  onOpenArticle && 'cursor-pointer active:scale-[0.99] transition-transform',
                   item.featured
                     ? isDark ? 'bg-gradient-to-br from-amber-500/[0.12] to-transparent border-amber-500/30' : 'bg-gradient-to-br from-amber-50 to-white border-amber-200'
                     : isDark ? 'bg-white/[0.03] border-white/5' : 'bg-stone-50 border-stone-100',
@@ -151,14 +157,7 @@ export const CommunityLoreSection: React.FC<Props> = ({ lessonSlug, lessonTitle,
                   </div>
                 )}
 
-                <p className={cn('text-xs mt-1.5 leading-relaxed whitespace-pre-line', theme.text.secondary)}>{item.bodyRu}</p>
-
-                {/* Голосовая история */}
-                {item.audioUrl && (
-                  <div className="mt-2">
-                    <WaveAudioButton src={item.audioUrl} size="sm" />
-                  </div>
-                )}
+                <p className={cn('text-xs mt-1.5 leading-relaxed line-clamp-3', theme.text.secondary)}>{item.bodyRu}</p>
 
                 <div className="flex items-center gap-2 mt-2.5">
                   <span className={cn('w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-extrabold flex-shrink-0', isDark ? 'bg-amber-500/25 text-amber-300' : 'bg-amber-200 text-amber-800')}>
@@ -168,11 +167,16 @@ export const CommunityLoreSection: React.FC<Props> = ({ lessonSlug, lessonTitle,
                     {item.contributorName ?? 'участник'}
                     {item.attribution ? ` · ${item.attribution}` : ''}
                   </span>
+                  {(item.commentCount ?? 0) > 0 && (
+                    <span className={cn('flex items-center gap-1 text-[11px] font-bold', theme.text.dimmed)}>
+                      <MessageCircle size={11} /> {item.commentCount}
+                    </span>
+                  )}
                   {/* 👍 голос сообщества */}
                   <button
                     type="button"
                     disabled={!myId || votingId === item._id}
-                    onClick={() => void toggleVote(item)}
+                    onClick={(e) => { e.stopPropagation(); void toggleVote(item); }}
                     aria-label="Нравится"
                     className={cn(
                       'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 disabled:opacity-60',

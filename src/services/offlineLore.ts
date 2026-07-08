@@ -34,6 +34,11 @@ export function offlineAllLore(): LoreItem[] {
   return readCache().sort((a, b) => Number(b.featured) - Number(a.featured));
 }
 
+/** Одиночная статья из кэша по id (для страницы-статьи офлайн) */
+export function offlineLoreItem(id: string): LoreItem | null {
+  return readCache().find((i) => i._id === id) ?? null;
+}
+
 /** Докачать весь одобренный lore-контент в кэш (тихо падает офлайн/при ошибке) */
 export async function syncLore(): Promise<{ ok: boolean; count: number }> {
   try {

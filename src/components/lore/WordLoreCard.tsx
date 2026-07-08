@@ -11,9 +11,10 @@ import { LORE_TYPE_META } from './loreMeta';
 
 interface Props {
   bur: string;
+  onOpen?: (id: string) => void;
 }
 
-export const WordLoreCard: React.FC<Props> = ({ bur }) => {
+export const WordLoreCard: React.FC<Props> = ({ bur, onOpen }) => {
   const { theme, isDark } = useTheme();
   const [items, setItems] = useState<LoreItem[] | null>(null);
 
@@ -48,7 +49,10 @@ export const WordLoreCard: React.FC<Props> = ({ bur }) => {
             return (
               <div
                 key={item._id}
-                className={cn('rounded-xl px-3 py-2.5 border-l-[3px]', isDark ? 'bg-white/[0.03] border-l-amber-400/60' : 'bg-amber-50/60 border-l-amber-400')}
+                role={onOpen ? 'button' : undefined}
+                tabIndex={onOpen ? 0 : undefined}
+                onClick={onOpen ? () => onOpen(item._id) : undefined}
+                className={cn('rounded-xl px-3 py-2.5 border-l-[3px]', onOpen && 'cursor-pointer active:scale-[0.99] transition-transform', isDark ? 'bg-white/[0.03] border-l-amber-400/60' : 'bg-amber-50/60 border-l-amber-400')}
               >
                 <div className="flex items-center gap-1.5">
                   <span className={cn('inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-[3px] rounded-md', isDark ? meta.chip : meta.chipLight)}>

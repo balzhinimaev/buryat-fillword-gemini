@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Loader2,
+  MessageCircle,
   Pin,
   ScrollText,
   ShieldCheck,
@@ -21,7 +22,6 @@ import { getCommunityLore, voteLoreItem, type LoreItem, type LoreType } from '..
 import { getTextbook, globalWeeklyPrompt } from '../services/textbook';
 import { LORE_TYPE_META } from '../components/lore/loreMeta';
 import { LoreSubmitSheet } from '../components/lore/LoreSubmitSheet';
-import { WaveAudioButton } from '../components/WaveAudioButton';
 
 interface Props {
   store: GameStore;
@@ -50,7 +50,6 @@ export const CommunityLoreScreen: React.FC<Props> = ({ store }) => {
 
   const [items, setItems] = useState<LoreItem[] | null>(null);
   const [filter, setFilter] = useState<'all' | LoreType>('all');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [votingId, setVotingId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
 
@@ -173,17 +172,20 @@ export const CommunityLoreScreen: React.FC<Props> = ({ store }) => {
               const TypeIcon = meta.icon;
               const votes = item.upvotes?.length ?? 0;
               const voted = !!myId && !!item.upvotes?.includes(myId);
-              const isLong = item.bodyRu.length > 300;
-              const isOpen = expanded.has(item._id);
+              const commentCount = item.commentCount ?? 0;
               const lessonTitle = item.lessonSlug ? lessonTitles[item.lessonSlug] : undefined;
               return (
                 <motion.div
                   key={item._id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => store.navigateToLoreArticle(item._id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') store.navigateToLoreArticle(item._id); }}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(i * 0.03, 0.25) }}
                   className={cn(
-                    'relative overflow-hidden rounded-2xl px-4 py-3.5 border',
+                    'relative overflow-hidden rounded-2xl px-4 py-3.5 border cursor-pointer active:scale-[0.99] transition-transform',
                     item.featured
                       ? isDark ? 'bg-gradient-to-br from-amber-500/[0.1] to-transparent border-amber-500/30' : 'bg-gradient-to-br from-amber-50 to-white border-amber-200'
                       : isDark ? 'bg-stone-800/60 border-stone-700/50' : 'bg-white border-stone-100 shadow-sm',
@@ -216,22 +218,9 @@ export const CommunityLoreScreen: React.FC<Props> = ({ store }) => {
                     </div>
                   )}
 
-                  <p className={cn('text-[13px] mt-1.5 leading-relaxed whitespace-pre-line', theme.text.secondary, isLong && !isOpen ? 'line-clamp-4' : '')}>
+                  <p className={cn('text-[13px] mt-1.5 leading-relaxed line-clamp-3', theme.text.secondary)}>
                     {item.bodyRu}
                   </p>
-                  {isLong && (
-                    <button
-                      type="button"
-                      onClick={() => setExpanded((prev) => { const n = new Set(prev); if (n.has(item._id)) n.delete(item._id); else n.add(item._id); return n; })}
-                      className={cn('text-[11px] font-bold mt-1', isDark ? 'text-amber-400' : 'text-amber-600')}
-                    >
-                      {isOpen ? 'Свернуть' : 'Читать далее'}
-                    </button>
-                  )}
-
-                  {item.audioUrl && (
-                    <div className="mt-2"><WaveAudioButton src={item.audioUrl} size="sm" /></div>
-                  )}
 
                   <div className="flex items-center gap-2 mt-3">
                     <span className={cn('w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-extrabold flex-shrink-0', isDark ? 'bg-amber-500/25 text-amber-300' : 'bg-amber-200 text-amber-800')}>
@@ -243,25 +232,32 @@ export const CommunityLoreScreen: React.FC<Props> = ({ store }) => {
                     {lessonTitle && (
                       <button
                         type="button"
-                        onClick={() => store.navigateToTextbookUnit(item.lessonSlug)}
+                        onClick={(e) => { e.stopPropagation(); store.navigateToTextbookUnit(item.lessonSlug); }}
                         className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-md ml-1', isDark ? 'bg-white/5 text-stone-400' : 'bg-stone-100 text-stone-500')}
                       >
                         {lessonTitle}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      disabled={!myId || votingId === item._id}
-                      onClick={() => void toggleVote(item)}
-                      aria-label="Нравится"
-                      className={cn(
-                        'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 disabled:opacity-60 ml-auto',
-                        voted ? (isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700') : (isDark ? 'bg-white/5 text-stone-400' : 'bg-stone-100 text-stone-500'),
+                    <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
+                      {commentCount > 0 && (
+                        <span className={cn('flex items-center gap-1 text-[11px] font-bold', theme.text.dimmed)}>
+                          <MessageCircle size={11} /> {commentCount}
+                        </span>
                       )}
-                    >
-                      <ThumbsUp size={11} className={voted ? 'fill-current' : ''} />
-                      {votes > 0 ? votes : ''}
-                    </button>
+                      <button
+                        type="button"
+                        disabled={!myId || votingId === item._id}
+                        onClick={(e) => { e.stopPropagation(); void toggleVote(item); }}
+                        aria-label="Нравится"
+                        className={cn(
+                          'flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 disabled:opacity-60',
+                          voted ? (isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700') : (isDark ? 'bg-white/5 text-stone-400' : 'bg-stone-100 text-stone-500'),
+                        )}
+                      >
+                        <ThumbsUp size={11} className={voted ? 'fill-current' : ''} />
+                        {votes > 0 ? votes : ''}
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               );

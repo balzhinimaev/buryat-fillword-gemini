@@ -123,6 +123,7 @@ const defaultGameState: GameState = {
   selectedEndlessLevel: null,
   selectedWordId: null,
   selectedTextbookUnit: null,
+  selectedLoreId: null,
   gameMode: 'campaign',
   campaignResumeSlug: null,
   campaignLandingView: null,
@@ -279,6 +280,15 @@ export const useGameStore = () => {
       screenHistory: [...prev.screenHistory, prev.currentScreen],
       selectedWordId: wordId,
       currentScreen: 'wordDetail' as Screen,
+    }));
+  }, []);
+
+  const navigateToLoreArticle = useCallback((loreId: string) => {
+    setState(prev => ({
+      ...prev,
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      selectedLoreId: loreId,
+      currentScreen: 'loreArticle' as Screen,
     }));
   }, []);
 
@@ -740,6 +750,7 @@ export const useGameStore = () => {
     goBack,
     replaceScreen,
     navigateToWord,
+    navigateToLoreArticle,
     navigateToTextbookUnit,
     selectCategory,
     setGameMode,
