@@ -603,41 +603,55 @@ interface StoredTokens {
   refresh_token: string;
 }
 
-export const getStoredTokens = (): StoredTokens | null => {
-  try {
-    const stored = localStorage.getItem(TOKEN_KEY);
-    if (!stored) return null;
+// In-memory дублёр токенов на время сессии. В VK Mini App / iframe / Safari
+// localStorage часто заблокирован или партиционирован — тогда токен из
+// localStorage не читается, и авторизованные запросы (в т.ч. завершение
+// онбординга) падают с 401. Память переживает это в рамках сессии.
+let memoryTokens: StoredTokens | null = null;
 
-    const parsed = JSON.parse(stored) as Partial<StoredTokens> | null;
+function parseTokens(raw: string | null): StoredTokens | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<StoredTokens> | null;
     const access = parsed?.access_token;
     const refresh = parsed?.refresh_token;
-
-    if (typeof access !== 'string' || !access || typeof refresh !== 'string' || !refresh) {
-      localStorage.removeItem(TOKEN_KEY);
-      return null;
+    if (typeof access === 'string' && access && typeof refresh === 'string' && refresh) {
+      return { access_token: access, refresh_token: refresh };
     }
-
-    return {
-      access_token: access,
-      refresh_token: refresh,
-    };
   } catch {
-    localStorage.removeItem(TOKEN_KEY);
-    return null;
+    /* повреждённое значение — игнорируем */
   }
+  return null;
+}
+
+export const getStoredTokens = (): StoredTokens | null => {
+  try {
+    const fromLs = parseTokens(localStorage.getItem(TOKEN_KEY));
+    if (fromLs) {
+      memoryTokens = fromLs;
+      return fromLs;
+    }
+  } catch {
+    /* localStorage недоступен (iframe/Safari) — падаем на память */
+  }
+  return memoryTokens;
 };
 
 export const setStoredTokens = (tokens: StoredTokens): void => {
   if (!tokens?.access_token || !tokens?.refresh_token) {
-    localStorage.removeItem(TOKEN_KEY);
+    memoryTokens = null;
+    try { localStorage.removeItem(TOKEN_KEY); } catch { /* недоступно */ }
     return;
   }
-
-  localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
+  memoryTokens = { access_token: tokens.access_token, refresh_token: tokens.refresh_token };
+  // localStorage — для персистентности между запусками; если недоступен,
+  // токен всё равно живёт в памяти на текущую сессию.
+  try { localStorage.setItem(TOKEN_KEY, JSON.stringify(memoryTokens)); } catch { /* недоступно */ }
 };
 
 export const clearStoredTokens = (): void => {
-  localStorage.removeItem(TOKEN_KEY);
+  memoryTokens = null;
+  try { localStorage.removeItem(TOKEN_KEY); } catch { /* недоступно */ }
 };
 
 // ---------------------------------------------------------------------------

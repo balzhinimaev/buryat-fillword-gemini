@@ -571,31 +571,41 @@ export function useAuthStore(): AuthStore {
           const statusCode = (error as { statusCode?: number })?.statusCode;
           const isInvalidRefresh = statusCode === 401 || statusCode === 403;
 
+          // VK Mini App: не выкидываем на экран входа при неудачном refresh —
+          // ниже переавторизуемся свежими подписанными launch-параметрами.
+          const canVkReauth = IS_VK_MINIAPP && !!VK_LAUNCH_PARAMS;
+
           if (isInvalidRefresh) {
             // Только при явной невалидной сессии делаем полный logout.
             clearStoredTokens();
             saveUser(null);
-            setState({
-              user: null,
-              isAuthenticated: false,
-              isLoading: false,
-              isCheckingSession: false,
-              error: null,
-              isNewUser: false,
-              onboardingCompleted: false,
-            });
-            return;
+            if (!canVkReauth) {
+              setState({
+                user: null,
+                isAuthenticated: false,
+                isLoading: false,
+                isCheckingSession: false,
+                error: null,
+                isNewUser: false,
+                onboardingCompleted: false,
+              });
+              return;
+            }
+            // проваливаемся к VK-автологину ниже
+          } else {
+            // Временный сетевой/серверный сбой: не выкидываем пользователя из сессии.
+            console.log('⏳ Временный сбой refresh при старте, сохраняем локальную сессию');
+            if (!canVkReauth) {
+              setState(prev => ({
+                ...prev,
+                isLoading: false,
+                isCheckingSession: false,
+                error: null,
+              }));
+              return;
+            }
+            // в VK Mini App всё равно пробуем свежий VK-автологин ниже
           }
-
-          // Временный сетевой/серверный сбой: не выкидываем пользователя из сессии.
-          console.log('⏳ Временный сбой refresh при старте, сохраняем локальную сессию');
-          setState(prev => ({
-            ...prev,
-            isLoading: false,
-            isCheckingSession: false,
-            error: null,
-          }));
-          return;
         }
       }
 
