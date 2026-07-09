@@ -98,6 +98,8 @@ export interface AuthStore {
   setOnboardingCompleted: (user: User) => void;
   setUserName: (name: string) => void;
   refreshUser: () => Promise<void>;
+  /** Повторный автологин в VK Mini App (свежими launch-параметрами) */
+  reauthVkMiniApp: () => Promise<void>;
 }
 
 const AUTH_USER_KEY = 'auth_user';
@@ -113,10 +115,18 @@ const loadUser = (): User | null => {
 };
 
 const saveUser = (user: User | null): void => {
-  if (user) {
-    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-  } else {
-    localStorage.removeItem(AUTH_USER_KEY);
+  // fail-safe: в VK Mini App / iframe / Safari ITP localStorage может бросать
+  // (SecurityError/QuotaError). Персистентность профиля опциональна — состояние
+  // всё равно живёт в React на сессию; бросок здесь ронял вход и завершение
+  // онбординга (тупик), поэтому глотаем ошибку.
+  try {
+    if (user) {
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(AUTH_USER_KEY);
+    }
+  } catch {
+    /* localStorage недоступен — профиль остаётся только в памяти сессии */
   }
 };
 
@@ -467,6 +477,24 @@ export function useAuthStore(): AuthStore {
       };
     });
   }, []);
+
+  // Повторный VK-автологин (для кнопки на экране входа, если стартовый упал).
+  // Используем мини-апп-авторизацию (launch-параметры), а НЕ web-OAuth —
+  // redirect на id.vk.com внутри iframe VK ломается.
+  const reauthVkMiniApp = useCallback(async () => {
+    if (!IS_VK_MINIAPP || !VK_LAUNCH_PARAMS) return;
+    setState(prev => ({ ...prev, isLoading: true, isCheckingSession: false, error: null }));
+    try {
+      const response = await vkMiniAppAuth(VK_LAUNCH_PARAMS);
+      await applyAuthResponse(response);
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: normalizeAuthErrorMessage(error, 'Не удалось войти через ВКонтакте'),
+      }));
+    }
+  }, [applyAuthResponse]);
 
   // Флаг для предотвращения повторного рефреша/логина
   const hasTriedAuthRef = useRef(false);
@@ -870,6 +898,7 @@ export function useAuthStore(): AuthStore {
     setOnboardingCompleted,
     setUserName,
     refreshUser,
+    reauthVkMiniApp,
   };
 }
 

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, UserPlus } from 'lucide-react';
 import { useAuth } from '../store/authStore';
 import { startVkLogin, VK_CONFIGURED } from '../services/vkAuth';
+import { IS_VK_MINIAPP } from '../services/vkMiniApp';
 import { useTelegram } from '../hooks/useTelegram';
 import { useTheme } from '../theme/ThemeContext';
 import { cn } from '../components/ui';
@@ -18,6 +19,7 @@ export default function AuthScreen() {
   const {
     state, login, requestEmailOtp, verifyEmailOtp,
     passwordLogin, passwordRegister, passwordReset, clearError,
+    reauthVkMiniApp,
   } = useAuth();
   const { isTelegram, initData } = useTelegram();
   const { theme, isDark } = useTheme();
@@ -169,7 +171,7 @@ export default function AuthScreen() {
           </div>
 
           {/* Соц-входы */}
-          {(VK_CONFIGURED || (isTelegram && initData)) && (mode === 'login' || mode === 'register') && (
+          {(VK_CONFIGURED || IS_VK_MINIAPP || (isTelegram && initData)) && (mode === 'login' || mode === 'register') && (
             <div className="mb-4 space-y-2">
               {isTelegram && initData && (
                 <button
@@ -181,11 +183,14 @@ export default function AuthScreen() {
                   Войти через Telegram
                 </button>
               )}
-              {VK_CONFIGURED && (
+              {(VK_CONFIGURED || IS_VK_MINIAPP) && (
                 <button
                   type="button"
-                  onClick={() => { void startVkLogin(); }}
-                  className="w-full rounded-xl py-2.5 text-sm font-semibold text-white"
+                  // В VK Mini App — повторный автологин по launch-параметрам
+                  // (web-OAuth redirect ломается внутри iframe VK).
+                  onClick={() => { void (IS_VK_MINIAPP ? reauthVkMiniApp() : startVkLogin()); }}
+                  disabled={state.isLoading}
+                  className="w-full rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-60"
                   style={{ backgroundColor: '#0077FF' }}
                 >
                   Войти через ВКонтакте

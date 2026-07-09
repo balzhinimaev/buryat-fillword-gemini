@@ -3,16 +3,15 @@
 // Двусторонняя: локальный прогресс → сервер (слияние по max звёзд / min времени / max попыток)
 // → объединённый обратно в localStorage.
 import { API_BASE } from '../config/apiBase';
+import { getStoredTokens } from './api';
 
 const LEVELS_KEY = 'offline_campaign_levels';
 
 interface LevelRec { stars?: number; bestTimeSeconds?: number; attempts?: number; firstCompletedAt?: string }
 
 function getToken(): string | null {
-  try {
-    const t = JSON.parse(localStorage.getItem('auth_tokens') || 'null');
-    return t?.access_token || null;
-  } catch { return null; }
+  // через getStoredTokens — с in-memory fallback (localStorage может быть недоступен)
+  return getStoredTokens()?.access_token || null;
 }
 function loadLocal(): Record<string, LevelRec> {
   try { return JSON.parse(localStorage.getItem(LEVELS_KEY) || '{}'); } catch { return {}; }
