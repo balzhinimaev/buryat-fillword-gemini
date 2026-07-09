@@ -450,7 +450,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ store }) => 
   };
 
   return (
-    <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
+    <div className={cn("h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
       {/* Декоративный фон */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className={cn("absolute top-1/4 -left-32 w-64 h-64 rounded-full blur-3xl", styles.decorativeOrbs.primary)} />
@@ -458,9 +458,9 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ store }) => 
       </div>
 
       {/* Header с индикатором прогресса */}
-      <header className="relative z-10 px-5 pt-8 pb-4">
+      <header className="relative z-10 px-5 pb-3 flex-shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}>
         {/* Прогресс */}
-        <div className="flex items-center gap-2 mb-6">
+        <div className="flex items-center gap-2 mb-4">
           {STEPS.map((step, index) => (
             <div
               key={step}
@@ -486,14 +486,14 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ store }) => 
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
             className={cn(
-              "w-20 h-20 mx-auto mb-4 rounded-2xl flex items-center justify-center",
+              "w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center",
               isDark ? "bg-gradient-to-br from-amber-500/20 to-orange-500/20" : "bg-gradient-to-br from-amber-100 to-orange-100"
             )}
           >
-            <span className="text-4xl">{stepConfig.emoji}</span>
+            <span className="text-3xl">{stepConfig.emoji}</span>
           </motion.div>
-          
-          <h2 className={cn("text-2xl font-bold mb-2", styles.statsCard.text.primary)}>
+
+          <h2 className={cn("text-xl font-bold mb-1.5", styles.statsCard.text.primary)}>
             {stepConfig.title}
           </h2>
           <p className={cn("text-sm", styles.statsCard.text.secondary)}>
@@ -503,7 +503,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ store }) => 
       </header>
 
       {/* Контент */}
-      <main className="flex-1 px-5 py-6 relative z-10 overflow-y-auto">
+      <main className="flex-1 min-h-0 px-5 py-4 relative z-10 overflow-y-auto">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}
@@ -535,7 +535,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ store }) => 
       </main>
 
       {/* Footer с кнопками */}
-      <footer className="relative z-10 px-5 pb-8 pt-4">
+      <footer className="relative z-10 px-5 pt-3 flex-shrink-0" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
         <div className="flex gap-3">
           {/* Кнопка "Назад" */}
           {!isFirstStep && (
