@@ -1,11 +1,11 @@
-// VK ID OAuth 2.1 (PKCE) — приложение 54653349 это VK ID, классический oauth.vk.com даёт Security Error.
+// VK ID OAuth 2.1 (PKCE); id приложения — в VITE_VK_CLIENT_ID (классический oauth.vk.com даёт Security Error).
 // Флоу: authorize на id.vk.com с code_challenge → возврат code+device_id+state → бэкенд меняет
 // code (+code_verifier+device_id) на токен и берёт профиль. Натив — через deep-link, веб — через URL.
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 
 const VK_CLIENT_ID = (import.meta.env.VITE_VK_CLIENT_ID as string) || '';
-// Канонический домен. Должен совпадать с Trusted Redirect URL в VK ID (app 54653349).
+// Канонический домен. Должен совпадать с Trusted Redirect URL в настройках VK ID приложения.
 export const VK_REDIRECT_URI = 'https://buryat-game.ru/auth/vk/callback';
 export const VK_CONFIGURED = VK_CLIENT_ID.length > 0;
 

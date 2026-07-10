@@ -810,55 +810,47 @@ async function apiRequest<T>(
   return response.json();
 }
 
+// Общий финал всех входов: POST на auth-эндпоинт + сохранение выданной пары токенов
+async function postAuth<T extends { access_token: string; refresh_token: string }>(
+  endpoint: string,
+  body: unknown,
+): Promise<T> {
+  const response = await apiRequest<T>(endpoint, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  setStoredTokens({
+    access_token: response.access_token,
+    refresh_token: response.refresh_token,
+  });
+  return response;
+}
+
 // Авторизация через VK ID (OAuth 2.1, PKCE) — натив и веб
-export async function vkAuth(params: {
+export function vkAuth(params: {
   code: string;
   codeVerifier: string;
   deviceId: string;
   redirectUri: string;
 }): Promise<AuthResponse> {
-  const response = await apiRequest<AuthResponse>('/auth/vk', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  });
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token,
-  });
-  return response;
+  return postAuth<AuthResponse>('/auth/vk', params);
 }
 
 // Авторизация через Telegram
-export async function telegramAuth(initData: string): Promise<AuthResponse> {
-  const response = await apiRequest<AuthResponse>('/auth/telegram', {
-    method: 'POST',
-    body: JSON.stringify({ initData }),
-  });
-
-  // Сохраняем токены
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token,
-  });
-
-  return response;
+export function telegramAuth(initData: string): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/telegram', { initData });
 }
 
 // Регистрация аккаунта по email/паролю (используется для тихого per-device аккаунта офлайн-синка)
-export async function registerDeviceAccount(
+export function registerDeviceAccount(
   email: string,
   password: string,
   name: string,
 ): Promise<{ access_token: string; refresh_token: string; _id: string }> {
-  const response = await apiRequest<{ access_token: string; refresh_token: string; _id: string }>(
+  return postAuth<{ access_token: string; refresh_token: string; _id: string }>(
     '/auth/register',
-    { method: 'POST', body: JSON.stringify({ email, password, name }) },
+    { email, password, name },
   );
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token,
-  });
-  return response;
 }
 
 // Запрос OTP кода на email
@@ -870,78 +862,36 @@ export async function requestEmailOtp(email: string): Promise<EmailOtpRequestRes
 }
 
 // Верификация OTP и вход/регистрация
-export async function verifyEmailOtp(email: string, code: string): Promise<AuthResponse> {
-  const response = await apiRequest<AuthResponse>('/auth/otp/verify', {
-    method: 'POST',
-    body: JSON.stringify({ email, code }),
-  });
-
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token,
-  });
-
-  return response;
+export function verifyEmailOtp(email: string, code: string): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/otp/verify', { email, code });
 }
 
 // Вход VK Mini App: подписанные launch-параметры → наши токены
-export async function vkMiniAppAuth(launchParams: string): Promise<AuthResponse> {
-  const response = await apiRequest<AuthResponse>('/auth/vk-miniapp', {
-    method: 'POST',
-    body: JSON.stringify({ launchParams }),
-  });
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token,
-  });
-  return response;
+export function vkMiniAppAuth(launchParams: string): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/vk-miniapp', { launchParams });
 }
 
 // Классические вход/регистрация по email+паролю (логин = email)
-export async function emailPasswordRegister(
+export function emailPasswordRegister(
   email: string,
   name: string,
   password: string,
 ): Promise<AuthResponse> {
-  const response = await apiRequest<AuthResponse>('/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ email, name, password }),
-  });
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token,
-  });
-  return response;
+  return postAuth<AuthResponse>('/auth/register', { email, name, password });
 }
 
-export async function emailPasswordLogin(email: string, password: string): Promise<AuthResponse> {
-  const response = await apiRequest<AuthResponse>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token,
-  });
-  return response;
+export function emailPasswordLogin(email: string, password: string): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/login', { email, password });
 }
 
 // Сброс пароля по одноразовому коду (код запрашивается requestEmailOtp);
 // сервер отзывает все старые сессии и сразу выдаёт новую
-export async function resetPasswordWithCode(
+export function resetPasswordWithCode(
   email: string,
   code: string,
   newPassword: string,
 ): Promise<AuthResponse> {
-  const response = await apiRequest<AuthResponse>('/auth/password/reset', {
-    method: 'POST',
-    body: JSON.stringify({ email, code, newPassword }),
-  });
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token,
-  });
-  return response;
+  return postAuth<AuthResponse>('/auth/password/reset', { email, code, newPassword });
 }
 
 export async function registerPushDevice(payload: PushDeviceRegisterRequest): Promise<void> {

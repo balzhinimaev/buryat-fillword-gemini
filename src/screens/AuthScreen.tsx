@@ -1,25 +1,32 @@
 // Экран входа: классические вход/регистрация по email+паролю (логин = email),
 // сброс пароля по коду из письма, вход по одноразовому коду как альтернатива,
-// плюс соц-входы (ВКонтакте, Telegram внутри Mini App).
-import { useEffect, useMemo, useState } from 'react';
+// плюс соц-входы (ВКонтакте, Telegram внутри Mini App) — см. ./auth/.
+import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, UserPlus } from 'lucide-react';
+import { ArrowLeft, KeyRound, Mail, ShieldCheck, UserPlus } from 'lucide-react';
 import { useAuth } from '../store/authStore';
-import { startVkLogin, VK_CONFIGURED } from '../services/vkAuth';
-import { IS_VK_MINIAPP } from '../services/vkMiniApp';
 import { useTelegram } from '../hooks/useTelegram';
 import { useTheme } from '../theme/ThemeContext';
 import { cn } from '../components/ui';
+import { TextField, PasswordField, SubmitButton } from './auth/controls';
+import { SocialLoginButtons } from './auth/SocialLoginButtons';
+import { useResendCountdown } from './auth/useResendCountdown';
 
 type AuthMode = 'login' | 'register' | 'otp' | 'reset';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const TITLES: Record<AuthMode, { title: string; subtitle: (email: string, codeSent: boolean) => string }> = {
+  login: { title: 'Вход', subtitle: () => 'Email и пароль от вашего аккаунта' },
+  register: { title: 'Регистрация', subtitle: () => 'Создайте аккаунт — прогресс сохранится на всех устройствах' },
+  otp: { title: 'Вход по коду', subtitle: (email, codeSent) => codeSent ? `Код отправлен на ${email}` : 'Пришлём одноразовый код на email' },
+  reset: { title: 'Сброс пароля', subtitle: (email, codeSent) => codeSent ? `Код отправлен на ${email}` : 'Пришлём код для смены пароля' },
+};
+
 export default function AuthScreen() {
   const {
-    state, login, requestEmailOtp, verifyEmailOtp,
+    state, requestEmailOtp, verifyEmailOtp,
     passwordLogin, passwordRegister, passwordReset, clearError,
-    reauthVkMiniApp,
   } = useAuth();
   const { isTelegram, initData } = useTelegram();
   const { theme, isDark } = useTheme();
@@ -32,25 +39,12 @@ export default function AuthScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState('');
   const [codeSent, setCodeSent] = useState(false);
-  const [resendAvailableAtMs, setResendAvailableAtMs] = useState<number | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
   const [debugCode, setDebugCode] = useState<string | null>(null);
+  const resend = useResendCountdown();
 
   const emailValid = useMemo(() => EMAIL_RE.test(email.trim()), [email]);
   const passwordValid = password.length >= 6;
   const registerValid = emailValid && passwordValid && password === password2 && name.trim().length >= 2;
-
-  useEffect(() => {
-    if (!resendAvailableAtMs) return;
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [resendAvailableAtMs]);
-
-  const secondsLeft = useMemo(() => {
-    if (!resendAvailableAtMs) return 0;
-    return Math.max(0, Math.ceil((resendAvailableAtMs - nowMs) / 1000));
-  }, [resendAvailableAtMs, nowMs]);
-  const canResend = secondsLeft === 0;
 
   const switchMode = (next: AuthMode) => {
     clearError();
@@ -67,9 +61,7 @@ export default function AuthScreen() {
       const response = await requestEmailOtp(email.trim());
       setCodeSent(true);
       setOtp('');
-      const now = Date.now();
-      setNowMs(now);
-      setResendAvailableAtMs(now + (response.resendAfterSeconds ?? 60) * 1000);
+      resend.start(response.resendAfterSeconds ?? 60);
       setDebugCode(response.debugCode ?? null);
     } catch { /* ошибка уже в сторе */ }
   };
@@ -93,60 +85,121 @@ export default function AuthScreen() {
     } catch { /* ошибка уже в сторе */ }
   };
 
-  const inputCls = cn(
-    'w-full rounded-xl px-3 py-2.5 text-sm border outline-none transition',
-    theme.backgrounds.card,
-    theme.borders.subtle,
-    theme.text.primary,
-    'focus:ring-2 focus:ring-amber-400/50',
+  const emailField = (onEnter?: () => void) => (
+    <TextField
+      label="Email" type="email" value={email} onChange={setEmail} onEnter={onEnter}
+      placeholder="you@example.com" autoComplete="email"
+    />
   );
-  const labelCls = cn('block text-xs mb-1', theme.text.muted);
 
-  const titles: Record<AuthMode, { title: string; subtitle: string }> = {
-    login: { title: 'Вход', subtitle: 'Email и пароль от вашего аккаунта' },
-    register: { title: 'Регистрация', subtitle: 'Создайте аккаунт — прогресс сохранится на всех устройствах' },
-    otp: { title: 'Вход по коду', subtitle: codeSent ? `Код отправлен на ${email.trim()}` : 'Пришлём одноразовый код на email' },
-    reset: { title: 'Сброс пароля', subtitle: codeSent ? `Код отправлен на ${email.trim()}` : 'Пришлём код для смены пароля' },
-  };
-
-  const passwordField = (label: string, autoComplete: string) => (
-    <div>
-      <label className={labelCls}>{label}</label>
-      <div className="relative">
-        <input
-          type={showPassword ? 'text' : 'password'}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } }}
-          placeholder="минимум 6 символов"
-          className={cn(inputCls, 'pr-10')}
-          autoComplete={autoComplete}
-        />
-        <button
-          type="button"
-          onClick={() => setShowPassword((v) => !v)}
-          aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-          className={cn('absolute right-2.5 top-1/2 -translate-y-1/2', theme.text.dimmed)}
-        >
-          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+  const loginForm = (
+    <>
+      {emailField()}
+      <PasswordField
+        label="Пароль" value={password} onChange={setPassword} onEnter={() => void submit()}
+        autoComplete="current-password" show={showPassword} onToggleShow={() => setShowPassword(v => !v)}
+      />
+      <SubmitButton label="Войти" disabled={!emailValid || !passwordValid} loading={state.isLoading} onClick={() => void submit()} />
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={() => switchMode('reset')} className={cn('text-xs', theme.text.muted)}>
+          Забыли пароль?
+        </button>
+        <button type="button" onClick={() => switchMode('otp')} className="text-xs text-amber-500 font-medium">
+          Войти по коду из письма
         </button>
       </div>
-    </div>
+    </>
   );
 
-  const primaryBtn = (label: string, disabled: boolean) => (
-    <button
-      type="button"
-      onClick={() => void submit()}
-      disabled={disabled || state.isLoading}
-      className={cn(
-        'w-full rounded-xl py-3 text-sm font-semibold text-white transition',
-        'bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg shadow-amber-500/20',
-        (disabled || state.isLoading) && 'opacity-60 cursor-not-allowed',
+  const registerForm = (
+    <>
+      <TextField
+        label="Имя" value={name} onChange={setName}
+        placeholder="Как вас называть в игре" autoComplete="nickname"
+      />
+      {emailField()}
+      <PasswordField
+        label="Пароль" value={password} onChange={setPassword} onEnter={() => void submit()}
+        autoComplete="new-password" show={showPassword} onToggleShow={() => setShowPassword(v => !v)}
+      />
+      <div>
+        <TextField
+          label="Повторите пароль" type={showPassword ? 'text' : 'password'}
+          value={password2} onChange={setPassword2} onEnter={() => void submit()}
+          placeholder="ещё раз" autoComplete="new-password"
+        />
+        {password2.length > 0 && password !== password2 && (
+          <p className="text-[11px] text-red-400 mt-1">Пароли не совпадают</p>
+        )}
+      </div>
+      <SubmitButton label="Создать аккаунт" disabled={!registerValid} loading={state.isLoading} onClick={() => void submit()} />
+    </>
+  );
+
+  // Общая форма для входа по коду и сброса пароля: email → код (+ новый пароль при сбросе)
+  const codeForm = (
+    <>
+      {!codeSent ? (
+        <>
+          {emailField(() => void sendCode())}
+          <SubmitButton
+            label="Получить код" disabled={!emailValid} loading={state.isLoading}
+            onClick={() => void sendCode()} busyContent="Отправляем…"
+          />
+        </>
+      ) : (
+        <>
+          <TextField
+            label="Код из письма" value={otp}
+            onChange={(v) => setOtp(v.replace(/\D/g, '').slice(0, 6))}
+            onEnter={() => void submit()}
+            placeholder="000000" inputMode="numeric" autoFocus
+            inputClassName="tracking-[0.3em] text-center"
+          />
+          {mode === 'reset' && (
+            <PasswordField
+              label="Новый пароль" value={password} onChange={setPassword} onEnter={() => void submit()}
+              autoComplete="new-password" show={showPassword} onToggleShow={() => setShowPassword(v => !v)}
+            />
+          )}
+          <SubmitButton
+            label={mode === 'reset' ? 'Сменить пароль и войти' : 'Войти'}
+            disabled={otp.length !== 6 || (mode === 'reset' && !passwordValid)}
+            loading={state.isLoading}
+            onClick={() => void submit()}
+          />
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => { setCodeSent(false); setOtp(''); clearError(); }}
+              className={cn('text-xs inline-flex items-center gap-1', theme.text.muted)}
+            >
+              <ArrowLeft size={12} /> Изменить email
+            </button>
+            <button
+              type="button"
+              onClick={() => void sendCode()}
+              disabled={!resend.canResend || state.isLoading}
+              className={cn('text-xs', resend.canResend ? 'text-amber-500' : theme.text.dimmed)}
+            >
+              {resend.canResend ? 'Отправить код снова' : `Повторно через ${resend.secondsLeft} c`}
+            </button>
+          </div>
+          {import.meta.env.DEV && debugCode && (
+            <div className={cn('text-xs rounded-xl px-3 py-2 border', theme.borders.subtle, theme.text.muted)}>
+              Debug OTP: <span className={theme.text.primary}>{debugCode}</span>
+            </div>
+          )}
+        </>
       )}
-    >
-      {state.isLoading ? <Loader2 size={16} className="animate-spin mx-auto" /> : label}
-    </button>
+      <button
+        type="button"
+        onClick={() => switchMode('login')}
+        className={cn('text-xs inline-flex items-center gap-1', theme.text.muted)}
+      >
+        <ArrowLeft size={12} /> Назад ко входу с паролем
+      </button>
+    </>
   );
 
   return (
@@ -165,44 +218,13 @@ export default function AuthScreen() {
                 : <Mail size={20} className="text-amber-500" />}
             </div>
             <div className="min-w-0">
-              <h1 className={cn('text-lg font-semibold', theme.text.primary)}>{titles[mode].title}</h1>
-              <p className={cn('text-xs truncate', theme.text.muted)}>{titles[mode].subtitle}</p>
+              <h1 className={cn('text-lg font-semibold', theme.text.primary)}>{TITLES[mode].title}</h1>
+              <p className={cn('text-xs truncate', theme.text.muted)}>{TITLES[mode].subtitle(email.trim(), codeSent)}</p>
             </div>
           </div>
 
           {/* Соц-входы */}
-          {(VK_CONFIGURED || IS_VK_MINIAPP || (isTelegram && initData)) && (mode === 'login' || mode === 'register') && (
-            <div className="mb-4 space-y-2">
-              {isTelegram && initData && (
-                <button
-                  type="button"
-                  onClick={() => { clearError(); void login(); }}
-                  className="w-full rounded-xl py-2.5 text-sm font-semibold text-white"
-                  style={{ backgroundColor: '#2AABEE' }}
-                >
-                  Войти через Telegram
-                </button>
-              )}
-              {(VK_CONFIGURED || IS_VK_MINIAPP) && (
-                <button
-                  type="button"
-                  // В VK Mini App — повторный автологин по launch-параметрам
-                  // (web-OAuth redirect ломается внутри iframe VK).
-                  onClick={() => { void (IS_VK_MINIAPP ? reauthVkMiniApp() : startVkLogin()); }}
-                  disabled={state.isLoading}
-                  className="w-full rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-                  style={{ backgroundColor: '#0077FF' }}
-                >
-                  Войти через ВКонтакте
-                </button>
-              )}
-              <div className="flex items-center gap-3 pt-1">
-                <span className={cn('flex-1 h-px', isDark ? 'bg-white/10' : 'bg-stone-200')} />
-                <span className={cn('text-xs', theme.text.dimmed)}>или по email</span>
-                <span className={cn('flex-1 h-px', isDark ? 'bg-white/10' : 'bg-stone-200')} />
-              </div>
-            </div>
-          )}
+          {(mode === 'login' || mode === 'register') && <SocialLoginButtons />}
 
           {/* Табы Вход / Регистрация */}
           {(mode === 'login' || mode === 'register') && (
@@ -234,139 +256,9 @@ export default function AuthScreen() {
               transition={{ duration: 0.15 }}
               className="space-y-3"
             >
-              {/* ВХОД */}
-              {mode === 'login' && (
-                <>
-                  <div>
-                    <label className={labelCls}>Email</label>
-                    <input
-                      type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com" className={inputCls} autoComplete="email"
-                    />
-                  </div>
-                  {passwordField('Пароль', 'current-password')}
-                  {primaryBtn('Войти', !emailValid || !passwordValid)}
-                  <div className="flex items-center justify-between">
-                    <button type="button" onClick={() => switchMode('reset')} className={cn('text-xs', theme.text.muted)}>
-                      Забыли пароль?
-                    </button>
-                    <button type="button" onClick={() => switchMode('otp')} className="text-xs text-amber-500 font-medium">
-                      Войти по коду из письма
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* РЕГИСТРАЦИЯ */}
-              {mode === 'register' && (
-                <>
-                  <div>
-                    <label className={labelCls}>Имя</label>
-                    <input
-                      type="text" value={name} onChange={(e) => setName(e.target.value)}
-                      placeholder="Как вас называть в игре" className={inputCls} autoComplete="nickname"
-                    />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Email</label>
-                    <input
-                      type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com" className={inputCls} autoComplete="email"
-                    />
-                  </div>
-                  {passwordField('Пароль', 'new-password')}
-                  <div>
-                    <label className={labelCls}>Повторите пароль</label>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password2} onChange={(e) => setPassword2(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } }}
-                      placeholder="ещё раз" className={inputCls} autoComplete="new-password"
-                    />
-                    {password2.length > 0 && password !== password2 && (
-                      <p className="text-[11px] text-red-400 mt-1">Пароли не совпадают</p>
-                    )}
-                  </div>
-                  {primaryBtn('Создать аккаунт', !registerValid)}
-                </>
-              )}
-
-              {/* ВХОД ПО КОДУ / СБРОС ПАРОЛЯ */}
-              {(mode === 'otp' || mode === 'reset') && (
-                <>
-                  {!codeSent ? (
-                    <>
-                      <div>
-                        <label className={labelCls}>Email</label>
-                        <input
-                          type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void sendCode(); } }}
-                          placeholder="you@example.com" className={inputCls} autoComplete="email"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void sendCode()}
-                        disabled={!emailValid || state.isLoading}
-                        className={cn(
-                          'w-full rounded-xl py-3 text-sm font-semibold text-white transition',
-                          'bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg shadow-amber-500/20',
-                          (!emailValid || state.isLoading) && 'opacity-60 cursor-not-allowed',
-                        )}
-                      >
-                        {state.isLoading ? 'Отправляем…' : 'Получить код'}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div>
-                        <label className={labelCls}>Код из письма</label>
-                        <input
-                          type="text" value={otp}
-                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } }}
-                          placeholder="000000" inputMode="numeric" autoFocus
-                          className={cn(inputCls, 'tracking-[0.3em] text-center')}
-                        />
-                      </div>
-                      {mode === 'reset' && passwordField('Новый пароль', 'new-password')}
-                      {primaryBtn(
-                        mode === 'reset' ? 'Сменить пароль и войти' : 'Войти',
-                        otp.length !== 6 || (mode === 'reset' && !passwordValid),
-                      )}
-                      <div className="flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => { setCodeSent(false); setOtp(''); clearError(); }}
-                          className={cn('text-xs inline-flex items-center gap-1', theme.text.muted)}
-                        >
-                          <ArrowLeft size={12} /> Изменить email
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void sendCode()}
-                          disabled={!canResend || state.isLoading}
-                          className={cn('text-xs', canResend ? 'text-amber-500' : theme.text.dimmed)}
-                        >
-                          {canResend ? 'Отправить код снова' : `Повторно через ${secondsLeft} c`}
-                        </button>
-                      </div>
-                      {debugCode && (
-                        <div className={cn('text-xs rounded-xl px-3 py-2 border', theme.borders.subtle, theme.text.muted)}>
-                          Debug OTP: <span className={theme.text.primary}>{debugCode}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => switchMode('login')}
-                    className={cn('text-xs inline-flex items-center gap-1', theme.text.muted)}
-                  >
-                    <ArrowLeft size={12} /> Назад ко входу с паролем
-                  </button>
-                </>
-              )}
+              {mode === 'login' && loginForm}
+              {mode === 'register' && registerForm}
+              {(mode === 'otp' || mode === 'reset') && codeForm}
             </motion.div>
           </AnimatePresence>
 
