@@ -16,7 +16,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import { cn } from '../ui';
+import { cn } from '../../utils/cn';
 import { useTheme } from '../../theme/ThemeContext';
 import {
   createLoreItem,
@@ -25,11 +25,8 @@ import {
   type ApiDialect,
   type LoreType,
 } from '../../services/api';
-import {
-  AudioRecorderField,
-  releaseAudioDraft,
-  type AudioDraft,
-} from '../contribution/AudioRecorderField';
+import { AudioRecorderField } from '../contribution/AudioRecorderField';
+import { releaseAudioDraft, type AudioDraft } from '../contribution/audioDraft';
 
 const TYPES: Array<{
   id: LoreType;

@@ -1,15 +1,11 @@
 // src/components/ui.tsx
 import React from 'react';
 import { motion } from 'framer-motion';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '../utils/cn';
 import { ChevronLeft, Star, Lock } from 'lucide-react';
 import { useTheme } from '../theme/ThemeContext';
 import type { ThemeConfig } from '../theme';
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 // Кнопка "Назад"
 export const BackButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (

@@ -4,7 +4,7 @@
 import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, RotateCcw, Target, X } from 'lucide-react';
-import { cn } from './ui';
+import { cn } from '../utils/cn';
 import { WaveAudioButton } from './WaveAudioButton';
 import { useTheme } from '../theme/ThemeContext';
 import { hintOf, useGameLang } from '../services/gameLang';

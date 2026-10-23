@@ -19,7 +19,7 @@ import {
   Quote,
 } from 'lucide-react';
 import { useTheme } from '../theme/ThemeContext';
-import { cn } from './ui';
+import { cn } from '../utils/cn';
 import type { PendingWord, VoteResponse, ApiCategory } from '../services/api';
 import { getPendingWords, voteWord } from '../services/api';
 import { useAuth } from '../store/authStore';

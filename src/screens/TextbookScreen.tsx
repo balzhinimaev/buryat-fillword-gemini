@@ -14,7 +14,7 @@ import {
   Star,
   Target,
 } from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
 import { TextbookQuiz } from '../components/TextbookQuiz';

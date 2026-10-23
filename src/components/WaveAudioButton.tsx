@@ -4,7 +4,7 @@
 // Для md-размера: замедление 0.7x (🐢 — полезно ученикам) и таймер.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Pause, Play, Turtle } from 'lucide-react';
-import { cn } from './ui';
+import { cn } from '../utils/cn';
 
 interface Props {
   src: string;
@@ -18,7 +18,7 @@ let sharedCtx: AudioContext | null = null;
 
 function getCtx(): AudioContext | null {
   try {
-    sharedCtx = sharedCtx ?? new (window.AudioContext || (window as any).webkitAudioContext)();
+    sharedCtx = sharedCtx ?? new (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!)();
     return sharedCtx;
   } catch {
     return null;
@@ -84,8 +84,8 @@ export const WaveAudioButton: React.FC<Props> = ({ src, size = 'md', className }
     audio.playbackRate = isSlow ? 0.7 : 1;
     // тянем гласные, не меняя высоту голоса
     try {
-      (audio as any).preservesPitch = true;
-      (audio as any).mozPreservesPitch = true;
+      audio.preservesPitch = true;
+      (audio as HTMLAudioElement & { mozPreservesPitch?: boolean }).mozPreservesPitch = true;
     } catch { /* не везде поддерживается */ }
   };
 
@@ -178,7 +178,7 @@ export const WaveAudioButton: React.FC<Props> = ({ src, size = 'md', className }
       <button
         onClick={(e) => {
           e.stopPropagation();
-          playing || loading ? stop() : play();
+          if (playing || loading) stop(); else play();
         }}
         aria-label={playing ? 'Пауза' : 'Прослушать'}
         className="text-amber-500 flex-shrink-0"

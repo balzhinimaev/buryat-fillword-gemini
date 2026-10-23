@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, MessageCircle, Pencil, Send, Trash2 } from 'lucide-react';
-import { cn } from '../ui';
+import { cn } from '../../utils/cn';
 import { useTheme } from '../../theme/ThemeContext';
 import { useAuth } from '../../store/authStore';
 import {

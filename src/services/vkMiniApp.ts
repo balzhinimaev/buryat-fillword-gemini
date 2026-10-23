@@ -1,7 +1,15 @@
 // Режим VK Mini App: приложение запущено внутри ВКонтакте (iframe/webview)
 // с подписанными launch-параметрами в query-строке. Отдельного приложения нет —
 // тот же SPA, автологин через POST /auth/vk-miniapp (подпись проверяет сервер).
-import bridge from '../vendor/vk-bridge';
+import type { VKBridge } from '../vendor/vk-bridge';
+
+// Load the bridge only when a VK operation is requested.
+const bridge: Pick<VKBridge, 'send'> = {
+  async send<T = Record<string, unknown>>(method: string, params?: Record<string, unknown>): Promise<T> {
+    const { default: client } = await import('../vendor/vk-bridge');
+    return client.send<T>(method, params);
+  },
+};
 
 /** Сырые launch-параметры VK (query при первом запуске) — фиксируем сразу:
     SPA может менять URL, а параметры нужны для авторизации. */

@@ -1,7 +1,7 @@
 // Проверка обновления APK (для sideload-установок вне Google Play).
 import { APP_VERSION_CODE } from '../config/version';
 
-const VERSION_URL = 'https://burlive.ru/app/version.json';
+const VERSION_URL = `${import.meta.env.VITE_APP_UPDATE_BASE || 'https://buryat-game.ru/app'}/version.json`;
 
 export interface ApkUpdateInfo {
   available: boolean;

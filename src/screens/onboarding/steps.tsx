@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check } from 'lucide-react';
 import { useTheme } from '../../theme/ThemeContext';
 import { getMenuStyles } from '../../theme/menuStyles';
-import { cn } from '../../components/ui';
+import { cn } from '../../utils/cn';
 import { useTelegram } from '../../hooks/useTelegram';
 import type { AgeRange, BuriatLevel, ReminderPlan, ReminderTime } from '../../services/api';
 import { OptionCard } from './OptionCard';

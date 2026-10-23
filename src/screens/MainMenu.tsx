@@ -22,7 +22,7 @@ import {
 import type { GameStore } from '../store/gameStore';
 import { useTheme } from '../theme/ThemeContext';
 import { getMenuStyles } from '../theme/menuStyles';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { useTelegram } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
 import { IS_VK_MINIAPP } from '../services/vkMiniApp';

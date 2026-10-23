@@ -12,7 +12,7 @@ import {
   ThumbsUp,
   User,
 } from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../store/authStore';
 import type { GameStore } from '../store/gameStore';

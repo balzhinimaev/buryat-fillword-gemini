@@ -20,7 +20,7 @@ import {
   Undo2,
   Zap,
 } from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { WaveAudioButton } from '../components/WaveAudioButton';
 import { useTheme } from '../theme/ThemeContext';

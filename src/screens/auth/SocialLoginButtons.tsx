@@ -5,7 +5,7 @@ import { startVkLogin, VK_CONFIGURED } from '../../services/vkAuth';
 import { IS_VK_MINIAPP } from '../../services/vkMiniApp';
 import { useTelegram } from '../../hooks/useTelegram';
 import { useTheme } from '../../theme/ThemeContext';
-import { cn } from '../../components/ui';
+import { cn } from '../../utils/cn';
 
 export const SocialLoginButtons: React.FC = () => {
   const { state, login, clearError, reauthVkMiniApp } = useAuth();

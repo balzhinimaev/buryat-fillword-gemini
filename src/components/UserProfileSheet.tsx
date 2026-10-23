@@ -5,7 +5,7 @@ import {
   X, Loader2, AlertCircle, Star, Zap, Flame, BookOpen,
   CheckCircle2, Calendar, TrendingUp, Clock,
 } from 'lucide-react';
-import { cn } from './ui';
+import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import { api, type UserProfileResponse, type UserProfileXpHistoryItem } from '../services/api';
 
@@ -64,31 +64,26 @@ function formatRegDate(isoDate: string): string {
 
 export const UserProfileSheet: React.FC<UserProfileSheetProps> = ({ userId, onClose }) => {
   const { theme, isDark } = useTheme();
-  const [profile, setProfile] = useState<UserProfileResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ userId: string; profile: UserProfileResponse | null; error: string | null } | null>(null);
+  const current = result?.userId === userId ? result : null;
+  const profile = current?.profile ?? null;
+  const isLoading = !!userId && !current;
+  const error = current?.error ?? null;
   const sheetRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const isOpen = userId !== null;
 
   useEffect(() => {
-    if (!userId) {
-      setProfile(null);
-      setError(null);
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    setProfile(null);
-
+    if (!userId) return;
+    let cancelled = false;
     api.getUserProfile(userId)
-      .then(setProfile)
-      .catch((e) => {
-        const msg = e instanceof Error ? e.message : (e as { message?: string })?.message || 'Не удалось загрузить профиль';
-        setError(msg);
-      })
-      .finally(() => setIsLoading(false));
+      .then(profile => { if (!cancelled) setResult({ userId, profile, error: null }); })
+      .catch((e: unknown) => {
+        const error = e instanceof Error ? e.message : 'Не удалось загрузить профиль';
+        if (!cancelled) setResult({ userId, profile: null, error });
+      });
+    return () => { cancelled = true; };
   }, [userId]);
 
   // Swipe-to-dismiss logic

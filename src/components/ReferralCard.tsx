@@ -2,7 +2,7 @@
 // список приглашённых, прогресс до ачивки. Показывается в профиле авторизованного игрока.
 import React, { useEffect, useState } from 'react';
 import { Camera, Check, Copy, Gift, Send, Share2, Users } from 'lucide-react';
-import { cn } from './ui';
+import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import { api, type MyReferralsResponse } from '../services/api';
 import { buildReferralLinks, canShareReferral, shareReferral } from '../services/referral';

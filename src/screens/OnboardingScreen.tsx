@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
 import { useTheme } from '../theme/ThemeContext';
 import { getMenuStyles } from '../theme/menuStyles';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { useTelegram } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
 import { updateOnboarding } from '../services/api';

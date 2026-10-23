@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import { OFFLINE } from '../config/offline';
 import { GAME_LANGS, setGameLang, useGameLang } from '../services/gameLang';
-import { Modal, cn } from '../components/ui';
+import { Modal } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';

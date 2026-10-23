@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Search, Check, Volume2, ArrowLeft, Loader2, RefreshCw, ChevronDown, ChevronRight, Mic, Square, X } from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
@@ -146,6 +146,8 @@ const QuickRecord: React.FC<{
   );
 };
 
+const EMPTY_WORDS: ApiWord[] = [];
+
 export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => {
   useGameLang(); // перерисовка подсказок при смене языка
   const { state, goBack, navigateToWord } = store;
@@ -168,11 +170,15 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
   const [apiCategories, setApiCategories] = useState<ApiCategory[]>([]);
   const { state: authState } = useAuth();
   const canRecordAudio = authState.user?.role === 'moderator' || authState.user?.role === 'admin';
-  const [words, setWords] = useState<ApiWord[]>([]);
-  const [totalWords, setTotalWords] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState<{ category: string | null; words: ApiWord[]; total: number; error: string | null } | null>(null);
+  const [loadingMorePage, setLoadingMorePage] = useState<typeof page>(null);
+  const [retryKey, setRetryKey] = useState(0);
+  const activePage = page?.category === selectedCategory ? page : null;
+  const words = activePage?.words ?? EMPTY_WORDS;
+  const totalWords = activePage?.total ?? 0;
+  const loading = !activePage;
+  const loadingMore = !!activePage && loadingMorePage === activePage;
+  const error = activePage?.error ?? null;
 
   // Fetch categories on mount
   useEffect(() => {
@@ -198,60 +204,34 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
     return getWords(params);
   }, []);
 
-  // Reload when category changes
+  // Each response belongs to a category; changing it never displays stale data.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setWords([]);
-
     fetchWords(selectedCategory)
       .then(res => {
-        if (!cancelled) {
-          setWords(res.words);
-          setTotalWords(res.total);
-        }
+        if (!cancelled) setPage({ category: selectedCategory, words: res.words, total: res.total, error: null });
       })
-      .catch(err => {
-        if (!cancelled) {
-          setError(err.message || 'Ошибка загрузки');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+      .catch((err: unknown) => {
+        if (!cancelled) setPage({ category: selectedCategory, words: [], total: 0, error: err instanceof Error ? err.message : 'Ошибка загрузки' });
       });
-
     return () => { cancelled = true; };
-  }, [selectedCategory, fetchWords]);
+  }, [selectedCategory, fetchWords, retryKey]);
 
-  // Load more (pagination)
   const handleLoadMore = useCallback(() => {
-    if (loadingMore || words.length >= totalWords) return;
-    setLoadingMore(true);
-
+    if (!activePage || loadingMore || words.length >= totalWords) return;
+    const requestedPage = activePage;
+    setLoadingMorePage(requestedPage);
     fetchWords(selectedCategory, words.length)
-      .then(res => {
-        setWords(prev => [...prev, ...res.words]);
-        setTotalWords(res.total);
-      })
+      .then(res => setPage(prev => prev === requestedPage
+        ? { ...prev, words: [...prev.words, ...res.words], total: res.total } : prev))
       .catch(err => console.error('Failed to load more:', err))
-      .finally(() => setLoadingMore(false));
-  }, [loadingMore, words.length, totalWords, selectedCategory, fetchWords]);
+      .finally(() => setLoadingMorePage(prev => prev === requestedPage ? null : prev));
+  }, [activePage, loadingMore, words.length, totalWords, selectedCategory, fetchWords]);
 
-  // Retry on error
   const handleRetry = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    setWords([]);
-
-    fetchWords(selectedCategory)
-      .then(res => {
-        setWords(res.words);
-        setTotalWords(res.total);
-      })
-      .catch(err => setError(err.message || 'Ошибка загрузки'))
-      .finally(() => setLoading(false));
-  }, [selectedCategory, fetchWords]);
+    setPage(null);
+    setRetryKey(key => key + 1);
+  }, []);
 
   // Client-side filtering (search + learned)
   const filteredWords = useMemo(() => {
@@ -622,9 +602,7 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                                 hasAudio={!!word.audioUrl}
                                 isDark={isDark}
                                 onSaved={(audioUrl) =>
-                                  setWords((prev) =>
-                                    prev.map((w) => (w._id === word._id ? { ...w, audioUrl } : w)),
-                                  )
+                                  setPage(prev => prev ? { ...prev, words: prev.words.map(w => w._id === word._id ? { ...w, audioUrl } : w) } : prev)
                                 }
                               />
                             )}

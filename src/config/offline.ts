@@ -1,5 +1,5 @@
 // Флаг офлайн-способной сборки (нативное приложение со вшитым контентом).
-// Включается на этапе сборки через VITE_OFFLINE_MODE=true (.env.production).
+// Включается на этапе сборки через VITE_OFFLINE_MODE=true (build:android).
 export const OFFLINE: boolean = import.meta.env.VITE_OFFLINE_MODE === 'true';
 
 // Runtime-проверка сети. В офлайн-сборке локальные данные — источник истины,

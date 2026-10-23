@@ -2,7 +2,7 @@
 // запись с микрофона (MediaRecorder) с предпрослушкой, загрузка файла и удаление.
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Mic, Square, Trash2, Upload, X } from 'lucide-react';
-import { cn } from './ui';
+import { cn } from '../utils/cn';
 import { WaveAudioButton } from './WaveAudioButton';
 import { useTheme } from '../theme/ThemeContext';
 

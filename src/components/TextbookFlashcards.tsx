@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Layers, X } from 'lucide-react';
-import { cn } from './ui';
+import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import { hintOf, useGameLang } from '../services/gameLang';
 import { burAudioUrl, hasBurAudio } from '../services/burAudio';

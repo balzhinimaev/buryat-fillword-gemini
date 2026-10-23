@@ -19,7 +19,7 @@ import type { GameStore } from '../store/gameStore';
 import { useTelegram, useBackButton } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
 import { useTheme } from '../theme/ThemeContext';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import {
   api,

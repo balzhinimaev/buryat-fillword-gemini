@@ -6,32 +6,6 @@
 import { OFFLINE, isNetOnline } from '../config/offline';
 import { putHandoff, takeHandoff } from './handoffCache';
 import { API_BASE } from '../config/apiBase';
-import {
-  offlineGetLevel,
-  offlineGetProgress,
-  offlineSubmit,
-  offlineLeaderboard,
-} from './offlineEngine';
-import {
-  offlineGetWords,
-  offlineGetWordDetail,
-  offlineFindWordDetail,
-  offlineGetCategories,
-  offlineWordsStats,
-} from './offlineDict';
-import { offlineGetDailyToday, offlineSubmitDaily } from './offlineDaily';
-import { offlineLessonLore, offlineAllLore, offlineLoreItem } from './offlineLore';
-import {
-  offlineGetCampaignOverview,
-  offlineGetCampaignLevel,
-  offlineStartCampaignLevel,
-  offlineSubmitCampaignLevel,
-} from './offlineCampaign';
-import {
-  offlineOnly, offlineStreak, offlineProjectStats, offlineUserStats,
-  offlineGlobalLeaderboard, offlineDailyLeaderboard, offlineKeepers, offlineDialects,
-  offlinePartsOfSpeech, offlinePending, offlineAnalyticsAck, offlineSettings, offlineMe,
-} from './offlineStubs';
 
 const API_URL = API_BASE;
 
@@ -238,7 +212,7 @@ export interface UpdateOnboardingRequest {
 
 // Обновление имени
 export async function updateName(name: string): Promise<UserResponse> {
-  if (!authedNetUsable()) return offlineOnly();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserResponse>('/users/me/name', {
     method: 'PATCH',
     body: JSON.stringify({ name }),
@@ -268,13 +242,13 @@ export type ApiSettingsUpdate = Partial<ApiSettings>;
 
 // Получить текущие настройки
 export async function getSettings(): Promise<ApiSettings> {
-  if (OFFLINE) return offlineSettings();
+  if (OFFLINE) return (await import('./offlineStubs')).offlineSettings();
   return apiRequest<ApiSettings>('/users/me/settings', { method: 'GET' });
 }
 
 // Обновить настройки (PATCH, частично)
 export async function patchSettings(data: ApiSettingsUpdate): Promise<ApiSettings> {
-  if (OFFLINE) return offlineSettings();
+  if (OFFLINE) return (await import('./offlineStubs')).offlineSettings();
   return apiRequest<ApiSettings>('/users/me/settings', {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -931,7 +905,7 @@ export async function refreshToken(): Promise<RefreshResponse> {
 
 // Текущий пользователь
 export async function getMe(): Promise<MeResponse> {
-  if (OFFLINE) return offlineMe();
+  if (OFFLINE) return (await import('./offlineStubs')).offlineMe();
   return apiRequest<MeResponse>('/auth/me', { method: 'GET' });
 }
 
@@ -966,25 +940,25 @@ export async function logout(): Promise<void> {
 
 // Получение категорий
 export async function getCategories(): Promise<ApiCategory[]> {
-  if (OFFLINE) return offlineGetCategories();
+  if (OFFLINE) return (await import('./offlineDict')).offlineGetCategories();
   return apiRequest<ApiCategory[]>('/categories', { method: 'GET' });
 }
 
 // Получение диалектов
 export async function getDialects(): Promise<ApiDialect[]> {
-  if (!netUsable()) return offlineDialects();
+  if (!netUsable()) return (await import('./offlineStubs')).offlineDialects();
   return apiRequest<ApiDialect[]>('/dialects', { method: 'GET' });
 }
 
 // Получение частей речи
 export async function getPartsOfSpeech(): Promise<ApiPartOfSpeech[]> {
-  if (!netUsable()) return offlinePartsOfSpeech();
+  if (!netUsable()) return (await import('./offlineStubs')).offlinePartsOfSpeech();
   return apiRequest<ApiPartOfSpeech[]>('/parts-of-speech', { method: 'GET' });
 }
 
 // Создание нового слова (офлайн-очередь живёт в contribSync — сюда попадаем только при сети)
 export async function createWord(data: CreateWordRequest): Promise<CreateWordResponse> {
-  if (!netUsable()) return offlineOnly();
+  if (!netUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<CreateWordResponse>('/words', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -1036,13 +1010,13 @@ export async function adminGetCategories(): Promise<ApiCategory[]> {
 
 // Получение статистики проекта
 export async function getProjectStats(): Promise<ProjectStats> {
-  if (!netUsable()) return offlineProjectStats();
+  if (!netUsable()) return (await import('./offlineStubs')).offlineProjectStats();
   return apiRequest<ProjectStats>('/stats', { method: 'GET' });
 }
 
 // Получение общей статистики слов
 export async function getWordsStats(): Promise<WordsStats> {
-  if (!netUsable()) return offlineWordsStats();
+  if (!netUsable()) return (await import('./offlineDict')).offlineWordsStats();
   return apiRequest<WordsStats>('/words/stats', { method: 'GET' });
 }
 
@@ -1063,7 +1037,7 @@ function isDictFirstPage(params: GetWordsParams): boolean {
 }
 
 export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsResponse> {
-  if (OFFLINE) return offlineGetWords(params);
+  if (OFFLINE) return (await import('./offlineDict')).offlineGetWords(params);
   if (isDictFirstPage(params)) {
     const warmed = takeHandoff<ApiWordsResponse>('dictFirstPage');
     if (warmed) return warmed;
@@ -1092,9 +1066,9 @@ export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsRes
 // (например, серверный ObjectId из очереди синка) при сети запрашиваем у сервера.
 export async function getWordDetail(id: string): Promise<ApiWordDetailResponse> {
   if (OFFLINE) {
-    const local = offlineFindWordDetail(id);
+    const local = (await import('./offlineDict')).offlineFindWordDetail(id);
     if (local) return local;
-    if (!isNetOnline()) return offlineGetWordDetail(id);
+    if (!isNetOnline()) return (await import('./offlineDict')).offlineGetWordDetail(id);
   }
   return apiRequest<ApiWordDetailResponse>(`/words/${encodeURIComponent(id)}`, { method: 'GET' });
 }
@@ -1133,37 +1107,37 @@ export async function deleteComment(wordId: string, commentId: string): Promise<
 
 // Топ хранителей языка
 export async function getLanguageKeepersLeaderboard(): Promise<LanguageKeeperLeaderboardItem[]> {
-  if (!netUsable()) return offlineKeepers();
+  if (!netUsable()) return (await import('./offlineStubs')).offlineKeepers();
   return apiRequest<LanguageKeeperLeaderboardItem[]>('/words/keepers/leaderboard', { method: 'GET' });
 }
 
 // Получение личной статистики пользователя
 export async function getUserStats(): Promise<UserStats> {
-  if (!authedNetUsable()) return offlineUserStats();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineUserStats();
   return apiRequest<UserStats>('/users/me/stats', { method: 'GET' });
 }
 
 // Присоединиться к хранителям языка
 export async function joinLanguageKeepers(): Promise<UserResponse> {
-  if (!authedNetUsable()) return offlineOnly();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserResponse>('/users/me/join-keepers', { method: 'POST' });
 }
 
 // Покинуть хранителей языка
 export async function leaveLanguageKeepers(): Promise<UserResponse> {
-  if (!authedNetUsable()) return offlineOnly();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserResponse>('/users/me/leave-keepers', { method: 'POST' });
 }
 
 // Получение слов на проверке
 export async function getPendingWords(): Promise<PendingWord[]> {
-  if (!authedNetUsable()) return offlinePending();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlinePending();
   return apiRequest<PendingWord[]>('/words/pending', { method: 'GET' });
 }
 
 // Голосование за слово
 export async function voteWord(data: VoteRequest): Promise<VoteResponse> {
-  if (!authedNetUsable()) return offlineOnly();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<VoteResponse>('/votes', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -1228,7 +1202,7 @@ export async function unvoteTextbookLesson(
 
 // Обновление онбординга
 export async function updateOnboarding(data: UpdateOnboardingRequest): Promise<UserResponse> {
-  if (!authedNetUsable()) return offlineOnly();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserResponse>('/users/me/onboarding', {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -1393,7 +1367,7 @@ export interface CampaignLevelResultResponse extends ExtensibleRecord {
 }
 
 export async function getCampaignOverview(): Promise<CampaignOverviewResponse> {
-  if (OFFLINE) return offlineGetCampaignOverview();
+  if (OFFLINE) return (await import('./offlineCampaign')).offlineGetCampaignOverview();
   // прогретый prefetch'ем ответ используется ровно один раз (см. handoffCache)
   const warmed = takeHandoff<CampaignOverviewResponse>('campaignOverview');
   if (warmed) return warmed;
@@ -1413,12 +1387,12 @@ export function prefillCampaignOverview(): void {
 }
 
 export async function getCampaignLevel(slug: string): Promise<CampaignLevelResponse> {
-  if (OFFLINE) return offlineGetCampaignLevel(slug);
+  if (OFFLINE) return (await import('./offlineCampaign')).offlineGetCampaignLevel(slug);
   return apiRequest<CampaignLevelResponse>(`/campaign/level/${encodeURIComponent(slug)}`, { method: 'GET' });
 }
 
 export async function startCampaignLevel(slug: string): Promise<CampaignLevelStartResponse> {
-  if (OFFLINE) return offlineStartCampaignLevel(slug);
+  if (OFFLINE) return (await import('./offlineCampaign')).offlineStartCampaignLevel(slug);
   return apiRequest<CampaignLevelStartResponse>(`/campaign/level/${encodeURIComponent(slug)}/start`, { method: 'POST' });
 }
 
@@ -1426,7 +1400,7 @@ export async function submitCampaignLevel(
   slug: string,
   body: CampaignSubmitLevelResultRequest
 ): Promise<CampaignLevelResultResponse> {
-  if (OFFLINE) return offlineSubmitCampaignLevel(slug, body);
+  if (OFFLINE) return (await import('./offlineCampaign')).offlineSubmitCampaignLevel(slug, body);
   return apiRequest<CampaignLevelResultResponse>(`/campaign/level/${encodeURIComponent(slug)}/submit`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -1464,7 +1438,7 @@ export interface ActivityStreakResponse {
 }
 
 export async function getActivityStreak(recalculate = false): Promise<ActivityStreakResponse> {
-  if (OFFLINE) return offlineStreak();
+  if (OFFLINE) return (await import('./offlineStubs')).offlineStreak();
   const params = new URLSearchParams();
   if (recalculate) params.set('recalculate', 'true');
 
@@ -1476,7 +1450,7 @@ export async function getActivityStreak(recalculate = false): Promise<ActivitySt
 
 // Серверный heartbeat активности; локальная серия дней живёт в gameStore и не зависит от него.
 export async function trackActivity(type?: string): Promise<ActivityStreakResponse> {
-  if (!authedNetUsable()) return offlineStreak();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineStreak();
   const params = new URLSearchParams();
   if (type) params.set('type', type);
 
@@ -1614,7 +1588,7 @@ export interface AnalyticsAdminEngagementResponse {
 }
 
 export async function trackAnalyticsEvents(events: AnalyticsEventInput[]): Promise<IngestAnalyticsEventsResponse> {
-  if (!authedNetUsable()) return offlineAnalyticsAck();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineAnalyticsAck();
   if (events.length === 0) {
     return { accepted: 0, inserted: 0, duplicates: 0 };
   }
@@ -1940,7 +1914,7 @@ export interface LeaderboardParams {
 }
 
 export async function getLeaderboard(params: LeaderboardParams = {}): Promise<LeaderboardResponse> {
-  if (!netUsable()) return offlineGlobalLeaderboard();
+  if (!netUsable()) return (await import('./offlineStubs')).offlineGlobalLeaderboard();
   const searchParams = new URLSearchParams();
   if (params.type) searchParams.set('type', params.type);
   if (params.period) searchParams.set('period', params.period);
@@ -2040,7 +2014,7 @@ export interface UserProfileResponse {
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfileResponse> {
-  if (!netUsable()) return offlineOnly();
+  if (!netUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserProfileResponse>(`/users/${encodeURIComponent(userId)}/profile`, { method: 'GET' });
 }
 
@@ -2234,12 +2208,12 @@ export interface LevelModeLevelLeaderboardResponse {
 }
 
 export async function getLevelModeProgress(): Promise<LevelModeProgressResponse> {
-  if (OFFLINE) return offlineGetProgress();
+  if (OFFLINE) return (await import('./offlineEngine')).offlineGetProgress();
   return apiRequest<LevelModeProgressResponse>('/level-mode/progress', { method: 'GET' });
 }
 
 export async function getLevelModeLevel(levelNumber: number): Promise<LevelModeLevelResponse> {
-  if (OFFLINE) return offlineGetLevel(levelNumber);
+  if (OFFLINE) return (await import('./offlineEngine')).offlineGetLevel(levelNumber);
   return apiRequest<LevelModeLevelResponse>(`/level-mode/levels/${levelNumber}`, { method: 'GET' });
 }
 
@@ -2247,7 +2221,7 @@ export async function submitLevelModeLevel(
   levelNumber: number,
   body: LevelModeSubmitRequest
 ): Promise<LevelModeSubmitResponse> {
-  if (OFFLINE) return offlineSubmit(levelNumber, body);
+  if (OFFLINE) return (await import('./offlineEngine')).offlineSubmit(levelNumber, body);
   return apiRequest<LevelModeSubmitResponse>(`/level-mode/levels/${levelNumber}/submit`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -2258,7 +2232,7 @@ export async function getLevelModeLevelLeaderboard(
   levelNumber: number,
   limit = 50,
 ): Promise<LevelModeLevelLeaderboardResponse> {
-  if (OFFLINE) return offlineLeaderboard(levelNumber);
+  if (OFFLINE) return (await import('./offlineEngine')).offlineLeaderboard(levelNumber);
   const params = new URLSearchParams({ limit: String(limit) });
   return apiRequest<LevelModeLevelLeaderboardResponse>(
     `/level-mode/levels/${levelNumber}/leaderboard?${params.toString()}`,
@@ -2452,12 +2426,12 @@ export interface DailyWordSubmitResponse {
 // Офлайн-сборка: дейлик ВСЕГДА локальный (детерминированный по дате) — серверный дейлик
 // это другой пазл с серверной сессией, смешивать их нельзя.
 export async function getDailyWordToday(): Promise<DailyWordTodayResponse> {
-  if (OFFLINE) return offlineGetDailyToday();
+  if (OFFLINE) return (await import('./offlineDaily')).offlineGetDailyToday();
   return apiRequest<DailyWordTodayResponse>('/daily-word/today', { method: 'GET' });
 }
 
 export async function submitDailyWord(body: DailyWordSubmitRequest): Promise<DailyWordSubmitResponse> {
-  if (OFFLINE) return offlineSubmitDaily(body);
+  if (OFFLINE) return (await import('./offlineDaily')).offlineSubmitDaily(body);
   return apiRequest<DailyWordSubmitResponse>('/daily-word/today/submit', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -2484,7 +2458,7 @@ export interface DailyWordLeaderboardResponse {
 }
 
 export async function getDailyWordTodayLeaderboard(limit = 50): Promise<DailyWordLeaderboardResponse> {
-  if (OFFLINE) return offlineDailyLeaderboard();
+  if (OFFLINE) return (await import('./offlineStubs')).offlineDailyLeaderboard();
   const params = new URLSearchParams({ limit: String(limit) });
   return apiRequest<DailyWordLeaderboardResponse>(`/daily-word/today/leaderboard?${params.toString()}`, {
     method: 'GET',
@@ -2731,7 +2705,7 @@ export async function createContentReport(data: {
   type: ContentReportType;
   message?: string;
 }): Promise<ContentReport> {
-  if (!authedNetUsable()) return offlineOnly();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<ContentReport>('/reports', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -2797,15 +2771,15 @@ export interface LoreItem {
 /** Одиночная статья по id (для страницы-статьи). В OFFLINE — из кэша. */
 export async function getLoreItem(id: string): Promise<LoreItem> {
   if (OFFLINE) {
-    const cached = offlineLoreItem(id);
+    const cached = (await import('./offlineLore')).offlineLoreItem(id);
     if (cached) return cached;
-    return offlineOnly();
+    return (await import('./offlineStubs')).offlineOnly();
   }
   return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
 export async function addLoreComment(id: string, text: string): Promise<LoreItem> {
-  if (!authedNetUsable()) return offlineOnly();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments`, {
     method: 'POST',
     body: JSON.stringify({ text }),
@@ -2813,7 +2787,7 @@ export async function addLoreComment(id: string, text: string): Promise<LoreItem
 }
 
 export async function editLoreComment(id: string, commentId: string, text: string): Promise<LoreItem> {
-  if (!authedNetUsable()) return offlineOnly();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
     method: 'PATCH',
     body: JSON.stringify({ text }),
@@ -2821,7 +2795,7 @@ export async function editLoreComment(id: string, commentId: string, text: strin
 }
 
 export async function deleteLoreComment(id: string, commentId: string): Promise<LoreItem> {
-  if (!authedNetUsable()) return offlineOnly();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
     method: 'DELETE',
   });
@@ -2829,7 +2803,7 @@ export async function deleteLoreComment(id: string, commentId: string): Promise<
 
 /** Одобренные записи урока (публичный эндпоинт; featured первыми). В OFFLINE — из кэша. */
 export async function getLessonLore(lessonSlug: string): Promise<LoreItem[]> {
-  if (OFFLINE) return offlineLessonLore(lessonSlug);
+  if (OFFLINE) return (await import('./offlineLore')).offlineLessonLore(lessonSlug);
   if (!netUsable()) return [];
   return apiRequest<LoreItem[]>(
     `/lore?lessonSlug=${encodeURIComponent(lessonSlug)}&limit=50`,
@@ -2839,7 +2813,7 @@ export async function getLessonLore(lessonSlug: string): Promise<LoreItem[]> {
 
 /** Вся одобренная лента сообщества (для витрины на главном экране) */
 export async function getCommunityLore(): Promise<LoreItem[]> {
-  if (OFFLINE) return offlineAllLore();
+  if (OFFLINE) return (await import('./offlineLore')).offlineAllLore();
   if (!netUsable()) return [];
   return apiRequest<LoreItem[]>('/lore?limit=100', { method: 'GET' });
 }
@@ -2863,7 +2837,7 @@ export async function createLoreItem(data: {
   dialectId?: string;
   relatedBur?: string[];
 }): Promise<LoreItem> {
-  if (!authedNetUsable()) return offlineOnly();
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<LoreItem>('/lore', {
     method: 'POST',
     body: JSON.stringify(data),

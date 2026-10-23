@@ -16,7 +16,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useTheme } from '../../theme/ThemeContext';
-import { cn } from '../ui';
+import { cn } from '../../utils/cn';
 import type { UserStats, WordsStats, LanguageKeeperLeaderboardItem } from '../../services/api';
 
 interface ContributionStats {

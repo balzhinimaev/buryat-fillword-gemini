@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy } from 'lucide-react';
-import { cn } from './ui';
+import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import { api, type LeaderboardEntry, type LeaderboardResponse } from '../services/api';
 

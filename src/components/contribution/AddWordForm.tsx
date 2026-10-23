@@ -13,9 +13,10 @@ import {
   Loader2
 } from 'lucide-react';
 import { useTheme } from '../../theme/ThemeContext';
-import { cn } from '../ui';
+import { cn } from '../../utils/cn';
 import { BuryatKeyboard } from './BuryatKeyboard';
-import { AudioRecorderField, releaseAudioDraft, type AudioDraft } from './AudioRecorderField';
+import { AudioRecorderField } from './AudioRecorderField';
+import { releaseAudioDraft, type AudioDraft } from './audioDraft';
 import { submitAudioSuggestion } from '../../services/api';
 import type { 
   ApiCategory, 

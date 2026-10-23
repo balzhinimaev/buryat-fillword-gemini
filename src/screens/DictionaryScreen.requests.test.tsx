@@ -1,0 +1,25 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import DictionaryScreen from './DictionaryScreen';
+import * as api from '../services/api';
+import type { GameStore } from '../store/gameStore';
+vi.mock('../store/authStore', () => ({ useAuth: () => ({ state: { user: null } }) }));
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+const store = { state: { stats: { learnedWords: [] } }, goBack: vi.fn(), navigateToWord: vi.fn() } as unknown as GameStore;
+it('keeps the current category when the previous request finishes late', async () => {
+  let rejectOld!: (error: Error) => void;
+  const old = new Promise<api.ApiWordsResponse>((_, reject) => { rejectOld = reject; });
+  vi.spyOn(api, 'getCategories').mockResolvedValue([{ _id: 'nature', name: 'Природа', emoji: '🌿', isActive: true } as api.ApiCategory]);
+  const words = vi.spyOn(api, 'getWords').mockReturnValueOnce(old).mockRejectedValueOnce(new Error('Current category failed'));
+  render(<DictionaryScreen store={store} />);
+  fireEvent.click(screen.getByRole('button', { name: /Все категории/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Природа/ }));
+  await screen.findByText('Current category failed');
+  await act(async () => { rejectOld(new Error('Stale category error')); await old.catch(() => {}); });
+  expect(screen.queryByText('Stale category error')).not.toBeInTheDocument();
+  expect(screen.getByText('Current category failed')).toBeInTheDocument();
+  words.mockResolvedValueOnce({ words: [], total: 0 });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Повторить/ })); });
+  expect(screen.queryByText('Current category failed')).not.toBeInTheDocument();
+  expect(words).toHaveBeenLastCalledWith(expect.objectContaining({ categoryId: 'nature', offset: 0 }));
+});

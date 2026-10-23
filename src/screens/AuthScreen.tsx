@@ -7,7 +7,7 @@ import { ArrowLeft, KeyRound, Mail, ShieldCheck, UserPlus } from 'lucide-react';
 import { useAuth } from '../store/authStore';
 import { useTelegram } from '../hooks/useTelegram';
 import { useTheme } from '../theme/ThemeContext';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { TextField, PasswordField, SubmitButton } from './auth/controls';
 import { SocialLoginButtons } from './auth/SocialLoginButtons';
 import { useResendCountdown } from './auth/useResendCountdown';

@@ -7,7 +7,7 @@ import {
   Globe, Sparkles, Hash, Clock, CheckCircle2, AlertTriangle, Archive,
   Send, Pencil, Trash2, X, Check,
 } from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
@@ -116,7 +116,6 @@ const DifficultyDots: React.FC<{ value: number; isDark: boolean }> = ({ value, i
     при каждом изменении стейта)
    ============================== */
 
-// eslint-disable-next-line react/display-name
 const Card: React.FC<{
   children: React.ReactNode;
   className?: string;

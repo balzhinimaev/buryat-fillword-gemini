@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Save, X } from 'lucide-react';
-import { cn } from '../ui';
+import { cn } from '../../utils/cn';
 import { useTheme } from '../../theme/ThemeContext';
 import {
   api,

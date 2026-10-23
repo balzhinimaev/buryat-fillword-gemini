@@ -1,5 +1,7 @@
 apply plugin: 'com.android.application'
 
+def appRelease = new groovy.json.JsonSlurper().parse(file('../../release.json'))
+
 def readConfig = { String key, def fallback = null ->
     def envValue = System.getenv(key)
     if (envValue != null && envValue.toString().trim()) {
@@ -40,8 +42,8 @@ android {
         applicationId "ru.burlive.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode releaseVersionCode ?: 2
-        versionName releaseVersionName ?: "1.0"
+        versionCode releaseVersionCode ?: appRelease.versionCode
+        versionName releaseVersionName ?: appRelease.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

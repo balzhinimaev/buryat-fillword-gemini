@@ -19,7 +19,8 @@ import {
   Globe,
   Flag
 } from 'lucide-react';
-import { cn, StarsDisplay } from '../components/ui';
+import { StarsDisplay } from '../components/ui';
+import { cn } from '../utils/cn';
 import { ReportIssueModal } from '../components/ReportIssueModal';
 import { PostGameRating } from '../components/PostGameRating';
 import type { GameStore } from '../store/gameStore';

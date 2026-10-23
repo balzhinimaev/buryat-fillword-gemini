@@ -9,7 +9,7 @@ import {
   Loader2 
 } from 'lucide-react';
 import { useTheme } from '../../theme/ThemeContext';
-import { cn } from '../ui';
+import { cn } from '../../utils/cn';
 import { ACHIEVEMENTS } from './constants';
 import type { ProjectStats, UserResponse } from '../../services/api';
 

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Clock3, Loader2, Mic, ScrollText, XCircle } from 'lucide-react';
-import { cn } from '../ui';
+import { cn } from '../../utils/cn';
 import { useTheme } from '../../theme/ThemeContext';
 import { WaveAudioButton } from '../WaveAudioButton';
 import {

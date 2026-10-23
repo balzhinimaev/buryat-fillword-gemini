@@ -2,7 +2,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '../../theme/ThemeContext';
-import { cn } from '../../components/ui';
+import { cn } from '../../utils/cn';
 
 interface OptionCardProps {
   selected: boolean;

@@ -19,7 +19,7 @@ import {
   Users,
   Landmark,
 } from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import type { GameStore } from '../store/gameStore';
 import { hintOf, useGameLang } from '../services/gameLang';

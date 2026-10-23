@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ScrollText } from 'lucide-react';
-import { cn } from '../ui';
+import { cn } from '../../utils/cn';
 import { useTheme } from '../../theme/ThemeContext';
 import { getWordLore, type LoreItem } from '../../services/api';
 import { LORE_TYPE_META } from './loreMeta';

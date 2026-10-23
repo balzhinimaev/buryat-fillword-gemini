@@ -1,6 +1,6 @@
 // Общие классы полей форм экрана входа (отдельный файл — требование react-refresh)
 import { useTheme } from '../../theme/ThemeContext';
-import { cn } from '../../components/ui';
+import { cn } from '../../utils/cn';
 
 export function useAuthFieldClasses() {
   const { theme } = useTheme();

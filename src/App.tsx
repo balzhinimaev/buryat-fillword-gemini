@@ -1,5 +1,5 @@
 // src/App.tsx
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, LazyMotion, domAnimation, m } from 'framer-motion';
 import { useGameStore } from './store/gameStore';
 import { useMemo, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
@@ -17,9 +17,9 @@ import { OFFLINE } from './config/offline';
 import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
 import { prefetchData, prefetchScreens } from './services/prefetch';
 import { notifyReady, revertToBuiltin, applyOta, type OtaInfo } from './services/otaUpdate';
-import { syncDictionary } from './services/offlineDict';
-import { syncCampaigns } from './services/offlineCampaign';
-import { syncLore } from './services/offlineLore';
+const syncDictionary = () => import('./services/offlineDict').then(m => m.syncDictionary());
+const syncCampaigns = () => import('./services/offlineCampaign').then(m => m.syncCampaigns());
+const syncLore = () => import('./services/offlineLore').then(m => m.syncLore());
 import { syncCampaignProgress } from './services/offlineSync';
 import { captureReferralCode, claimPendingReferral } from './services/referral';
 import { syncQueue } from './services/contribSync';
@@ -595,8 +595,8 @@ export default function App() {
             </button>
           </div>
         )}
-        <AnimatePresence mode="wait">
-          <motion.div
+        <LazyMotion features={domAnimation}><AnimatePresence mode="wait">
+          <m.div
             key={effectiveScreen}
             variants={pageVariants}
             initial="initial"
@@ -616,8 +616,8 @@ export default function App() {
                 {renderScreen()}
               </Suspense>
             </ScreenErrorBoundary>
-          </motion.div>
-        </AnimatePresence>
+          </m.div>
+        </AnimatePresence></LazyMotion>
       </div>
     </ThemeProvider>
   );

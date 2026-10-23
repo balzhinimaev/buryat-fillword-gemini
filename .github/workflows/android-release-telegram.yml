@@ -3,6 +3,10 @@ name: Android Release (signed) + Telegram
 on:
   workflow_dispatch:
     inputs:
+      publish_telegram:
+        description: 'Send signed build to the configured Telegram target'
+        type: boolean
+        default: false
       release_label:
         description: 'Optional release label (default: release-v<version_name>)'
         required: false
@@ -20,7 +24,10 @@ on:
       - 'release-v*'
 
 jobs:
+  quality:
+    uses: ./.github/workflows/quality-gate.yml
   build-signed-release:
+    needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -33,7 +40,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Setup Java 21
@@ -56,8 +63,6 @@ jobs:
         run: |
           set -e
           required=(
-            TELEGRAM_BOT_TOKEN
-            TELEGRAM_CHAT_ID
             ANDROID_KEYSTORE_B64
             ANDROID_KEYSTORE_PASSWORD
             ANDROID_KEY_ALIAS
@@ -74,12 +79,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web assets
-        run: npm run build
-
-      - name: Sync Capacitor Android project
-        run: npm run android:sync
-
       - name: Decode Android keystore
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
@@ -90,6 +89,10 @@ jobs:
 
       - name: Prepare release metadata
         id: meta
+        env:
+          INPUT_LABEL: ${{ inputs.release_label }}
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+          INPUT_CODE: ${{ inputs.version_code }}
         run: |
           set -euo pipefail
 
@@ -101,9 +104,6 @@ jobs:
             TAG_NAME="${GITHUB_REF#refs/tags/}"
           fi
 
-          INPUT_LABEL="${{ github.event.inputs.release_label }}"
-          INPUT_VERSION_NAME="${{ github.event.inputs.version_name }}"
-          INPUT_CODE="${{ github.event.inputs.version_code }}"
 
           VERSION_NAME=""
           RELEASE_LABEL=""
@@ -183,6 +183,16 @@ jobs:
           echo "  version_name=${VERSION_NAME}"
           echo "  version_code=${VERSION_CODE}"
 
+      - name: Build offline assets with matching native version
+        env:
+          VITE_APP_VERSION_CODE: ${{ steps.meta.outputs.version_code }}
+          VITE_APP_VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+          VITE_API_URL: ${{ vars.ANDROID_API_URL || 'https://buryat-game.ru/api' }}
+        run: npm test && npm run build:android && npm run size:check
+
+      - name: Sync Capacitor Android project
+        run: npm run android:sync
+
       - name: Build signed release APK + AAB
         env:
           ORG_GRADLE_PROJECT_BURLIVE_UPLOAD_STORE_FILE: release.keystore
@@ -209,6 +219,7 @@ jobs:
           if-no-files-found: error
 
       - name: Resolve Telegram target + preflight
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_telegram
         id: tg
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -239,6 +250,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Send release message to Telegram
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ steps.tg.outputs.chat_id }}
@@ -285,6 +297,7 @@ jobs:
           exit 1
 
       - name: Send signed APK to Telegram
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ steps.tg.outputs.chat_id }}

@@ -15,7 +15,7 @@ import type { GameStore } from '../store/gameStore';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { ProfileContent } from '../components/UserProfileSheet';
 import { ReferralCard } from '../components/ReferralCard';

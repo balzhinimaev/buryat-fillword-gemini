@@ -2,7 +2,7 @@
 import React from 'react';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useTheme } from '../../theme/ThemeContext';
-import { cn } from '../../components/ui';
+import { cn } from '../../utils/cn';
 import { useAuthFieldClasses } from './fieldClasses';
 
 interface TextFieldProps {

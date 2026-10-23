@@ -3,15 +3,11 @@
 // слово есть PronunciationControl.
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Square, Upload, X } from 'lucide-react';
-import { cn } from '../ui';
+import { cn } from '../../utils/cn';
 import { WaveAudioButton } from '../WaveAudioButton';
 import { useTheme } from '../../theme/ThemeContext';
 
-export interface AudioDraft {
-  blob: Blob;
-  url: string;
-  fileName: string;
-}
+import { releaseAudioDraft, type AudioDraft } from './audioDraft';
 
 interface Props {
   value: AudioDraft | null;
@@ -27,9 +23,6 @@ function pickMime(): string {
   return '';
 }
 
-export function releaseAudioDraft(draft: AudioDraft | null): void {
-  if (draft) URL.revokeObjectURL(draft.url);
-}
 
 export const AudioRecorderField: React.FC<Props> = ({ value, onChange, disabled }) => {
   const { isDark } = useTheme();

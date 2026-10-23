@@ -2,9 +2,10 @@
 // Запись уходит на модерацию (audio-suggestions), слово меняется только после одобрения.
 import React, { useState } from 'react';
 import { Loader2, Mic, Send } from 'lucide-react';
-import { cn } from '../ui';
+import { cn } from '../../utils/cn';
 import { useTheme } from '../../theme/ThemeContext';
-import { AudioRecorderField, releaseAudioDraft, type AudioDraft } from './AudioRecorderField';
+import { AudioRecorderField } from './AudioRecorderField';
+import { releaseAudioDraft, type AudioDraft } from './audioDraft';
 import { submitAudioSuggestion } from '../../services/api';
 
 interface Props {

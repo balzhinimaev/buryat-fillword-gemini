@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { APP_VERSION_NAME } from '../config/version';
 
-const OTA_MANIFEST_URL = 'https://burlive.ru/app/ota.json';
+const OTA_MANIFEST_URL = `${import.meta.env.VITE_APP_UPDATE_BASE || 'https://buryat-game.ru/app'}/ota.json`;
 
 export interface OtaInfo { version: string; url: string; checksum: string; }
 
