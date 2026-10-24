@@ -2,13 +2,16 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Search, Check, Volume2, ArrowLeft, Loader2, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
-import { cn } from '../components/ui';
+import { BookOpen, Search, Check, Volume2, ArrowLeft, Loader2, RefreshCw, ChevronDown, ChevronRight, Mic, Square, X } from 'lucide-react';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
-import { getCategories, getWords, type ApiCategory, type ApiWord } from '../services/api';
+import { getCategories, getWords, uploadWordAudio, type ApiCategory, type ApiWord } from '../services/api';
+import { useAuth } from '../store/authStore';
+import { hintOf, useGameLang } from '../services/gameLang';
+import { WaveAudioButton } from '../components/WaveAudioButton';
 
 const WORDS_PER_PAGE = 50;
 
@@ -16,7 +19,137 @@ interface DictionaryScreenProps {
   store: GameStore;
 }
 
+/**
+ * Быстрая запись озвучки из списка словаря (админ/модератор):
+ * тап 🎙 — запись, тап ⏹ — предпрослушка, ✓ — загрузка (сразу становится
+ * озвучкой слова), ✕ — отмена. Массовая озвучка без захода в карточки.
+ */
+const QuickRecord: React.FC<{
+  wordId: string;
+  hasAudio: boolean;
+  isDark: boolean;
+  onSaved: (audioUrl: string | null) => void;
+}> = ({ wordId, hasAudio, isDark, onSaved }) => {
+  const [phase, setPhase] = useState<'idle' | 'rec' | 'preview' | 'saving'>('idle');
+  const [preview, setPreview] = useState<{ blob: Blob; url: string } | null>(null);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => () => {
+    recRef.current?.stream.getTracks().forEach((t) => t.stop());
+    if (preview) URL.revokeObjectURL(preview.url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const start = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
+        .find((m) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) || '';
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunksRef.current = [];
+      rec.ondataavailable = (ev) => ev.data.size && chunksRef.current.push(ev.data);
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+        if (blob.size > 200) {
+          setPreview({ blob, url: URL.createObjectURL(blob) });
+          setPhase('preview');
+        } else {
+          setPhase('idle');
+        }
+      };
+      recRef.current = rec;
+      rec.start();
+      setPhase('rec');
+    } catch {
+      setPhase('idle');
+    }
+  };
+
+  const stop = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (recRef.current?.state === 'recording') recRef.current.stop();
+  };
+
+  const save = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!preview) return;
+    setPhase('saving');
+    try {
+      const ext = preview.blob.type.includes('mp4') ? 'm4a' : preview.blob.type.includes('ogg') ? 'ogg' : 'webm';
+      const updated = await uploadWordAudio(wordId, preview.blob, 'word', `rec.${ext}`);
+      onSaved(updated.audioUrl ?? null);
+      URL.revokeObjectURL(preview.url);
+      setPreview(null);
+      setPhase('idle');
+    } catch {
+      setPhase('preview');
+    }
+  };
+
+  const cancel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (preview) URL.revokeObjectURL(preview.url);
+    setPreview(null);
+    setPhase('idle');
+  };
+
+  const btn = 'w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition active:scale-95';
+
+  if (phase === 'rec') {
+    return (
+      <button type="button" onClick={stop} aria-label="Остановить запись"
+        className={cn(btn, 'bg-red-500 text-white animate-pulse')}>
+        <Square size={12} />
+      </button>
+    );
+  }
+
+  if (phase === 'preview' && preview) {
+    return (
+      <span className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <WaveAudioButton src={preview.url} size="sm" />
+        <button type="button" onClick={save} aria-label="Сохранить озвучку"
+          className={cn(btn, 'bg-emerald-500 text-white')}>
+          <Check size={13} />
+        </button>
+        <button type="button" onClick={cancel} aria-label="Отменить"
+          className={cn(btn, isDark ? 'bg-stone-700 text-stone-300' : 'bg-stone-200 text-stone-500')}>
+          <X size={13} />
+        </button>
+      </span>
+    );
+  }
+
+  if (phase === 'saving') {
+    return (
+      <span className={cn(btn, 'flex-shrink-0')}>
+        <Loader2 size={13} className="animate-spin text-amber-500" />
+      </span>
+    );
+  }
+
+  return (
+    <button type="button" onClick={start}
+      aria-label={hasAudio ? 'Перезаписать озвучку' : 'Записать озвучку'}
+      title={hasAudio ? 'Перезаписать озвучку' : 'Записать озвучку'}
+      className={cn(
+        btn,
+        hasAudio
+          ? isDark ? 'bg-white/[0.06] text-stone-500' : 'bg-stone-100 text-stone-400'
+          : isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-100 text-amber-600',
+      )}>
+      <Mic size={13} />
+    </button>
+  );
+};
+
+const EMPTY_WORDS: ApiWord[] = [];
+
 export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => {
+  useGameLang(); // перерисовка подсказок при смене языка
   const { state, goBack, navigateToWord } = store;
   const { stats } = state;
   const { theme, isDark } = useTheme();
@@ -35,11 +168,17 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
 
   // API data
   const [apiCategories, setApiCategories] = useState<ApiCategory[]>([]);
-  const [words, setWords] = useState<ApiWord[]>([]);
-  const [totalWords, setTotalWords] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { state: authState } = useAuth();
+  const canRecordAudio = authState.user?.role === 'moderator' || authState.user?.role === 'admin';
+  const [page, setPage] = useState<{ category: string | null; words: ApiWord[]; total: number; error: string | null } | null>(null);
+  const [loadingMorePage, setLoadingMorePage] = useState<typeof page>(null);
+  const [retryKey, setRetryKey] = useState(0);
+  const activePage = page?.category === selectedCategory ? page : null;
+  const words = activePage?.words ?? EMPTY_WORDS;
+  const totalWords = activePage?.total ?? 0;
+  const loading = !activePage;
+  const loadingMore = !!activePage && loadingMorePage === activePage;
+  const error = activePage?.error ?? null;
 
   // Fetch categories on mount
   useEffect(() => {
@@ -65,60 +204,34 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
     return getWords(params);
   }, []);
 
-  // Reload when category changes
+  // Each response belongs to a category; changing it never displays stale data.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setWords([]);
-
     fetchWords(selectedCategory)
       .then(res => {
-        if (!cancelled) {
-          setWords(res.words);
-          setTotalWords(res.total);
-        }
+        if (!cancelled) setPage({ category: selectedCategory, words: res.words, total: res.total, error: null });
       })
-      .catch(err => {
-        if (!cancelled) {
-          setError(err.message || 'Ошибка загрузки');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+      .catch((err: unknown) => {
+        if (!cancelled) setPage({ category: selectedCategory, words: [], total: 0, error: err instanceof Error ? err.message : 'Ошибка загрузки' });
       });
-
     return () => { cancelled = true; };
-  }, [selectedCategory, fetchWords]);
+  }, [selectedCategory, fetchWords, retryKey]);
 
-  // Load more (pagination)
   const handleLoadMore = useCallback(() => {
-    if (loadingMore || words.length >= totalWords) return;
-    setLoadingMore(true);
-
+    if (!activePage || loadingMore || words.length >= totalWords) return;
+    const requestedPage = activePage;
+    setLoadingMorePage(requestedPage);
     fetchWords(selectedCategory, words.length)
-      .then(res => {
-        setWords(prev => [...prev, ...res.words]);
-        setTotalWords(res.total);
-      })
+      .then(res => setPage(prev => prev === requestedPage
+        ? { ...prev, words: [...prev.words, ...res.words], total: res.total } : prev))
       .catch(err => console.error('Failed to load more:', err))
-      .finally(() => setLoadingMore(false));
-  }, [loadingMore, words.length, totalWords, selectedCategory, fetchWords]);
+      .finally(() => setLoadingMorePage(prev => prev === requestedPage ? null : prev));
+  }, [activePage, loadingMore, words.length, totalWords, selectedCategory, fetchWords]);
 
-  // Retry on error
   const handleRetry = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    setWords([]);
-
-    fetchWords(selectedCategory)
-      .then(res => {
-        setWords(res.words);
-        setTotalWords(res.total);
-      })
-      .catch(err => setError(err.message || 'Ошибка загрузки'))
-      .finally(() => setLoading(false));
-  }, [selectedCategory, fetchWords]);
+    setPage(null);
+    setRetryKey(key => key + 1);
+  }, []);
 
   // Client-side filtering (search + learned)
   const filteredWords = useMemo(() => {
@@ -236,20 +349,37 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
 
       {/* Header */}
       <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-4 rounded-b-3xl shadow-lg overflow-visible")}>
-        <div className="flex items-center gap-4 mb-4">
+        <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
+        <div className="flex items-center gap-3 mb-1">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => goBack()}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
+            className="p-2 -ml-1 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
           >
-            <ArrowLeft size={24} className={theme.header.text} />
+            <ArrowLeft size={22} className={theme.header.text} />
           </motion.button>
-          <h1 className="text-xl font-bold flex-1">Словарь</h1>
-          <div className="text-sm bg-white/20 px-3 py-1 rounded-full flex items-center gap-1">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-60">раздел</span>
+        </div>
+        <div className="flex items-end justify-between gap-3 mb-3 px-1">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-[22px] font-extrabold leading-tight">Словарь</h1>
+            <p className="text-xs opacity-70 mt-0.5">
+              Выучено {stats.learnedWords.length} из {totalWords} слов
+            </p>
+          </div>
+          <div className="text-sm bg-white/20 px-3 py-1 rounded-full flex items-center gap-1 flex-shrink-0">
             <BookOpen size={14} />
             {stats.learnedWords.length}/{totalWords}
           </div>
+        </div>
+        <div className="mb-4 mx-1 h-1.5 rounded-full bg-white/20 overflow-hidden">
+          <motion.div
+            className="h-full rounded-full bg-amber-400"
+            initial={{ width: 0 }}
+            animate={{ width: `${totalWords > 0 ? (stats.learnedWords.length / totalWords) * 100 : 0}%` }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+          />
         </div>
 
         {/* Search */}
@@ -314,13 +444,23 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
       <main className="flex-1 p-4 overflow-auto relative z-10 pb-24">
         {/* Loading state */}
         {loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center h-64"
-          >
-            <Loader2 size={40} className={cn("animate-spin mb-4", theme.text.muted)} />
-            <p className={theme.text.muted}>Загрузка словаря...</p>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'rounded-2xl px-3 py-3 flex items-center gap-3 animate-pulse border',
+                  isDark ? 'bg-white/[0.05] border-white/[0.05]' : 'bg-white/80 border-stone-200/50',
+                )}
+                style={{ animationDelay: `${i * 90}ms` }}
+              >
+                <div className={cn('w-9 h-9 rounded-xl flex-shrink-0', isDark ? 'bg-white/10' : 'bg-stone-200/80')} />
+                <div className="flex-1 space-y-2">
+                  <div className={cn('h-3 rounded-full', isDark ? 'bg-white/10' : 'bg-stone-200/80')} style={{ width: `${45 + (i % 3) * 15}%` }} />
+                  <div className={cn('h-2 rounded-full', isDark ? 'bg-white/[0.07]' : 'bg-stone-200/60')} style={{ width: `${30 + (i % 4) * 10}%` }} />
+                </div>
+              </div>
+            ))}
           </motion.div>
         )}
 
@@ -435,6 +575,16 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                     >
                       {/* Collapsed row */}
                       <div className="flex items-center gap-3">
+                        <span
+                          className={cn(
+                            'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-extrabold text-sm',
+                            isLearned
+                              ? isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-700'
+                              : isDark ? 'bg-amber-500/12 text-amber-300' : 'bg-amber-50 text-amber-700',
+                          )}
+                        >
+                          {word.bur.charAt(0)}
+                        </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className={cn(
@@ -443,6 +593,19 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                             )}>
                               {word.bur.charAt(0) + word.bur.slice(1).toLowerCase()}
                             </span>
+                            {word.audioUrl && (
+                              <WaveAudioButton src={word.audioUrl} size="sm" className="flex-shrink-0" />
+                            )}
+                            {canRecordAudio && (
+                              <QuickRecord
+                                wordId={word._id}
+                                hasAudio={!!word.audioUrl}
+                                isDark={isDark}
+                                onSaved={(audioUrl) =>
+                                  setPage(prev => prev ? { ...prev, words: prev.words.map(w => w._id === word._id ? { ...w, audioUrl } : w) } : prev)
+                                }
+                              />
+                            )}
                             {isLearned && (
                               <span className={cn(
                                 'text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0',
@@ -453,7 +616,7 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                             )}
                           </div>
                           <div className={cn('text-[11px] truncate mt-0.5 leading-none', theme.text.muted)}>
-                            {word.ru}
+                            {hintOf(word)}
                           </div>
                         </div>
 

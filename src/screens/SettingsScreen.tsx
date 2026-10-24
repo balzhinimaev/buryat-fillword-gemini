@@ -12,9 +12,13 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
-  Gauge
+  Gauge,
+  LogOut
 } from 'lucide-react';
-import { Modal, cn } from '../components/ui';
+import { OFFLINE } from '../config/offline';
+import { GAME_LANGS, setGameLang, useGameLang } from '../services/gameLang';
+import { Modal } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
@@ -22,7 +26,7 @@ import { themeList } from '../theme';
 import type { GameStore } from '../store/gameStore';
 import type { ThemeId, Difficulty } from '../types';
 import { useAuth } from '../store/authStore';
-import { updateName } from '../services/api';
+import { updateName, getDialects, getSettings, patchSettings, type ApiDialect } from '../services/api';
 
 interface SettingsScreenProps {
   store: GameStore;
@@ -32,11 +36,51 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
   const { state, navigate, goBack, updateSettings, resetProgress } = store;
   const { settings } = state;
   const { theme, isDark } = useTheme();
-  const { state: authState, setUserName } = useAuth();
+  const { state: authState, setUserName, logout } = useAuth();
+
+  // Профиль: способ входа + признак реального аккаунта
+  const hasToken = (() => {
+    try { return !!JSON.parse(localStorage.getItem('auth_tokens') || 'null')?.access_token; } catch { return false; }
+  })();
+  const isLoggedIn = hasToken || !!authState.user?.photoUrl || !!authState.user?.telegramId;
+  const providerLabel = authState.user?.telegramId
+    ? 'Вход через Telegram'
+    : (authState.user?.photoUrl ? 'Вход через ВКонтакте' : 'Локальный профиль (офлайн)');
+  const handleLogout = () => {
+    if (!window.confirm('Выйти из аккаунта? Локальный прогресс останется на устройстве.')) return;
+    logout();
+    try { localStorage.removeItem('auth_tokens'); } catch { /* ignore */ }
+    // В офлайн-сборке перезагружаем, чтобы восстановить гостевую сессию.
+    if (OFFLINE) window.location.reload();
+  };
   
   useBackButton(() => goBack());
   
   const [showResetModal, setShowResetModal] = useState(false);
+  const gameLang = useGameLang();
+
+  // Диалект контента: фильтрует главы кампаний с указанным диалектом
+  const [dialects, setDialects] = useState<ApiDialect[]>([]);
+  const [dialectCode, setDialectCode] = useState<string>('');
+  const [dialectSaving, setDialectSaving] = useState(false);
+  useEffect(() => {
+    if (OFFLINE) return;
+    let cancelled = false;
+    getDialects()
+      .then((d) => { if (!cancelled) setDialects(d.sort((a, b) => a.sortOrder - b.sortOrder)); })
+      .catch(() => {});
+    getSettings()
+      .then((s) => { if (!cancelled) setDialectCode(s.preferredDialectCode ?? ''); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const selectDialect = (code: string) => {
+    setDialectCode(code);
+    setDialectSaving(true);
+    patchSettings({ preferredDialectCode: code })
+      .catch(() => {})
+      .finally(() => setDialectSaving(false));
+  };
   const [editingName, setEditingName] = useState(false);
   const backendPlayerName = authState.user?.name?.trim();
   const effectivePlayerName = useMemo(() => {
@@ -123,6 +167,50 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
 
       {/* Content */}
       <main className="flex-1 p-4 space-y-4 relative z-10">
+        {/* Профиль */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={cn(
+            "rounded-2xl p-4",
+            isDark
+              ? cn(theme.backgrounds.card, "border", theme.borders.subtle)
+              : "bg-white shadow-sm border border-stone-100"
+          )}
+        >
+          <div className="flex items-center gap-3">
+            {authState.user?.photoUrl ? (
+              <img src={authState.user.photoUrl} alt="" className="w-14 h-14 rounded-2xl object-cover" />
+            ) : (
+              <div className={cn(
+                "w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold",
+                isDark ? "bg-terra-500/20 text-terra-300" : "bg-terra-100 text-terra-700"
+              )}>
+                {(effectivePlayerName || 'И').slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className={cn("font-bold text-base truncate", theme.text.primary)}>
+                {effectivePlayerName || 'Игрок'}
+              </div>
+              <div className={cn("text-xs", theme.text.muted)}>{providerLabel}</div>
+            </div>
+          </div>
+          {isLoggedIn && (
+            <button
+              onClick={handleLogout}
+              className={cn(
+                "mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-colors",
+                isDark
+                  ? "bg-red-500/15 text-red-300 border border-red-400/20 hover:bg-red-500/25"
+                  : "bg-red-50 text-red-600 border border-red-100 hover:bg-red-100"
+              )}
+            >
+              <LogOut size={16} /> Выйти
+            </button>
+          )}
+        </motion.div>
+
         {/* Player Name */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -369,6 +457,96 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
             />
           </div>
         </motion.div>
+
+        {/* Hint language */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.34 }}
+          className={cn(
+            "rounded-2xl p-4",
+            isDark
+              ? cn(theme.backgrounds.card, "border", theme.borders.subtle)
+              : "bg-white shadow-sm border border-stone-100"
+          )}
+        >
+          <div className="mb-3">
+            <span className={cn("font-semibold", theme.text.primary)}>Язык подсказок</span>
+            <p className={cn("text-xs mt-0.5", theme.text.muted)}>
+              На каком языке показывать перевод бурятских слов в игре
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {GAME_LANGS.map((l) => {
+              const isSelected = gameLang === l.value;
+              return (
+                <motion.button
+                  key={l.value}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setGameLang(l.value)}
+                  className={cn(
+                    'p-3 rounded-xl border-2 text-sm font-semibold transition-all',
+                    isSelected
+                      ? 'border-amber-500 ring-2 ring-amber-500/30'
+                      : isDark
+                        ? 'border-stone-700/50 hover:border-stone-600'
+                        : 'border-stone-200 hover:border-stone-300',
+                    theme.text.primary
+                  )}
+                >
+                  {l.label}
+                </motion.button>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        {/* Диалект контента */}
+        {!OFFLINE && dialects.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            className={cn(
+              "rounded-2xl p-4",
+              isDark
+                ? cn(theme.backgrounds.card, "border", theme.borders.subtle)
+                : "bg-white shadow-sm border border-stone-100"
+            )}
+          >
+            <div className="mb-3">
+              <span className={cn("font-semibold", theme.text.primary)}>
+                Диалект{dialectSaving ? ' · сохраняем…' : ''}
+              </span>
+              <p className={cn("text-xs mt-0.5", theme.text.muted)}>
+                Главы кампаний на других диалектах будут скрыты. «Любой» — показывать всё.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[{ code: '', name: 'Любой' }, ...dialects.map((d) => ({ code: d.code, name: d.name }))].map((d) => {
+                const isSelected = dialectCode === d.code;
+                return (
+                  <motion.button
+                    key={d.code || 'any'}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => selectDialect(d.code)}
+                    className={cn(
+                      'p-3 rounded-xl border-2 text-sm font-semibold transition-all',
+                      isSelected
+                        ? 'border-amber-500 ring-2 ring-amber-500/30'
+                        : isDark
+                          ? 'border-stone-700/50 hover:border-stone-600'
+                          : 'border-stone-200 hover:border-stone-300',
+                      theme.text.primary
+                    )}
+                  >
+                    {d.name}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Theme Selection */}
         <motion.div

@@ -1,5 +1,19 @@
-// API сервис для работы с бэкендом
-const API_URL = import.meta.env.VITE_API_URL || 'https://burlive.ru/api';
+// API сервис для работы с бэкендом.
+// Офлайн-сборка (OFFLINE=true) работает по принципу local-first:
+//  - игровое ядро (кампании, уровни, дейлик, статистика, настройки) — ВСЕГДА из локальных данных;
+//  - онлайн-разделы (лидерборды, чужие профили, ачивки, вклад слов) — из сети, когда она есть,
+//    с безопасным локальным фолбэком, когда её нет.
+import { OFFLINE, isNetOnline } from '../config/offline';
+import { putHandoff, takeHandoff } from './handoffCache';
+import { API_BASE } from '../config/apiBase';
+
+const API_URL = API_BASE;
+
+// В офлайн-сборке БЕЗ серверной сессии (не входили через VK/TG/email) авторизованные
+// эндпоинты бессмысленны: не ходим в сеть и не провоцируем 401→переавторизацию.
+const hasServerSession = (): boolean => !!getStoredTokens()?.refresh_token;
+const netUsable = (): boolean => !OFFLINE || isNetOnline();
+const authedNetUsable = (): boolean => netUsable() && (!OFFLINE || hasServerSession());
 
 // Событие для уведомления о необходимости переавторизации
 export const AUTH_REQUIRED_EVENT = 'auth:required';
@@ -198,6 +212,7 @@ export interface UpdateOnboardingRequest {
 
 // Обновление имени
 export async function updateName(name: string): Promise<UserResponse> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserResponse>('/users/me/name', {
     method: 'PATCH',
     body: JSON.stringify({ name }),
@@ -218,6 +233,8 @@ export interface ApiSettings {
   soundEffectsEnabled: boolean;
   theme: 'steppe' | 'light' | 'dark';
   difficulty: 'easy' | 'medium' | 'hard';
+  /** code диалекта ('' = любой) — фильтрует главы кампаний по диалекту */
+  preferredDialectCode?: string;
 }
 
 // Частичное обновление — все поля опциональные
@@ -225,11 +242,13 @@ export type ApiSettingsUpdate = Partial<ApiSettings>;
 
 // Получить текущие настройки
 export async function getSettings(): Promise<ApiSettings> {
+  if (OFFLINE) return (await import('./offlineStubs')).offlineSettings();
   return apiRequest<ApiSettings>('/users/me/settings', { method: 'GET' });
 }
 
 // Обновить настройки (PATCH, частично)
 export async function patchSettings(data: ApiSettingsUpdate): Promise<ApiSettings> {
+  if (OFFLINE) return (await import('./offlineStubs')).offlineSettings();
   return apiRequest<ApiSettings>('/users/me/settings', {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -286,12 +305,35 @@ export interface ApiPartOfSpeech {
 export interface CreateWordRequest {
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
   categoryId: string;
   dialectId?: string;
   partOfSpeechId?: string;
   exampleBur?: string;
   exampleRu?: string;
   difficulty?: number;
+}
+
+// Запрос на обновление слова (PATCH /words/:id) — все поля опциональны.
+// status применяется сервером только для модератора/админа.
+export interface UpdateWordRequest {
+  bur?: string;
+  ru?: string;
+  translations?: Record<string, string>;
+  categoryId?: string;
+  dialectId?: string;
+  partOfSpeechId?: string;
+  exampleBur?: string;
+  exampleRu?: string;
+  pronunciation?: string;
+  audioUrl?: string;
+  synonyms?: string[];
+  antonyms?: string[];
+  sources?: string[];
+  tags?: string[];
+  difficulty?: number;
+  isActiveInGame?: boolean;
+  status?: WordStatus;
 }
 
 // Статистика проекта
@@ -351,11 +393,15 @@ export interface ApiWord {
   // Основное
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
   // Дополнительно
   exampleBur?: string;
   exampleRu?: string;
   pronunciation?: string;
   audioUrl?: string | null;
+  exampleAudioUrl?: string | null;
+  // Проверка носителем
+  nativeCheckedAt?: string | null;
   // Лексические связи
   synonyms: string[];
   antonyms: string[];
@@ -431,6 +477,14 @@ export interface GetWordsParams {
   partOfSpeechId?: string;
   isActiveInGame?: boolean;
   tag?: string;
+  /** фильтр по наличию озвучки слова */
+  hasAudio?: boolean;
+  /** фильтр по наличию примера (exampleBur) */
+  hasExample?: boolean;
+  /** фильтр по наличию озвучки примера */
+  hasExampleAudio?: boolean;
+  /** фильтр по отметке «проверено носителем» */
+  hasNativeCheck?: boolean;
   sortBy?: WordSortBy;
   limit?: number;
   offset?: number;
@@ -523,42 +577,126 @@ interface StoredTokens {
   refresh_token: string;
 }
 
-export const getStoredTokens = (): StoredTokens | null => {
-  try {
-    const stored = localStorage.getItem(TOKEN_KEY);
-    if (!stored) return null;
+// In-memory дублёр токенов на время сессии. В VK Mini App / iframe / Safari
+// localStorage часто заблокирован или партиционирован — тогда токен из
+// localStorage не читается, и авторизованные запросы (в т.ч. завершение
+// онбординга) падают с 401. Память переживает это в рамках сессии.
+let memoryTokens: StoredTokens | null = null;
 
-    const parsed = JSON.parse(stored) as Partial<StoredTokens> | null;
+function parseTokens(raw: string | null): StoredTokens | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<StoredTokens> | null;
     const access = parsed?.access_token;
     const refresh = parsed?.refresh_token;
-
-    if (typeof access !== 'string' || !access || typeof refresh !== 'string' || !refresh) {
-      localStorage.removeItem(TOKEN_KEY);
-      return null;
+    if (typeof access === 'string' && access && typeof refresh === 'string' && refresh) {
+      return { access_token: access, refresh_token: refresh };
     }
-
-    return {
-      access_token: access,
-      refresh_token: refresh,
-    };
   } catch {
-    localStorage.removeItem(TOKEN_KEY);
-    return null;
+    /* повреждённое значение — игнорируем */
   }
+  return null;
+}
+
+export const getStoredTokens = (): StoredTokens | null => {
+  try {
+    const fromLs = parseTokens(localStorage.getItem(TOKEN_KEY));
+    if (fromLs) {
+      memoryTokens = fromLs;
+      return fromLs;
+    }
+  } catch {
+    /* localStorage недоступен (iframe/Safari) — падаем на память */
+  }
+  return memoryTokens;
 };
 
 export const setStoredTokens = (tokens: StoredTokens): void => {
   if (!tokens?.access_token || !tokens?.refresh_token) {
-    localStorage.removeItem(TOKEN_KEY);
+    memoryTokens = null;
+    try { localStorage.removeItem(TOKEN_KEY); } catch { /* недоступно */ }
     return;
   }
-
-  localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
+  memoryTokens = { access_token: tokens.access_token, refresh_token: tokens.refresh_token };
+  // localStorage — для персистентности между запусками; если недоступен,
+  // токен всё равно живёт в памяти на текущую сессию.
+  try { localStorage.setItem(TOKEN_KEY, JSON.stringify(memoryTokens)); } catch { /* недоступно */ }
 };
 
 export const clearStoredTokens = (): void => {
-  localStorage.removeItem(TOKEN_KEY);
+  memoryTokens = null;
+  try { localStorage.removeItem(TOKEN_KEY); } catch { /* недоступно */ }
 };
+
+// ---------------------------------------------------------------------------
+// Обновление токенов — single-flight.
+// Бэкенд РОТИРУЕТ refresh_token (одноразовый). Если несколько параллельных
+// запросов словили 401 и каждый шёл в /auth/refresh со старым токеном,
+// выигрывал только первый, остальные получали 401 и сносили сессию —
+// отсюда «Сессия истекла» и вечный повторный вход. Теперь refresh один на всех.
+// ---------------------------------------------------------------------------
+let refreshInFlight: Promise<StoredTokens | null> | null = null;
+
+// Межвкладочная защита: localStorage общий, а refresh_token одноразовый.
+// Две вкладки (или PWA + вкладка) на старте одновременно шлют один токен →
+// бэкенд видит reuse и отзывает все сессии. Web Locks сериализует refresh
+// между вкладками; внутри замка перечитываем localStorage — если другая
+// вкладка уже обновила токены, сеть не трогаем.
+async function withCrossTabLock<T>(fn: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  if (locks?.request) {
+    return locks.request('fillword_auth_refresh', fn) as Promise<T>;
+  }
+  return fn();
+}
+
+/** null — сессия мертва (refresh отвергнут); StoredTokens — можно повторять запрос */
+export function refreshTokensOnce(): Promise<StoredTokens | null> {
+  if (refreshInFlight) return refreshInFlight;
+  const snapshot = getStoredTokens();
+  refreshInFlight = withCrossTabLock(async () => {
+    const current = getStoredTokens();
+    if (!current?.refresh_token) return null;
+    // Пока ждали замок, другая вкладка успела обновить токены — берём их.
+    if (snapshot?.refresh_token && current.refresh_token !== snapshot.refresh_token) {
+      console.log('✅ Токены уже обновлены другой вкладкой');
+      return current;
+    }
+    try {
+      console.log('🔄 Пробуем обновить токен (single-flight)...');
+      const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: current.refresh_token }),
+      });
+      if (refreshResponse.ok) {
+        const refreshed: RefreshResponse = await refreshResponse.json();
+        const nextTokens: StoredTokens = {
+          access_token: refreshed.access_token,
+          refresh_token: refreshed.refresh_token ?? current.refresh_token,
+        };
+        console.log('✅ Токен обновлён успешно');
+        setStoredTokens(nextTokens);
+        return nextTokens;
+      }
+      const refreshStatus = refreshResponse.status;
+      console.log('❌ Не удалось обновить токен:', refreshStatus);
+      if (refreshStatus === 401 || refreshStatus === 403) {
+        clearStoredTokens();
+        return null;
+      }
+      // временная сетевая/серверная ошибка — сессию не трогаем
+      return current;
+    } catch (e) {
+      console.log('❌ Ошибка сети при обновлении токена, сохраняем сессию:', e);
+      return current;
+    } finally {
+      // ожидающие уже держат ссылку на этот promise — сброс безопасен сразу
+      refreshInFlight = null;
+    }
+  });
+  return refreshInFlight;
+}
 
 // Базовая функция для API запросов
 async function apiRequest<T>(
@@ -566,6 +704,13 @@ async function apiRequest<T>(
   options: RequestInit = {},
   isRetry = false
 ): Promise<T> {
+  // Runtime-проверка: если сети реально нет — мгновенно отдаём офлайн-ошибку
+  // (без "Failed to fetch" и ожидания таймаута). При наличии сети запросы проходят
+  // и в офлайн-сборке — так оживают онлайн-разделы (лидерборды, ачивки, синк).
+  if (OFFLINE && !isNetOnline() && !endpoint.startsWith('/auth/')) {
+    throw { statusCode: 0, message: 'Нет подключения к интернету', error: 'offline' } as ApiError;
+  }
+
   const tokens = getStoredTokens();
   
   const headers: HeadersInit = {
@@ -595,44 +740,19 @@ async function apiRequest<T>(
     let authRecoveryTriggered = false;
 
     if (isUnauthorized && !isRetry && tokens?.refresh_token && !isAuthRefreshEndpoint) {
-      try {
-        console.log('🔄 Пробуем обновить токен...');
-        const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: tokens.refresh_token }),
-        });
-
-        if (refreshResponse.ok) {
-          const refreshed: RefreshResponse = await refreshResponse.json();
-          const nextTokens: StoredTokens = {
-            access_token: refreshed.access_token,
-            refresh_token: refreshed.refresh_token ?? tokens.refresh_token,
-          };
-
-          console.log('✅ Токен обновлён успешно');
-          setStoredTokens(nextTokens);
-          // Повторяем оригинальный запрос с новым токеном
+      // single-flight: параллельные 401 ждут ОДИН общий refresh
+      // (refresh_token одноразовый — гонка сжигала сессию, см. refreshTokensOnce)
+      const nextTokens = await refreshTokensOnce();
+      if (nextTokens) {
+        // если access сменился — повторяем запрос; иначе (временная ошибка
+        // refresh) отдаём исходную ошибку без сноса сессии
+        if (nextTokens.access_token !== tokens.access_token) {
           return apiRequest<T>(endpoint, options, true);
         }
-
-        const refreshStatus = refreshResponse.status;
-        const refreshBody = await refreshResponse.text();
-        console.log('❌ Не удалось обновить токен:', refreshStatus, refreshBody);
-
-        // Сессию сбрасываем только если refresh действительно невалиден.
-        if (refreshStatus === 401 || refreshStatus === 403) {
-          console.log('🔒 Refresh token недействителен, очищаем токены и запрашиваем переавторизацию...');
-          clearStoredTokens();
-          dispatchAuthRequiredIfNeeded();
-          authRecoveryTriggered = true;
-        } else {
-          // Временные сетевые/серверные ошибки: не теряем сессию принудительно.
-          console.log('⏳ Временная ошибка refresh, сохраняем текущие токены');
-        }
-      } catch (refreshError) {
-        console.log('❌ Ошибка сети при обновлении токена, сохраняем текущие токены:', refreshError);
-        // При сетевом сбое не сбрасываем сессию.
+      } else {
+        console.log('🔒 Refresh token недействителен, запрашиваем переавторизацию...');
+        dispatchAuthRequiredIfNeeded();
+        authRecoveryTriggered = true;
       }
     }
 
@@ -642,8 +762,10 @@ async function apiRequest<T>(
       clearStoredTokens();
     }
 
-    // Fallback: если пришёл 401 и recovery ещё не запущен, всё равно инициируем переавторизацию
-    if (isUnauthorized && !isAuthRefreshEndpoint && !authRecoveryTriggered) {
+    // Fallback: если пришёл 401 и recovery ещё не запущен, всё равно инициируем переавторизацию.
+    // Только если серверная сессия вообще была — иначе (локальный игрок офлайн-сборки,
+    // дернувший авторизованный эндпоинт) молча отдаём ошибку без выбивания на экран входа.
+    if (isUnauthorized && !isAuthRefreshEndpoint && !authRecoveryTriggered && tokens?.refresh_token) {
       dispatchAuthRequiredIfNeeded();
       throw {
         ...error,
@@ -662,20 +784,47 @@ async function apiRequest<T>(
   return response.json();
 }
 
-// Авторизация через Telegram
-export async function telegramAuth(initData: string): Promise<AuthResponse> {
-  const response = await apiRequest<AuthResponse>('/auth/telegram', {
+// Общий финал всех входов: POST на auth-эндпоинт + сохранение выданной пары токенов
+async function postAuth<T extends { access_token: string; refresh_token: string }>(
+  endpoint: string,
+  body: unknown,
+): Promise<T> {
+  const response = await apiRequest<T>(endpoint, {
     method: 'POST',
-    body: JSON.stringify({ initData }),
+    body: JSON.stringify(body),
   });
-
-  // Сохраняем токены
   setStoredTokens({
     access_token: response.access_token,
     refresh_token: response.refresh_token,
   });
-
   return response;
+}
+
+// Авторизация через VK ID (OAuth 2.1, PKCE) — натив и веб
+export function vkAuth(params: {
+  code: string;
+  codeVerifier: string;
+  deviceId: string;
+  redirectUri: string;
+}): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/vk', params);
+}
+
+// Авторизация через Telegram
+export function telegramAuth(initData: string): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/telegram', { initData });
+}
+
+// Регистрация аккаунта по email/паролю (используется для тихого per-device аккаунта офлайн-синка)
+export function registerDeviceAccount(
+  email: string,
+  password: string,
+  name: string,
+): Promise<{ access_token: string; refresh_token: string; _id: string }> {
+  return postAuth<{ access_token: string; refresh_token: string; _id: string }>(
+    '/auth/register',
+    { email, password, name },
+  );
 }
 
 // Запрос OTP кода на email
@@ -687,21 +836,40 @@ export async function requestEmailOtp(email: string): Promise<EmailOtpRequestRes
 }
 
 // Верификация OTP и вход/регистрация
-export async function verifyEmailOtp(email: string, code: string): Promise<AuthResponse> {
-  const response = await apiRequest<AuthResponse>('/auth/otp/verify', {
-    method: 'POST',
-    body: JSON.stringify({ email, code }),
-  });
+export function verifyEmailOtp(email: string, code: string): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/otp/verify', { email, code });
+}
 
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token,
-  });
+// Вход VK Mini App: подписанные launch-параметры → наши токены
+export function vkMiniAppAuth(launchParams: string): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/vk-miniapp', { launchParams });
+}
 
-  return response;
+// Классические вход/регистрация по email+паролю (логин = email)
+export function emailPasswordRegister(
+  email: string,
+  name: string,
+  password: string,
+): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/register', { email, name, password });
+}
+
+export function emailPasswordLogin(email: string, password: string): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/login', { email, password });
+}
+
+// Сброс пароля по одноразовому коду (код запрашивается requestEmailOtp);
+// сервер отзывает все старые сессии и сразу выдаёт новую
+export function resetPasswordWithCode(
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<AuthResponse> {
+  return postAuth<AuthResponse>('/auth/password/reset', { email, code, newPassword });
 }
 
 export async function registerPushDevice(payload: PushDeviceRegisterRequest): Promise<void> {
+  if (!authedNetUsable()) return undefined;
   await apiRequest('/push/devices/register', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -709,35 +877,35 @@ export async function registerPushDevice(payload: PushDeviceRegisterRequest): Pr
 }
 
 export async function unregisterPushDevice(token: string): Promise<void> {
+  if (!authedNetUsable()) return undefined;
   await apiRequest('/push/devices/unregister', {
     method: 'POST',
     body: JSON.stringify({ token }),
   });
 }
 
-// Обновление токена
+// Обновление токена — через тот же single-flight, что и авто-refresh при 401.
+// Раньше здесь был отдельный прямой запрос: при старте приложения он гнался с
+// refreshTokensOnce() (prefetch/настройки ловили 401 параллельно), оба слали один
+// и тот же одноразовый refresh_token → бэкенд видел reuse и отзывал ВСЕ сессии.
 export async function refreshToken(): Promise<RefreshResponse> {
   const tokens = getStoredTokens();
-  
+
   if (!tokens?.refresh_token) {
     throw new Error('No refresh token available');
   }
 
-  const response = await apiRequest<RefreshResponse>('/auth/refresh', {
-    method: 'POST',
-    body: JSON.stringify({ refresh_token: tokens.refresh_token }),
-  });
+  const next = await refreshTokensOnce();
+  if (!next) {
+    throw { statusCode: 401, message: 'Invalid refresh token' } as ApiError;
+  }
 
-  setStoredTokens({
-    access_token: response.access_token,
-    refresh_token: response.refresh_token ?? tokens.refresh_token,
-  });
-
-  return response;
+  return { access_token: next.access_token, refresh_token: next.refresh_token } as RefreshResponse;
 }
 
 // Текущий пользователь
 export async function getMe(): Promise<MeResponse> {
+  if (OFFLINE) return (await import('./offlineStubs')).offlineMe();
   return apiRequest<MeResponse>('/auth/me', { method: 'GET' });
 }
 
@@ -753,6 +921,7 @@ export function resolvePaywallEligibility(me?: MeResponse | null): boolean {
 
 // Выход
 export async function logout(): Promise<void> {
+  if (OFFLINE) return undefined;
   const tokens = getStoredTokens();
   
   if (tokens?.refresh_token) {
@@ -771,39 +940,108 @@ export async function logout(): Promise<void> {
 
 // Получение категорий
 export async function getCategories(): Promise<ApiCategory[]> {
+  if (OFFLINE) return (await import('./offlineDict')).offlineGetCategories();
   return apiRequest<ApiCategory[]>('/categories', { method: 'GET' });
 }
 
 // Получение диалектов
 export async function getDialects(): Promise<ApiDialect[]> {
+  if (!netUsable()) return (await import('./offlineStubs')).offlineDialects();
   return apiRequest<ApiDialect[]>('/dialects', { method: 'GET' });
 }
 
 // Получение частей речи
 export async function getPartsOfSpeech(): Promise<ApiPartOfSpeech[]> {
+  if (!netUsable()) return (await import('./offlineStubs')).offlinePartsOfSpeech();
   return apiRequest<ApiPartOfSpeech[]>('/parts-of-speech', { method: 'GET' });
 }
 
-// Создание нового слова
+// Создание нового слова (офлайн-очередь живёт в contribSync — сюда попадаем только при сети)
 export async function createWord(data: CreateWordRequest): Promise<CreateWordResponse> {
+  if (!netUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<CreateWordResponse>('/words', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
+// =========================
+// Админ-редактор словаря: всегда сеть, без офлайн-заглушек.
+// Решение «когда пушить» принимает adminDictSync, а не этот слой.
+// =========================
+
+/** Обновление слова (PATCH /words/:id) — только модератор/админ меняет чужие слова и status */
+export async function updateWord(id: string, data: UpdateWordRequest): Promise<ApiWord> {
+  return apiRequest<ApiWord>(`/words/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+/** Удаление слова (DELETE /words/:id) */
+export async function deleteWord(id: string): Promise<void> {
+  await apiRequest<void>(`/words/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** Список слов напрямую с сервера (для полной выгрузки словаря админом в офлайн-сборке
+ *  и очереди студии озвучки — без офлайн-перехвата) */
+export async function adminGetWords(params: GetWordsParams = {}): Promise<ApiWordsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.status) searchParams.set('status', params.status);
+  if (params.hasAudio !== undefined) searchParams.set('hasAudio', String(params.hasAudio));
+  if (params.hasExample !== undefined) searchParams.set('hasExample', String(params.hasExample));
+  if (params.hasExampleAudio !== undefined) searchParams.set('hasExampleAudio', String(params.hasExampleAudio));
+  if (params.hasNativeCheck !== undefined) searchParams.set('hasNativeCheck', String(params.hasNativeCheck));
+  if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+  if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
+  const qs = searchParams.toString();
+  return apiRequest<ApiWordsResponse>(`/words${qs ? `?${qs}` : ''}`, { method: 'GET' });
+}
+
+/** Диалекты напрямую с сервера (для кэша админ-редактора) */
+export async function adminGetDialects(): Promise<ApiDialect[]> {
+  return apiRequest<ApiDialect[]>('/dialects', { method: 'GET' });
+}
+
+/** Категории напрямую с сервера (для кэша админ-редактора) */
+export async function adminGetCategories(): Promise<ApiCategory[]> {
+  return apiRequest<ApiCategory[]>('/categories', { method: 'GET' });
+}
+
 // Получение статистики проекта
 export async function getProjectStats(): Promise<ProjectStats> {
+  if (!netUsable()) return (await import('./offlineStubs')).offlineProjectStats();
   return apiRequest<ProjectStats>('/stats', { method: 'GET' });
 }
 
 // Получение общей статистики слов
 export async function getWordsStats(): Promise<WordsStats> {
+  if (!netUsable()) return (await import('./offlineDict')).offlineWordsStats();
   return apiRequest<WordsStats>('/words/stats', { method: 'GET' });
 }
 
 // Получение списка слов (публичный эндпоинт)
+/** дефолтная первая страница словаря — единственный прогреваемый вариант getWords */
+export const DICT_FIRST_PAGE: GetWordsParams = { status: 'verified', limit: 50, offset: 0 };
+
+function isDictFirstPage(params: GetWordsParams): boolean {
+  return (
+    params.status === 'verified' &&
+    params.limit === 50 &&
+    (params.offset ?? 0) === 0 &&
+    !params.categoryId && !params.dialectId && !params.partOfSpeechId &&
+    params.isActiveInGame === undefined && !params.tag && !params.sortBy &&
+    params.hasAudio === undefined && params.hasExample === undefined &&
+    params.hasExampleAudio === undefined && params.hasNativeCheck === undefined
+  );
+}
+
 export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsResponse> {
+  if (OFFLINE) return (await import('./offlineDict')).offlineGetWords(params);
+  if (isDictFirstPage(params)) {
+    const warmed = takeHandoff<ApiWordsResponse>('dictFirstPage');
+    if (warmed) return warmed;
+  }
   const searchParams = new URLSearchParams();
   if (params.status) searchParams.set('status', params.status);
   if (params.categoryId) searchParams.set('categoryId', params.categoryId);
@@ -811,6 +1049,10 @@ export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsRes
   if (params.partOfSpeechId) searchParams.set('partOfSpeechId', params.partOfSpeechId);
   if (params.isActiveInGame !== undefined) searchParams.set('isActiveInGame', String(params.isActiveInGame));
   if (params.tag) searchParams.set('tag', params.tag);
+  if (params.hasAudio !== undefined) searchParams.set('hasAudio', String(params.hasAudio));
+  if (params.hasExample !== undefined) searchParams.set('hasExample', String(params.hasExample));
+  if (params.hasExampleAudio !== undefined) searchParams.set('hasExampleAudio', String(params.hasExampleAudio));
+  if (params.hasNativeCheck !== undefined) searchParams.set('hasNativeCheck', String(params.hasNativeCheck));
   if (params.sortBy) searchParams.set('sortBy', params.sortBy);
   if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
   if (params.offset !== undefined) searchParams.set('offset', String(params.offset));
@@ -819,8 +1061,15 @@ export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsRes
   return apiRequest<ApiWordsResponse>(`/words${qs ? `?${qs}` : ''}`, { method: 'GET' });
 }
 
-// Получение детальной информации о слове (публичный эндпоинт)
+// Получение детальной информации о слове (публичный эндпоинт).
+// В офлайн-сборке — local-first: своё слово отдаём мгновенно; незнакомый id
+// (например, серверный ObjectId из очереди синка) при сети запрашиваем у сервера.
 export async function getWordDetail(id: string): Promise<ApiWordDetailResponse> {
+  if (OFFLINE) {
+    const local = (await import('./offlineDict')).offlineFindWordDetail(id);
+    if (local) return local;
+    if (!isNetOnline()) return (await import('./offlineDict')).offlineGetWordDetail(id);
+  }
   return apiRequest<ApiWordDetailResponse>(`/words/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
@@ -858,39 +1107,102 @@ export async function deleteComment(wordId: string, commentId: string): Promise<
 
 // Топ хранителей языка
 export async function getLanguageKeepersLeaderboard(): Promise<LanguageKeeperLeaderboardItem[]> {
+  if (!netUsable()) return (await import('./offlineStubs')).offlineKeepers();
   return apiRequest<LanguageKeeperLeaderboardItem[]>('/words/keepers/leaderboard', { method: 'GET' });
 }
 
 // Получение личной статистики пользователя
 export async function getUserStats(): Promise<UserStats> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineUserStats();
   return apiRequest<UserStats>('/users/me/stats', { method: 'GET' });
 }
 
 // Присоединиться к хранителям языка
 export async function joinLanguageKeepers(): Promise<UserResponse> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserResponse>('/users/me/join-keepers', { method: 'POST' });
 }
 
 // Покинуть хранителей языка
 export async function leaveLanguageKeepers(): Promise<UserResponse> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserResponse>('/users/me/leave-keepers', { method: 'POST' });
 }
 
 // Получение слов на проверке
 export async function getPendingWords(): Promise<PendingWord[]> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlinePending();
   return apiRequest<PendingWord[]>('/words/pending', { method: 'GET' });
 }
 
 // Голосование за слово
 export async function voteWord(data: VoteRequest): Promise<VoteResponse> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<VoteResponse>('/votes', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
+// ---------------------------------------------------------------------------
+// Теоретические уроки учебника: статистика прохождений и лайки/дизлайки
+// ---------------------------------------------------------------------------
+
+export interface TextbookLessonStats {
+  lessonSlug: string;
+  completedUsers: number;
+  likes: number;
+  dislikes: number;
+}
+
+export type LessonVoteType = 'upvote' | 'downvote';
+
+export async function completeTextbookLesson(
+  slug: string,
+  kind: 'theory' | 'quiz' = 'theory',
+): Promise<{ completedUsers: number; xpGained?: number } | undefined> {
+  if (!authedNetUsable()) return undefined;
+  return apiRequest(`/textbook/lesson/${encodeURIComponent(slug)}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ kind }),
+  });
+}
+
+export async function getTextbookStats(): Promise<{ lessons: TextbookLessonStats[] }> {
+  if (!netUsable()) return { lessons: [] };
+  return apiRequest('/textbook/stats', { method: 'GET' });
+}
+
+export async function getTextbookMyState(): Promise<
+  { completed: string[]; votes: Record<string, LessonVoteType> } | undefined
+> {
+  if (!authedNetUsable()) return undefined;
+  return apiRequest('/textbook/my', { method: 'GET' });
+}
+
+export async function voteTextbookLesson(
+  slug: string,
+  type: LessonVoteType,
+): Promise<{ likes: number; dislikes: number; myVote: LessonVoteType } | undefined> {
+  if (!authedNetUsable()) return undefined;
+  return apiRequest(`/textbook/lesson/${encodeURIComponent(slug)}/vote`, {
+    method: 'POST',
+    body: JSON.stringify({ type }),
+  });
+}
+
+export async function unvoteTextbookLesson(
+  slug: string,
+): Promise<{ likes: number; dislikes: number } | undefined> {
+  if (!authedNetUsable()) return undefined;
+  return apiRequest(`/textbook/lesson/${encodeURIComponent(slug)}/vote`, {
+    method: 'DELETE',
+  });
+}
+
 // Обновление онбординга
 export async function updateOnboarding(data: UpdateOnboardingRequest): Promise<UserResponse> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserResponse>('/users/me/onboarding', {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -909,6 +1221,7 @@ export type CampaignDifficulty = 'beginner' | 'intermediate' | 'expert' | string
 export interface CampaignWord extends ExtensibleRecord {
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
 }
 
 export interface CampaignOverviewLevel extends ExtensibleRecord {
@@ -952,6 +1265,7 @@ export interface CampaignOverviewModule extends ExtensibleRecord {
   title?: string;
   titleBur?: string;
   order?: number;
+  dialectCode?: string;
   requiredStars?: number;
   isUnlocked?: boolean;
   levels: CampaignOverviewLevel[];
@@ -990,6 +1304,7 @@ export interface CampaignMapVariantMeta {
 export interface CampaignWordPlacement {
   bur: string;
   ru: string;
+  translations?: Record<string, string>;
   path: Array<{ r: number; c: number }>;
 }
 
@@ -1052,14 +1367,32 @@ export interface CampaignLevelResultResponse extends ExtensibleRecord {
 }
 
 export async function getCampaignOverview(): Promise<CampaignOverviewResponse> {
+  if (OFFLINE) return (await import('./offlineCampaign')).offlineGetCampaignOverview();
+  // прогретый prefetch'ем ответ используется ровно один раз (см. handoffCache)
+  const warmed = takeHandoff<CampaignOverviewResponse>('campaignOverview');
+  if (warmed) return warmed;
   return apiRequest<CampaignOverviewResponse>('/campaign/overview', { method: 'GET' });
 }
 
+/** прогрев первой страницы словаря (вызывается prefetch'ем в простое) */
+export function prefillDictFirstPage(): void {
+  if (OFFLINE) return;
+  putHandoff('dictFirstPage', getWords({ ...DICT_FIRST_PAGE }));
+}
+
+/** прогрев обзора кампаний (вызывается prefetch'ем в простое) */
+export function prefillCampaignOverview(): void {
+  if (OFFLINE) return;
+  putHandoff('campaignOverview', apiRequest<CampaignOverviewResponse>('/campaign/overview', { method: 'GET' }));
+}
+
 export async function getCampaignLevel(slug: string): Promise<CampaignLevelResponse> {
+  if (OFFLINE) return (await import('./offlineCampaign')).offlineGetCampaignLevel(slug);
   return apiRequest<CampaignLevelResponse>(`/campaign/level/${encodeURIComponent(slug)}`, { method: 'GET' });
 }
 
 export async function startCampaignLevel(slug: string): Promise<CampaignLevelStartResponse> {
+  if (OFFLINE) return (await import('./offlineCampaign')).offlineStartCampaignLevel(slug);
   return apiRequest<CampaignLevelStartResponse>(`/campaign/level/${encodeURIComponent(slug)}/start`, { method: 'POST' });
 }
 
@@ -1067,6 +1400,7 @@ export async function submitCampaignLevel(
   slug: string,
   body: CampaignSubmitLevelResultRequest
 ): Promise<CampaignLevelResultResponse> {
+  if (OFFLINE) return (await import('./offlineCampaign')).offlineSubmitCampaignLevel(slug, body);
   return apiRequest<CampaignLevelResultResponse>(`/campaign/level/${encodeURIComponent(slug)}/submit`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -1074,6 +1408,7 @@ export async function submitCampaignLevel(
 }
 
 export async function trackCampaignModuleOpened(moduleId: string, source?: string): Promise<{ ok: true }> {
+  if (!authedNetUsable()) return { ok: true };
   return apiRequest<{ ok: true }>(`/campaign/module/${encodeURIComponent(moduleId)}/open`, {
     method: 'POST',
     body: JSON.stringify(source ? { source } : {}),
@@ -1084,6 +1419,7 @@ export async function trackCampaignPaywallShown(payload?: {
   context?: string;
   source?: string;
 }): Promise<{ ok: true }> {
+  if (!authedNetUsable()) return { ok: true };
   return apiRequest<{ ok: true }>('/campaign/paywall/shown', {
     method: 'POST',
     body: JSON.stringify(payload ?? {}),
@@ -1102,6 +1438,7 @@ export interface ActivityStreakResponse {
 }
 
 export async function getActivityStreak(recalculate = false): Promise<ActivityStreakResponse> {
+  if (OFFLINE) return (await import('./offlineStubs')).offlineStreak();
   const params = new URLSearchParams();
   if (recalculate) params.set('recalculate', 'true');
 
@@ -1111,7 +1448,9 @@ export async function getActivityStreak(recalculate = false): Promise<ActivitySt
   });
 }
 
+// Серверный heartbeat активности; локальная серия дней живёт в gameStore и не зависит от него.
 export async function trackActivity(type?: string): Promise<ActivityStreakResponse> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineStreak();
   const params = new URLSearchParams();
   if (type) params.set('type', type);
 
@@ -1249,6 +1588,7 @@ export interface AnalyticsAdminEngagementResponse {
 }
 
 export async function trackAnalyticsEvents(events: AnalyticsEventInput[]): Promise<IngestAnalyticsEventsResponse> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineAnalyticsAck();
   if (events.length === 0) {
     return { accepted: 0, inserted: 0, duplicates: 0 };
   }
@@ -1574,6 +1914,7 @@ export interface LeaderboardParams {
 }
 
 export async function getLeaderboard(params: LeaderboardParams = {}): Promise<LeaderboardResponse> {
+  if (!netUsable()) return (await import('./offlineStubs')).offlineGlobalLeaderboard();
   const searchParams = new URLSearchParams();
   if (params.type) searchParams.set('type', params.type);
   if (params.period) searchParams.set('period', params.period);
@@ -1645,7 +1986,7 @@ export interface UserProfileAchievement {
   name: string;
   description: string;
   icon: string;
-  category: 'starter' | 'progress' | 'streak' | 'campaign' | 'daily' | 'community';
+  category: 'starter' | 'progress' | 'streak' | 'campaign' | 'daily' | 'community' | 'learning' | 'referral';
   target: number;
   progress: number;
   progressPercent: number;
@@ -1673,6 +2014,7 @@ export interface UserProfileResponse {
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfileResponse> {
+  if (!netUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserProfileResponse>(`/users/${encodeURIComponent(userId)}/profile`, { method: 'GET' });
 }
 
@@ -1794,6 +2136,7 @@ export interface LevelModeProgressResponse {
 export interface LevelModeLevelWord {
   bur: string;
   rus: string;
+  translations?: Record<string, string>;
   wordId: string;
 }
 
@@ -1865,10 +2208,12 @@ export interface LevelModeLevelLeaderboardResponse {
 }
 
 export async function getLevelModeProgress(): Promise<LevelModeProgressResponse> {
+  if (OFFLINE) return (await import('./offlineEngine')).offlineGetProgress();
   return apiRequest<LevelModeProgressResponse>('/level-mode/progress', { method: 'GET' });
 }
 
 export async function getLevelModeLevel(levelNumber: number): Promise<LevelModeLevelResponse> {
+  if (OFFLINE) return (await import('./offlineEngine')).offlineGetLevel(levelNumber);
   return apiRequest<LevelModeLevelResponse>(`/level-mode/levels/${levelNumber}`, { method: 'GET' });
 }
 
@@ -1876,6 +2221,7 @@ export async function submitLevelModeLevel(
   levelNumber: number,
   body: LevelModeSubmitRequest
 ): Promise<LevelModeSubmitResponse> {
+  if (OFFLINE) return (await import('./offlineEngine')).offlineSubmit(levelNumber, body);
   return apiRequest<LevelModeSubmitResponse>(`/level-mode/levels/${levelNumber}/submit`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -1886,6 +2232,7 @@ export async function getLevelModeLevelLeaderboard(
   levelNumber: number,
   limit = 50,
 ): Promise<LevelModeLevelLeaderboardResponse> {
+  if (OFFLINE) return (await import('./offlineEngine')).offlineLeaderboard(levelNumber);
   const params = new URLSearchParams({ limit: String(limit) });
   return apiRequest<LevelModeLevelLeaderboardResponse>(
     `/level-mode/levels/${levelNumber}/leaderboard?${params.toString()}`,
@@ -1987,6 +2334,9 @@ export async function deleteAdminLevel(levelNumber: number): Promise<void> {
 }
 
 export async function getLevelDifficultyThresholds(): Promise<LevelDifficultyThresholds> {
+  if (OFFLINE) {
+    return { mediumAvgAttempts: 3, hardAvgAttempts: 6, mediumAvgBestTimeSeconds: 90, hardAvgBestTimeSeconds: 180 };
+  }
   return apiRequest<LevelDifficultyThresholds>('/level-mode/settings/level-difficulty-thresholds', {
     method: 'GET',
   });
@@ -2008,6 +2358,7 @@ export async function updateLevelDifficultyThresholds(
 export interface DailyWordWord {
   bur: string;
   rus: string;
+  translations?: Record<string, string>;
   wordId: string;
 }
 
@@ -2015,6 +2366,7 @@ export interface DailyWordPlacement {
   wordId: string;
   bur: string;
   rus: string;
+  translations?: Record<string, string>;
   path: Array<{ r: number; c: number }>;
 }
 
@@ -2044,6 +2396,7 @@ export interface DailyWordSubmitRequest {
 export interface DailyWordSubmitWordInfo {
   bur: string;
   rus: string;
+  translations?: Record<string, string>;
 }
 
 export interface DailyWordSubmitResponse {
@@ -2070,11 +2423,15 @@ export interface DailyWordSubmitResponse {
   xpReason?: string;
 }
 
+// Офлайн-сборка: дейлик ВСЕГДА локальный (детерминированный по дате) — серверный дейлик
+// это другой пазл с серверной сессией, смешивать их нельзя.
 export async function getDailyWordToday(): Promise<DailyWordTodayResponse> {
+  if (OFFLINE) return (await import('./offlineDaily')).offlineGetDailyToday();
   return apiRequest<DailyWordTodayResponse>('/daily-word/today', { method: 'GET' });
 }
 
 export async function submitDailyWord(body: DailyWordSubmitRequest): Promise<DailyWordSubmitResponse> {
+  if (OFFLINE) return (await import('./offlineDaily')).offlineSubmitDaily(body);
   return apiRequest<DailyWordSubmitResponse>('/daily-word/today/submit', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -2101,6 +2458,7 @@ export interface DailyWordLeaderboardResponse {
 }
 
 export async function getDailyWordTodayLeaderboard(limit = 50): Promise<DailyWordLeaderboardResponse> {
+  if (OFFLINE) return (await import('./offlineStubs')).offlineDailyLeaderboard();
   const params = new URLSearchParams({ limit: String(limit) });
   return apiRequest<DailyWordLeaderboardResponse>(`/daily-word/today/leaderboard?${params.toString()}`, {
     method: 'GET',
@@ -2234,6 +2592,367 @@ export async function deleteDailyWord(date: string): Promise<void> {
 }
 
 // API экспорт
+
+// ---------- аудио-произношение слова (админ/модератор) ----------
+
+export async function uploadWordAudio(
+  wordId: string,
+  file: Blob,
+  target: 'word' | 'example',
+  fileName = 'audio.webm',
+): Promise<ApiWord> {
+  const tokens = getStoredTokens();
+  const fd = new FormData();
+  fd.append('file', file, fileName);
+  const r = await fetch(`${API_URL}/words/${wordId}/audio?target=${target}`, {
+    method: 'POST',
+    headers: tokens?.access_token
+      ? { Authorization: `Bearer ${tokens.access_token}` }
+      : undefined,
+    body: fd,
+  });
+  if (!r.ok) {
+    throw await r.json().catch(() => ({ statusCode: r.status, message: r.statusText }));
+  }
+  return r.json();
+}
+
+// ---------------------------------------------------------------------------
+// Пользовательские озвучки (предложения с модерацией)
+// ---------------------------------------------------------------------------
+
+export interface AudioSuggestion {
+  _id: string;
+  wordId: string;
+  target: 'word' | 'example';
+  dialectId?: { _id: string; code: string; name: string } | string | null;
+  fileUrl: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  wordBur?: string;
+  wordRu?: string;
+  contributor?: { id: string; name: string; telegramId?: number };
+  createdAt: string;
+}
+
+export async function submitAudioSuggestion(
+  wordId: string,
+  file: Blob,
+  target: 'word' | 'example' = 'word',
+  opts?: { dialectId?: string; fileName?: string },
+): Promise<AudioSuggestion> {
+  const tokens = getStoredTokens();
+  const fd = new FormData();
+  fd.append('file', file, opts?.fileName ?? 'audio.webm');
+  const qs = new URLSearchParams({ target });
+  if (opts?.dialectId) qs.set('dialectId', opts.dialectId);
+  const r = await fetch(`${API_URL}/audio-suggestions/word/${wordId}?${qs}`, {
+    method: 'POST',
+    headers: tokens?.access_token
+      ? { Authorization: `Bearer ${tokens.access_token}` }
+      : undefined,
+    body: fd,
+  });
+  if (!r.ok) {
+    throw await r.json().catch(() => ({ statusCode: r.status, message: r.statusText }));
+  }
+  return r.json();
+}
+
+export async function getMyAudioSuggestions(): Promise<AudioSuggestion[]> {
+  if (!authedNetUsable()) return [];
+  return apiRequest<AudioSuggestion[]>('/audio-suggestions/my', { method: 'GET' });
+}
+
+export async function getPendingAudioSuggestions(): Promise<AudioSuggestion[]> {
+  if (!authedNetUsable()) return [];
+  return apiRequest<AudioSuggestion[]>('/audio-suggestions/pending', { method: 'GET' });
+}
+
+export async function moderateAudioSuggestion(
+  id: string,
+  status: 'approved' | 'rejected',
+  rejectionReason?: string,
+): Promise<AudioSuggestion> {
+  return apiRequest<AudioSuggestion>(`/audio-suggestions/${id}/moderate`, {
+    method: 'POST',
+    body: JSON.stringify({ status, rejectionReason }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Жалобы на контент (уровень / слово): недостоверный перевод, ошибки и т.д.
+// ---------------------------------------------------------------------------
+
+export type ContentReportType = 'incorrect' | 'spam' | 'offensive' | 'duplicate' | 'other';
+
+export interface ContentReport {
+  _id: string;
+  wordId?: string | null;
+  levelSlug?: string | null;
+  type: ContentReportType;
+  message?: string;
+  status: 'open' | 'resolved' | 'dismissed' | string;
+  wordBur?: string;
+  wordRu?: string;
+  reporterName?: string;
+  createdAt: string;
+}
+
+export async function createContentReport(data: {
+  wordId?: string;
+  levelSlug?: string;
+  type: ContentReportType;
+  message?: string;
+}): Promise<ContentReport> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  return apiRequest<ContentReport>('/reports', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getOpenContentReports(): Promise<ContentReport[]> {
+  if (!authedNetUsable()) return [];
+  const r = await apiRequest<ContentReport[] | { reports: ContentReport[] }>(
+    '/reports?status=open&limit=100',
+    { method: 'GET' },
+  );
+  return Array.isArray(r) ? r : (r.reports ?? []);
+}
+
+export async function resolveContentReport(
+  id: string,
+  status: 'resolved' | 'dismissed',
+): Promise<ContentReport> {
+  return apiRequest<ContentReport>(`/reports/${id}/resolve`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+// ===== Народный учебник (lore): факты/истории/пословицы от пользователей =====
+
+export type LoreType = 'fact' | 'story' | 'proverb' | 'example' | 'correction';
+export type LoreStatus = 'pending' | 'approved' | 'rejected';
+
+export interface LoreComment {
+  _id: string;
+  userId: string;
+  userName: string;
+  userPhotoUrl?: string;
+  text: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface LoreItem {
+  _id: string;
+  type: LoreType;
+  lessonSlug: string;
+  title: string;
+  bodyBur?: string;
+  bodyRu: string;
+  attribution?: string;
+  dialectId?: string | { _id: string; code: string; name: string } | null;
+  relatedBur?: string[];
+  audioUrl?: string;
+  upvotes?: string[];
+  nativeCheckedAt?: string | null;
+  contributorName?: string;
+  status: LoreStatus;
+  featured: boolean;
+  rejectionReason?: string;
+  comments?: LoreComment[];
+  commentCount?: number;
+  createdAt: string;
+}
+
+/** Одиночная статья по id (для страницы-статьи). В OFFLINE — из кэша. */
+export async function getLoreItem(id: string): Promise<LoreItem> {
+  if (OFFLINE) {
+    const cached = (await import('./offlineLore')).offlineLoreItem(id);
+    if (cached) return cached;
+    return (await import('./offlineStubs')).offlineOnly();
+  }
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}`, { method: 'GET' });
+}
+
+export async function addLoreComment(id: string, text: string): Promise<LoreItem> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function editLoreComment(id: string, commentId: string, text: string): Promise<LoreItem> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function deleteLoreComment(id: string, commentId: string): Promise<LoreItem> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
+    method: 'DELETE',
+  });
+}
+
+/** Одобренные записи урока (публичный эндпоинт; featured первыми). В OFFLINE — из кэша. */
+export async function getLessonLore(lessonSlug: string): Promise<LoreItem[]> {
+  if (OFFLINE) return (await import('./offlineLore')).offlineLessonLore(lessonSlug);
+  if (!netUsable()) return [];
+  return apiRequest<LoreItem[]>(
+    `/lore?lessonSlug=${encodeURIComponent(lessonSlug)}&limit=50`,
+    { method: 'GET' },
+  );
+}
+
+/** Вся одобренная лента сообщества (для витрины на главном экране) */
+export async function getCommunityLore(): Promise<LoreItem[]> {
+  if (OFFLINE) return (await import('./offlineLore')).offlineAllLore();
+  if (!netUsable()) return [];
+  return apiRequest<LoreItem[]>('/lore?limit=100', { method: 'GET' });
+}
+
+/** Одобренные истории, привязанные к слову словаря (по bur) */
+export async function getWordLore(bur: string): Promise<LoreItem[]> {
+  if (!netUsable()) return [];
+  return apiRequest<LoreItem[]>(
+    `/lore?relatedBur=${encodeURIComponent(bur)}&limit=20`,
+    { method: 'GET' },
+  );
+}
+
+export async function createLoreItem(data: {
+  type: LoreType;
+  lessonSlug?: string;
+  title: string;
+  bodyBur?: string;
+  bodyRu: string;
+  attribution?: string;
+  dialectId?: string;
+  relatedBur?: string[];
+}): Promise<LoreItem> {
+  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  return apiRequest<LoreItem>('/lore', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/** Голосовая история/произношение к записи (FormData мимо apiRequest) */
+export async function uploadLoreAudio(id: string, file: Blob, fileName = 'lore.webm'): Promise<LoreItem> {
+  const tokens = getStoredTokens();
+  const fd = new FormData();
+  fd.append('file', file, fileName);
+  const r = await fetch(`${API_URL}/lore/${id}/audio`, {
+    method: 'POST',
+    headers: tokens?.access_token ? { Authorization: `Bearer ${tokens.access_token}` } : undefined,
+    body: fd,
+  });
+  if (!r.ok) throw await r.json().catch(() => ({ statusCode: r.status, message: r.statusText }));
+  return r.json();
+}
+
+/** Голос 👍 сообщества (toggle) */
+export async function voteLoreItem(id: string): Promise<LoreItem> {
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/vote`, { method: 'POST' });
+}
+
+export async function getMyLore(): Promise<LoreItem[]> {
+  if (!authedNetUsable()) return [];
+  return apiRequest<LoreItem[]>('/lore/my', { method: 'GET' });
+}
+
+export async function updateLoreItem(id: string, data: Partial<{
+  title: string; bodyBur: string; bodyRu: string; attribution: string; dialectId: string; relatedBur: string[];
+}>): Promise<LoreItem> {
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteLoreItem(id: string): Promise<{ deleted: true }> {
+  return apiRequest<{ deleted: true }>(`/lore/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function getPendingLore(): Promise<LoreItem[]> {
+  if (!authedNetUsable()) return [];
+  return apiRequest<LoreItem[]>('/lore/pending?limit=100', { method: 'GET' });
+}
+
+export async function moderateLoreItem(
+  id: string,
+  status: 'approved' | 'rejected',
+  rejectionReason?: string,
+): Promise<LoreItem> {
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/moderate`, {
+    method: 'POST',
+    body: JSON.stringify({ status, rejectionReason }),
+  });
+}
+
+/** Отметка «проверено носителем» (модератор/админ) */
+export async function nativeCheckLoreItem(id: string): Promise<LoreItem> {
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/native-check`, { method: 'POST' });
+}
+
+/** Публичный бандл всего одобренного lore — для офлайн-кэша */
+export async function fetchLoreContentBundle(): Promise<LoreItem[]> {
+  return apiRequest<LoreItem[]>('/lore/content', { method: 'GET' });
+}
+
+// Мои добавленные слова (со статусами модерации)
+export async function getMyWords(status?: 'pending' | 'verified' | 'rejected'): Promise<ApiWord[]> {
+  if (!authedNetUsable()) return [];
+  const qs = status ? `?status=${status}` : '';
+  return apiRequest<ApiWord[]>(`/words/my${qs}`, { method: 'GET' });
+}
+
+/** Отметка «проверено носителем» (панель проверки, модератор/админ) */
+export function setWordNativeCheck(wordId: string): Promise<ApiWord> {
+  return apiRequest<ApiWord>(`/words/${encodeURIComponent(wordId)}/native-check`, {
+    method: 'POST',
+  });
+}
+
+// ---------- рефералка ----------
+
+export interface ReferralInvitee {
+  name: string;
+  photoUrl?: string | null;
+  joinedAt?: string | null;
+}
+
+export interface MyReferralsResponse {
+  code: string;
+  invitedCount: number;
+  wasReferred: boolean;
+  inviterXp: number;
+  inviteeXp: number;
+  invitees?: ReferralInvitee[];
+}
+
+export function getMyReferrals(): Promise<MyReferralsResponse> {
+  return apiRequest<MyReferralsResponse>('/referrals/my', { method: 'GET' });
+}
+
+export function claimReferral(code: string): Promise<{ ok: boolean; alreadyClaimed: boolean; xpGained: number }> {
+  return apiRequest('/referrals/claim', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
+export function deleteWordAudio(wordId: string, target: 'word' | 'example'): Promise<ApiWord> {
+  return apiRequest<ApiWord>(`/words/${wordId}/audio?target=${target}`, { method: 'DELETE' });
+}
+
 export const api = {
   telegramAuth,
   requestEmailOtp,
@@ -2243,11 +2962,21 @@ export const api = {
   resolvePaywallEligibility,
   logout,
   getStoredTokens,
+  uploadWordAudio,
+  deleteWordAudio,
+  setWordNativeCheck,
+  getMyReferrals,
+  claimReferral,
   clearStoredTokens,
   getCategories,
   getDialects,
   getPartsOfSpeech,
   createWord,
+  updateWord,
+  deleteWord,
+  adminGetWords,
+  adminGetDialects,
+  adminGetCategories,
   getProjectStats,
   getWordsStats,
   getWords,

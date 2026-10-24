@@ -3,6 +3,8 @@
 export interface WordData {
   bur: string;
   ru: string;
+  /** переводы на другие языки подсказок: { en: "Dog" } */
+  translations?: Record<string, string>;
 }
 
 export interface Category {
@@ -74,6 +76,8 @@ export interface GameState {
   selectedLevelPack: string | null; // выбранный пакет уровней
   selectedEndlessLevel: number | null; // выбранный уровень в бесконечном режиме
   selectedWordId: string | null; // выбранное слово для детальной страницы
+  selectedTextbookUnit: string | null; // выбранный урок учебника
+  selectedLoreId: string | null; // выбранная статья народного учебника
   gameMode: GameMode; // текущий режим игры
   campaignResumeSlug: string | null; // slug уровня для сценария resume-first-flow
   campaignLandingView: 'chapters' | 'modules' | null; // какой раздел открыть в экране первой главы
@@ -109,7 +113,15 @@ export type Screen =
   | 'adminLevelEditor' // Редактор уровней (админ)
   | 'adminDailyWord' // Редактор филлвордов дня (админ)
   | 'adminCampaignMaps' // Редактор карт уроков кампании (админ)
-  | 'support'; // Поддержать проект
+  | 'adminDictionary' // Офлайн-редактор словаря (админ)
+  | 'adminVoiceStudio' // Студия озвучки слов (админ/модератор)
+  | 'adminWordReview' // Панель проверки слов носителем (админ/модератор)
+  | 'textbook' // Учебник бурятского (учебный план)
+  | 'textbookLesson' // Урок учебника
+  | 'community' // Народный учебник: лента историй/фактов от сообщества
+  | 'loreArticle' // Отдельная страница-статья народного учебника
+  | 'support' // Поддержать проект
+  | 'profile'; // Мой профиль
 
 // === Режимы игры ===
 export type GameMode = 'campaign' | 'endless' | 'daily';
@@ -157,6 +169,9 @@ export interface ContributedWord {
   verifications: string[]; // id пользователей, подтвердивших слово
   flags: string[]; // id пользователей, отметивших как неправильное
   notes?: string; // заметки от модератора
+  serverId?: string; // _id слова на сервере после успешной выгрузки (push)
+  syncedAt?: string; // ISO-время последней синхронизации
+  serverStatus?: ContributionStatus; // статус, подтянутый с сервера (pull)
 }
 
 export interface Contributor {

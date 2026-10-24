@@ -7,11 +7,18 @@ import {
   Globe, Sparkles, Hash, Clock, CheckCircle2, AlertTriangle, Archive,
   Send, Pencil, Trash2, X, Check,
 } from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
+import { PronunciationControl } from '../components/PronunciationControl';
+import { SuggestPronunciation } from '../components/contribution/SuggestPronunciation';
+import { WordLoreCard } from '../components/lore/WordLoreCard';
+import { EditWordModal } from '../components/contribution/EditWordModal';
+import { ReportIssueModal } from '../components/ReportIssueModal';
+import { warmAudio } from '../services/prefetch';
+import { api } from '../services/api';
 import type { GameStore } from '../store/gameStore';
 import {
   getWordDetail, voteWord, addComment, editComment, deleteComment,
@@ -109,7 +116,6 @@ const DifficultyDots: React.FC<{ value: number; isDark: boolean }> = ({ value, i
     при каждом изменении стейта)
    ============================== */
 
-// eslint-disable-next-line react/display-name
 const Card: React.FC<{
   children: React.ReactNode;
   className?: string;
@@ -210,11 +216,20 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
+  // произношения подтягиваются заранее — play без ожидания.
+  // ВАЖНО: хук обязан быть выше всех ранних return (порядок хуков).
+  useEffect(() => {
+    const w = data?.word;
+    if (w) warmAudio([w.audioUrl, w.exampleAudioUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.word?.audioUrl, data?.word?.exampleAudioUrl]);
+
   // Текущий голос пользователя
   const userVote = useMemo(() => {
     if (!data?.word || !currentUserId) return null;
-    if (data.word.upvotes.includes(currentUserId)) return 'upvote' as const;
-    if (data.word.downvotes.includes(currentUserId)) return 'downvote' as const;
+    // у слов, добавленных скриптами напрямую в БД, массивов может не быть
+    if ((data.word.upvotes ?? []).includes(currentUserId)) return 'upvote' as const;
+    if ((data.word.downvotes ?? []).includes(currentUserId)) return 'downvote' as const;
     return null;
   }, [data, currentUserId]);
 
@@ -265,7 +280,18 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
   }, []);
 
   const userRole = authState.user?.role ?? 'user';
+
+  // обновить аудио-поля после загрузки/удаления произношения
+  const applyAudioUpdate = useCallback((res: { audioUrl?: string | null; exampleAudioUrl?: string | null }) => {
+    setData(prev =>
+      prev
+        ? { ...prev, word: { ...prev.word, audioUrl: res.audioUrl ?? null, exampleAudioUrl: res.exampleAudioUrl ?? null } }
+        : prev,
+    );
+  }, []);
   const canModerate = userRole === 'moderator' || userRole === 'admin';
+  const [editingWord, setEditingWord] = useState(false);
+  const [reportingWord, setReportingWord] = useState(false);
 
   // Добавить комментарий
   const handleAddComment = useCallback(async () => {
@@ -456,6 +482,27 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                     {capitalize(word.bur)}
                   </h2>
                   <p className={cn('text-base mt-1', theme.text.secondary)}>{word.ru}</p>
+                  {word.translations?.en && (
+                    <p className={cn('text-sm mt-0.5', theme.text.muted)}>
+                      English: {word.translations.en}
+                    </p>
+                  )}
+
+                  {/* Аудио-произношение: слушают все, редактируют модератор/админ */}
+                  <div className="flex justify-center mt-3">
+                    <PronunciationControl
+                      label="Слово"
+                      url={word.audioUrl}
+                      canEdit={canModerate}
+                      onSave={async (f, name) => applyAudioUpdate(await api.uploadWordAudio(word._id, f, 'word', name))}
+                      onDelete={async () => applyAudioUpdate(await api.deleteWordAudio(word._id, 'word'))}
+                    />
+                  </div>
+
+                  {/* Обычный пользователь может предложить свою озвучку (уйдёт на модерацию) */}
+                  {!canModerate && authState.isAuthenticated && (
+                    <SuggestPronunciation wordId={word._id} />
+                  )}
 
                   {/* Произношение */}
                   {word.pronunciation && (
@@ -468,6 +515,45 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
 
                 {/* Мета-пилы */}
                 <div className="flex flex-wrap items-center justify-center gap-1.5 mb-3">
+                  {editingWord && (
+                    <EditWordModal
+                      word={word}
+                      willResetToPending={!canModerate}
+                      onSaved={() => { void fetchDetail(); }}
+                      onClose={() => setEditingWord(false)}
+                    />
+                  )}
+                  {reportingWord && (
+                    <ReportIssueModal
+                      wordId={word._id}
+                      targetLabel={`Слово: ${word.bur} — ${word.ru}`}
+                      onClose={() => setReportingWord(false)}
+                    />
+                  )}
+                  {isAuthenticated && word.contributor?.id !== currentUserId && (
+                    <button
+                      type="button"
+                      onClick={() => setReportingWord(true)}
+                      className={cn(
+                        'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition active:scale-95',
+                        isDark ? 'border-white/15 text-stone-400' : 'border-stone-300 text-stone-500',
+                      )}
+                    >
+                      🚩 Пожаловаться
+                    </button>
+                  )}
+                  {(canModerate || (currentUserId && word.contributor?.id === currentUserId)) && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingWord(true)}
+                      className={cn(
+                        'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition active:scale-95',
+                        isDark ? 'border-white/15 text-stone-300' : 'border-stone-300 text-stone-600',
+                      )}
+                    >
+                      ✏️ Редактировать
+                    </button>
+                  )}
                   {word.partOfSpeechId && (
                     <Pill isDark={isDark}>
                       <span>{word.partOfSpeechId.emoji}</span>
@@ -631,6 +717,15 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                         {word.exampleRu}
                       </p>
                     )}
+                    <div className="mt-2">
+                      <PronunciationControl
+                        label="Аудио"
+                        url={word.exampleAudioUrl}
+                        canEdit={canModerate}
+                        onSave={async (f, name) => applyAudioUpdate(await api.uploadWordAudio(word._id, f, 'example', name))}
+                        onDelete={async () => applyAudioUpdate(await api.deleteWordAudio(word._id, 'example'))}
+                      />
+                    </div>
                   </div>
                 </div>
               </Card>
@@ -678,6 +773,11 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                 </div>
               </Card>
             )}
+
+            {/* ═══════════════════════════════
+               4.5 ИСТОРИИ С ЭТИМ СЛОВОМ (народный учебник)
+               ═══════════════════════════════ */}
+            <WordLoreCard bur={word.bur} onOpen={store.navigateToLoreArticle} />
 
             {/* ═══════════════════════════════
                5. ЛЕКСИЧЕСКИЕ СВЯЗИ (синонимы, антонимы)

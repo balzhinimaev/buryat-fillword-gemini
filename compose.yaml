@@ -1,7 +1,11 @@
 services:
   frontend:
     container_name: buryat-fillword-frontend
-    image: ${REGISTRY_IMAGE}
+    image: ${REGISTRY_IMAGE:?set a verified image tag}
     restart: unless-stopped
+    environment:
+      API_UPSTREAM: ${API_UPSTREAM:-host.docker.internal:3000}
+    extra_hosts:
+      - host.docker.internal:host-gateway
     ports:
-      - "4173:4173"
+      - "127.0.0.1:4173:4173"

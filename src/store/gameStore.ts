@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import { patchSettings as apiPatchSettings, getSettings as apiGetSettings } from '../services/api';
 import type { ApiSettings, ApiSettingsUpdate } from '../services/api';
+import { OFFLINE } from '../config/offline';
 
 // ============================================================================
 // Маппинг между фронтовыми полями (GameSettings) и серверными (ApiSettings)
@@ -121,6 +122,8 @@ const defaultGameState: GameState = {
   selectedLevelPack: null,
   selectedEndlessLevel: null,
   selectedWordId: null,
+  selectedTextbookUnit: null,
+  selectedLoreId: null,
   gameMode: 'campaign',
   campaignResumeSlug: null,
   campaignLandingView: null,
@@ -189,6 +192,10 @@ const loadState = (): GameState => {
         ...defaultGameState,
         ...parsed,
         screenHistory: [], // не восстанавливаем историю навигации
+        // Не восстанавливаем и текущий экран: рестарт прямо в 'game' сразу открывал
+        // последний уровень, и если тот заблокирован (не хватает звёзд) — пользователь
+        // запирался на экране «Уровень заблокирован» при каждом запуске приложения.
+        currentScreen: defaultGameState.currentScreen,
         settings: { ...defaultSettings, ...parsed.settings },
         stats: { ...defaultStats, ...parsed.stats },
         endlessProgress: { ...defaultEndlessProgress, ...parsed.endlessProgress },
@@ -273,6 +280,27 @@ export const useGameStore = () => {
       screenHistory: [...prev.screenHistory, prev.currentScreen],
       selectedWordId: wordId,
       currentScreen: 'wordDetail' as Screen,
+    }));
+  }, []);
+
+  const navigateToLoreArticle = useCallback((loreId: string) => {
+    setState(prev => ({
+      ...prev,
+      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      selectedLoreId: loreId,
+      currentScreen: 'loreArticle' as Screen,
+    }));
+  }, []);
+
+  const navigateToTextbookUnit = useCallback((slug: string) => {
+    setState(prev => ({
+      ...prev,
+      // урок → урок («следующий») не копит историю: back всегда ведёт в план
+      screenHistory: prev.currentScreen === 'textbookLesson'
+        ? prev.screenHistory
+        : [...prev.screenHistory, prev.currentScreen],
+      selectedTextbookUnit: slug,
+      currentScreen: 'textbookLesson' as Screen,
     }));
   }, []);
 
@@ -411,6 +439,9 @@ export const useGameStore = () => {
 
   // Загрузка настроек с сервера и слияние с локальными
   const loadSettingsFromApi = useCallback(async () => {
+    // Офлайн-сборка: настройки живут только локально; серверная заглушка вернула бы
+    // дефолты и перезатёрла бы выбор пользователя (тему, звук) при каждом старте.
+    if (OFFLINE) return;
     try {
       const apiSettings = await apiGetSettings();
       const merged = fromApiSettings(apiSettings);
@@ -469,6 +500,52 @@ export const useGameStore = () => {
       };
     });
   }, []);
+
+  // Учёт любого сыгранного раунда (кампания/дейлик) в локальной статистике:
+  // слова, XP, время, серия дней. Прогресс по звёздам этих режимов хранится
+  // в своих движках (offlineCampaign/offlineDaily), здесь — только общий счёт игрока.
+  const recordRoundPlayed = useCallback((
+    wordsFound: string[],
+    timeSpent: number,
+    stars: number
+  ) => {
+    setState(prev => {
+      const newWordCounts = { ...prev.stats.wordFindCounts };
+      wordsFound.forEach(word => {
+        newWordCounts[word] = (newWordCounts[word] || 0) + 1;
+      });
+
+      const newLearnedWords = [...prev.stats.learnedWords];
+      wordsFound.forEach(word => {
+        if (newWordCounts[word] >= 3 && !newLearnedWords.includes(word)) {
+          newLearnedWords.push(word);
+        }
+      });
+
+      const xpGained =
+        wordsFound.length * XP_PER_WORD +
+        stars * XP_PER_STAR +
+        (stars > 0 && timeSpent < 60 ? XP_BONUS_FAST : 0);
+
+      const newXp = prev.stats.xp + xpGained;
+
+      return {
+        ...prev,
+        stats: {
+          ...prev.stats,
+          totalWordsFound: prev.stats.totalWordsFound + wordsFound.length,
+          totalGamesPlayed: prev.stats.totalGamesPlayed + 1,
+          totalTimePlayed: prev.stats.totalTimePlayed + timeSpent,
+          level: Math.floor(newXp / XP_PER_LEVEL) + 1,
+          xp: newXp,
+          learnedWords: newLearnedWords,
+          wordFindCounts: newWordCounts,
+        },
+      };
+    });
+
+    updateStreak();
+  }, [updateStreak]);
 
   // Завершение уровня в бесконечном режиме
   const completeEndlessLevel = useCallback((
@@ -673,6 +750,8 @@ export const useGameStore = () => {
     goBack,
     replaceScreen,
     navigateToWord,
+    navigateToLoreArticle,
+    navigateToTextbookUnit,
     selectCategory,
     setGameMode,
     setCampaignResumeSlug,
@@ -687,6 +766,7 @@ export const useGameStore = () => {
     isPackUnlocked,
     getPackProgress,
     completeEndlessLevel,
+    recordRoundPlayed,
     updateSettings,
     loadSettingsFromApi,
     completeLevel,

@@ -6,7 +6,8 @@ import {
   ArrowLeft, 
   Trophy, 
   Clock, 
-  Share2, 
+  Share2,
+  Camera,
   RotateCcw,
   Zap,
   ChevronRight,
@@ -14,20 +15,29 @@ import {
   Lock,
   Info,
   Eye,
-  Settings2
+  Settings2,
+  Globe,
+  Flag
 } from 'lucide-react';
-import { cn, StarsDisplay } from '../components/ui';
+import { StarsDisplay } from '../components/ui';
+import { cn } from '../utils/cn';
+import { ReportIssueModal } from '../components/ReportIssueModal';
+import { PostGameRating } from '../components/PostGameRating';
 import type { GameStore } from '../store/gameStore';
 import { LEVEL_PACKS } from '../store/gameStore';
 import { generateServerLevel, generateCampaignLevel, findWordByPath, isPalindromeWord, type PlacedWord } from '../gameEngine';
 import type { Coord, CellStatus, WordData } from '../types';
+import { hintOf, toggleGameLang, useGameLang } from '../services/gameLang';
 import { useTheme } from '../theme/ThemeContext';
 import { getGameStyles, type GameThemeStyles } from '../theme/gameStyles';
 import { api, type ApiError, type CampaignLevelResponse, type CampaignLevelResultResponse, type LevelModeLevelResponse, type LevelModeSubmitResponse, type LevelModeLevelLeaderboardResponse, type DailyWordTodayResponse, type DailyWordSubmitResponse, type DailyWordLeaderboardResponse, clearStoredTokens, AUTH_REQUIRED_EVENT } from '../services/api';
 import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { useAuth } from '../store/authStore';
+import { canShareStory, shareWinStory } from '../services/telegramStory';
 import { resolveLevelDifficulty, setLevelDifficultyThresholds } from '../config/levelDifficulty';
 import { playSfx } from '../utils/sfx';
+import { OFFLINE } from '../config/offline';
+import { syncCampaignProgress } from '../services/offlineSync';
 
 interface GameScreenProps {
   store: GameStore;
@@ -81,16 +91,19 @@ const FlippableWordChip = React.memo(({
   styles,
   isDark,
   index,
-  onHint
+  onHint,
+  lang,
 }: { 
-  word: { bur: string; ru: string };
+  word: { bur: string; ru: string; translations?: Record<string, string> };
   isFound: boolean;
   color: { bg: string; text: string };
   styles: GameThemeStyles;
   isDark: boolean;
   index: number;
   onHint?: () => void;
+  lang: string;
 }) => {
+  void lang; // используется только для инвалидации React.memo при смене языка
   const [isRevealed, setIsRevealed] = useState(false);
   const [hasBeenClicked, setHasBeenClicked] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -135,7 +148,7 @@ const FlippableWordChip = React.memo(({
         className="px-3 py-1.5 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-all duration-300"
         style={{ backgroundColor: color.bg, color: color.text }}
       >
-        <span className="line-through opacity-60">{word.ru}</span>
+        <span className="line-through opacity-60">{hintOf(word)}</span>
         <span className="text-xs opacity-80">({word.bur})</span>
       </div>
     );
@@ -163,7 +176,7 @@ const FlippableWordChip = React.memo(({
         <span className="whitespace-nowrap font-bold">{word.bur}</span>
       ) : (
         <>
-          <span className="whitespace-nowrap">{word.ru}</span>
+          <span className="whitespace-nowrap">{hintOf(word)}</span>
           <Eye 
             size={14} 
             className={cn(
@@ -278,7 +291,7 @@ const LetterCell = React.memo(({
 
 
 export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
-  const { state, navigate, goBack, replaceScreen, completeEndlessLevel, addToLeaderboard, selectEndlessLevel, navigateToLevelEditor, updateSettings } = store;
+  const { state, navigate, goBack, replaceScreen, completeEndlessLevel, recordRoundPlayed, addToLeaderboard, selectEndlessLevel, navigateToLevelEditor, updateSettings } = store;
   const { state: authState, refreshUser } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
   
@@ -287,6 +300,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const isDailyMode = state.gameMode === 'daily';
   const endlessLevel = state.selectedEndlessLevel || 1;
   const campaignSlug = (!isEndlessMode && !isDailyMode) ? (state.selectedCategory || null) : null;
+  const [reportOpen, setReportOpen] = useState(false);
   const isCampaignMode = !isEndlessMode && !isDailyMode;
   const isTimerEnabled = state.settings.timerEnabled !== false;
   const isFirstCampaignLesson = campaignSlug === 'greetings';
@@ -480,6 +494,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [gridLetters, setGridLetters] = useState<string[][]>([]);
   const [gridSize, setGridSize] = useState(5);
   const [placedWords, setPlacedWords] = useState<PlacedWord[]>([]);
+  const gameLang = useGameLang();
+
+  // подсказка по бурятскому слову для итогового экрана (submit-ответ не несёт переводов)
+  const hintByBur = (bur: string, fallbackRu: string): string => {
+    const placed = placedWords.find(p => p.word.bur === bur.toUpperCase());
+    return placed ? hintOf(placed.word) : fallbackRu;
+  };
   const [foundWordIds, setFoundWordIds] = useState<Set<string>>(new Set());
   const [selectedPath, setSelectedPath] = useState<Coord[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -539,6 +560,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         .map(w => ({
           bur: String(w.bur ?? '').trim().toUpperCase(),
           ru: String(w.rus ?? '').trim(),
+          translations: w.translations,
         }))
         .filter(w => w.bur.length >= 2);
 
@@ -593,6 +615,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         .map(w => ({
           bur: String(w.bur ?? '').trim().toUpperCase(),
           ru: String(w.ru ?? '').trim(),
+          translations: w.translations,
         }))
         .filter(w => w.bur.length >= 2);
 
@@ -605,7 +628,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       ) {
         try {
           const staticPlaced: PlacedWord[] = campaignLevel.wordPlacements.map(wp => ({
-            word: { bur: String(wp.bur ?? '').trim().toUpperCase(), ru: String(wp.ru ?? '').trim() },
+            word: {
+              bur: String(wp.bur ?? '').trim().toUpperCase(),
+              ru: String(wp.ru ?? '').trim(),
+              translations: wp.translations,
+            },
             path: Array.isArray(wp.path) ? wp.path : [],
           }));
 
@@ -679,13 +706,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         .map(w => ({
           bur: String(w.bur ?? '').trim().toUpperCase(),
           ru: String(w.rus ?? '').trim(),
+          translations: w.translations,
         }))
         .filter(w => w.bur.length >= 2);
 
       // Если сервер прислал статичную сетку — используем напрямую (без генерации)
       if (data.grid && data.wordPlacements && data.grid.length > 0) {
         const staticPlaced: PlacedWord[] = data.wordPlacements.map(wp => ({
-          word: { bur: wp.bur.toUpperCase(), ru: wp.rus },
+          word: { bur: wp.bur.toUpperCase(), ru: wp.rus, translations: wp.translations },
           path: wp.path,
         }));
         setGridLetters(data.grid);
@@ -854,6 +882,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         });
         setDailyResult(result);
         trackGameEvent('daily_completed', 'daily_completed');
+
+        // Локальная статистика (слова/XP/серия дней) — работает и без сети
+        recordRoundPlayed(foundWordsArray, time, result.earnedStars ?? 0);
+
         setTimeout(() => setShowWinModal(true), 500);
       } catch (e) {
         showToast(errorToMessage(e));
@@ -922,6 +954,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       setCampaignResult(result);
       trackGameEvent('campaign_level_completed', 'campaign_level_completed');
 
+      // Локальная статистика (слова/XP/серия дней) — работает и без сети
+      recordRoundPlayed(foundWordsArray, time, result.earnedStars ?? 0);
+
+      // Офлайн-сборка: тихо выгружаем прогресс в аккаунт, если есть сеть и вход выполнен
+      if (OFFLINE) syncCampaignProgress().catch(() => {});
+
       // Локальный лидерборд оставим как "игровой счёт", но идентификатором будет slug
       addToLeaderboard({
         playerName: state.settings.playerName,
@@ -944,6 +982,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     time,
     isDark,
     completeEndlessLevel,
+    recordRoundPlayed,
     campaignSlug,
     campaignSessionId,
     dailySessionId,
@@ -1422,9 +1461,13 @@ ${levelInfo}
 
     if (campaignLevelError) {
       // Проверяем, является ли ошибка Unauthorized (истёкший токен)
-      const isUnauthorized = campaignLevelError.toLowerCase().includes('unauthorized') || 
+      const isUnauthorized = campaignLevelError.toLowerCase().includes('unauthorized') ||
                              campaignLevelError.toLowerCase().includes('401');
-      
+      // 403 — уровень заблокирован (не хватает звёзд): ретрай бессмысленен, выводим наружу
+      const isForbidden = campaignLevelError.toLowerCase().includes('403') ||
+                          campaignLevelError.toLowerCase().includes('заблокирован') ||
+                          campaignLevelError.toLowerCase().includes('forbidden');
+
       const handleErrorAction = () => {
         if (isUnauthorized) {
           // Очищаем токены и запрашиваем переавторизацию
@@ -1432,17 +1475,23 @@ ${levelInfo}
           window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
           // Перенаправляем на главную страницу
           navigate('menu');
+        } else if (isForbidden) {
+          navigate('menu');
         } else {
           // Просто повторяем попытку загрузки
           void initCampaignGame();
         }
       };
-      
+
       return (
         <div className={cn("min-h-[100dvh] flex items-center justify-center p-6 text-center", styles.page.background)}>
           <div>
-            <p className={cn("mb-2", styles.categoryTitle.text)}>Ошибка загрузки</p>
-            <p className={cn("text-sm opacity-70 mb-4", styles.categoryTitle.text)}>{campaignLevelError}</p>
+            <p className={cn("mb-2", styles.categoryTitle.text)}>
+              {isForbidden ? 'Уровень пока заблокирован' : 'Ошибка загрузки'}
+            </p>
+            <p className={cn("text-sm opacity-70 mb-4", styles.categoryTitle.text)}>
+              {isForbidden ? 'Наберите больше звёзд в открытых уровнях, чтобы открыть этот.' : campaignLevelError}
+            </p>
             <button
               onClick={handleErrorAction}
               className={cn(
@@ -1452,7 +1501,7 @@ ${levelInfo}
                 styles.headerButton.text
               )}
             >
-              {isUnauthorized ? 'На главную' : 'Повторить'}
+              {isUnauthorized || isForbidden ? 'На главную' : 'Повторить'}
             </button>
           </div>
         </div>
@@ -1461,8 +1510,21 @@ ${levelInfo}
 
     if (!campaignLevel) {
       return (
-        <div className={cn("min-h-[100dvh] flex items-center justify-center", styles.page.background)}>
-          <p className={styles.categoryTitle.text}>Уровень не найден</p>
+        <div className={cn("min-h-[100dvh] flex items-center justify-center p-6 text-center", styles.page.background)}>
+          <div>
+            <p className={cn("mb-4", styles.categoryTitle.text)}>Уровень не найден</p>
+            <button
+              onClick={() => navigate('menu')}
+              className={cn(
+                "px-4 py-2 rounded-xl transition-colors",
+                styles.headerButton.background,
+                styles.headerButton.backgroundHover,
+                styles.headerButton.text
+              )}
+            >
+              На главную
+            </button>
+          </div>
         </div>
       );
     }
@@ -1618,6 +1680,22 @@ ${levelInfo}
             </button>
           )}
 
+          {!isDailyMode && (
+            <button
+              onClick={() => setReportOpen(true)}
+              className={cn(
+                "p-2 rounded-xl transition-all duration-200",
+                styles.headerButton.background,
+                styles.headerButton.backgroundHover,
+                styles.headerButton.text
+              )}
+              title="Сообщить о проблеме"
+              aria-label="Сообщить о проблеме"
+            >
+              <Flag size={18} />
+            </button>
+          )}
+
           <button 
             onClick={() => {
               if (isEndlessMode) {
@@ -1639,6 +1717,15 @@ ${levelInfo}
           </div>
         </div>
         
+        {/* Жалоба на уровень (перевод/ошибки) */}
+        {reportOpen && (
+          <ReportIssueModal
+            levelSlug={isEndlessMode ? `level-${endlessLevel}` : (campaignSlug ?? 'unknown')}
+            targetLabel={`Уровень: ${levelTitle}`}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
+
         {/* Stats bar */}
         <div className="flex items-center justify-between gap-3">
           {isTimerEnabled && (
@@ -1827,12 +1914,27 @@ ${levelInfo}
           <h3 className={cn("text-xs font-bold uppercase tracking-wider", styles.footer.title)}>
             Найди слова:
           </h3>
-          <div className={cn(
-            "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full",
-            isDark ? "bg-white/10 text-white/60" : "bg-black/5 text-black/50"
-          )}>
-            <Eye size={10} />
-            <span>нажми чтобы подсмотреть</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => toggleGameLang()}
+              aria-label="Язык подсказок"
+              className={cn(
+                "text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-full transition-colors",
+                gameLang === 'en'
+                  ? "bg-amber-500/90 text-white"
+                  : isDark ? "bg-white/10 text-white/60" : "bg-black/5 text-black/50"
+              )}
+            >
+              <Globe size={10} />
+              <span>{gameLang === 'en' ? 'EN' : 'РУС'}</span>
+            </button>
+            <div className={cn(
+              "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full",
+              isDark ? "bg-white/10 text-white/60" : "bg-black/5 text-black/50"
+            )}>
+              <Eye size={10} />
+              <span>нажми чтобы подсмотреть</span>
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 content-start max-h-36 overflow-y-auto overflow-x-hidden py-1">
@@ -1856,6 +1958,7 @@ ${levelInfo}
                 isDark={isDark}
                 index={isFound ? -1 : unfoundIndex}
                 onHint={() => showWordStartHint(pw)}
+                lang={gameLang}
               />
             );
           })}
@@ -2056,6 +2159,9 @@ ${levelInfo}
                       )}
                     </div>
                   </motion.div>
+
+                  {/* Мини-рейтинг недели: ваша позиция после прохождения */}
+                  {!OFFLINE && <PostGameRating onOpenLeaderboard={() => navigate('leaderboard')} />}
                   
                   {/* Daily: итоги + рейтинг дня */}
                   {isDailyMode && dailyResult && (
@@ -2109,7 +2215,7 @@ ${levelInfo}
                               <div className="flex flex-wrap gap-x-3 gap-y-0.5">
                                 {dailyResult.validFoundWords.map((w, i) => (
                                   <span key={i} className={cn('tabular-nums', styles.winModal.statCard.valueWords)}>
-                                    {w.bur} <span className={cn('opacity-60', styles.winModal.statCard.label)}>— {w.rus}</span>
+                                    {w.bur} <span className={cn('opacity-60', styles.winModal.statCard.label)}>— {hintByBur(w.bur, w.rus)}</span>
                                   </span>
                                 ))}
                               </div>
@@ -2122,7 +2228,7 @@ ${levelInfo}
                               </div>
                               <div className={cn('flex flex-wrap gap-x-3 gap-y-0.5 opacity-70', styles.winModal.statCard.valueDefault)}>
                                 {dailyResult.missedWords.map((w, i) => (
-                                  <span key={i}>{w.rus}</span>
+                                  <span key={i}>{hintByBur(w.bur, w.rus)}</span>
                                 ))}
                               </div>
                             </div>
@@ -2454,7 +2560,7 @@ ${levelInfo}
                         <RotateCcw size={15} />
                         Ещё раз
                       </button>
-                      <button 
+                      <button
                         onClick={shareResult}
                         className={cn(
                           "flex-1 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200 text-sm",
@@ -2467,7 +2573,29 @@ ${levelInfo}
                         Поделиться
                       </button>
                     </div>
-                    
+
+                    {/* Telegram: результат в историю (с реф-ссылкой автора) */}
+                    {canShareStory() && (
+                      <button
+                        onClick={() => shareWinStory({
+                          stars: calculateStars(),
+                          wordsFound: foundWordIds.size,
+                          levelName: isDailyMode
+                            ? 'Филлворд дня'
+                            : isEndlessMode
+                              ? `Уровень ${endlessLevel}`
+                              : campaignLevel?.name,
+                        }, authState.user?._id)}
+                        className={cn(
+                          "w-full py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200 text-sm",
+                          "bg-gradient-to-r from-amber-500 to-orange-500 text-white active:opacity-90"
+                        )}
+                      >
+                        <Camera size={15} />
+                        Опубликовать в истории
+                      </button>
+                    )}
+
                     {/* Admin: кнопка редактирования уровня */}
                     {isAdmin && isEndlessMode && (
                       <button

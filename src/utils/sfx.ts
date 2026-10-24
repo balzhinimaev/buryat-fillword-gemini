@@ -4,7 +4,8 @@ let audioCtx: AudioContext | null = null;
 
 function getCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
-  const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+  const Ctx = (window.AudioContext
+    || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as typeof AudioContext | undefined;
   if (!Ctx) return null;
   if (!audioCtx) audioCtx = new Ctx();
   return audioCtx;
@@ -61,15 +62,51 @@ function woodTap(ctx: AudioContext, at: number, gain = 0.035) {
   src.stop(at + 0.045);
 }
 
+// Android/iOS WebView держит AudioContext в 'suspended' до первого пользовательского
+// жеста (активация даётся на pointerup/touchend, НЕ на pointerdown). Разблокируем
+// контекст глобально по первому отпусканию пальца — дальше он остаётся running.
+function tryUnlock() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') {
+    void ctx.resume().then(() => {
+      if (audioCtx?.state === 'running') removeUnlockListeners();
+    }).catch(() => undefined);
+  } else {
+    removeUnlockListeners();
+  }
+}
+
+function removeUnlockListeners() {
+  window.removeEventListener('touchend', tryUnlock);
+  window.removeEventListener('pointerup', tryUnlock);
+  window.removeEventListener('click', tryUnlock);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('touchend', tryUnlock, { passive: true });
+  window.addEventListener('pointerup', tryUnlock, { passive: true });
+  window.addEventListener('click', tryUnlock, { passive: true });
+}
+
 export function playSfx(type: SfxType, enabled: boolean) {
   if (!enabled) return;
   const ctx = getCtx();
   if (!ctx) return;
 
   if (ctx.state === 'suspended') {
-    void ctx.resume().catch(() => undefined);
+    // Планировать в suspended-контексте нельзя (currentTime заморожен) —
+    // звук уйдёт «в прошлое». Играем сразу после resume.
+    void ctx.resume()
+      .then(() => scheduleSfx(ctx, type))
+      .catch(() => undefined);
+    return;
   }
 
+  scheduleSfx(ctx, type);
+}
+
+function scheduleSfx(ctx: AudioContext, type: SfxType) {
   const t = ctx.currentTime + 0.005;
 
   switch (type) {

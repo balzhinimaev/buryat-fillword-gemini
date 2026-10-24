@@ -14,5 +14,5 @@ export const ACHIEVEMENTS = [
 ];
 
 // Табы экрана
-export type Tab = 'add' | 'verify' | 'stats';
+export type Tab = 'add' | 'verify' | 'mine' | 'stats';
 

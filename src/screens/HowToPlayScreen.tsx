@@ -7,7 +7,7 @@ import {
   Play,
   CheckCircle2,
 } from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import { getMenuStyles } from '../theme/menuStyles';
 import { useBackButton } from '../hooks/useTelegram';
@@ -19,7 +19,7 @@ interface HowToPlayScreenProps {
 
 // ─── Floating particles ────────────────────────────────────────────
 const FloatingParticles: React.FC<{ color: string }> = ({ color }) => {
-  const particles = useMemo(() =>
+  const [particles] = useState(() =>
     Array.from({ length: 14 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
@@ -27,7 +27,7 @@ const FloatingParticles: React.FC<{ color: string }> = ({ color }) => {
       size: Math.random() * 3 + 1.5,
       dur: Math.random() * 7 + 5,
       delay: Math.random() * 3,
-    })), []
+    }))
   );
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">

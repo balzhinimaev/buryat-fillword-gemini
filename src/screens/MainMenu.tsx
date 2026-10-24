@@ -7,6 +7,7 @@ import {
   BarChart3, 
   Trophy, 
   BookOpen,
+  GraduationCap,
   Flame,
   Shield,
   Sparkles,
@@ -15,16 +16,19 @@ import {
   Heart,
   Target,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  ScrollText
 } from 'lucide-react';
 import type { GameStore } from '../store/gameStore';
 import { useTheme } from '../theme/ThemeContext';
 import { getMenuStyles } from '../theme/menuStyles';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { useTelegram } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
+import { IS_VK_MINIAPP } from '../services/vkMiniApp';
 import { trackAnalyticsEventNonBlocking } from '../utils/analytics';
 import { api, getWordsStats } from '../services/api';
+import { courseProgress, fetchPracticeLessons, getUnitStatuses, globalWeeklyPrompt } from '../services/textbook';
 
 interface MainMenuProps {
   store: GameStore;
@@ -166,6 +170,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const { state: authState, refreshUser } = useAuth();
   const isAdmin = authState.user?.role === 'admin';
   const [totalVerifiedWords, setTotalVerifiedWords] = useState<number | null>(null);
+  const [tbProgress, setTbProgress] = useState<{ done: number; total: number } | null>(null);
+  useEffect(() => {
+    void fetchPracticeLessons().then((lessons) => {
+      const starsBySlug = Object.fromEntries(Object.entries(lessons).map(([k, l]) => [k, l.stars]));
+      setTbProgress(courseProgress(getUnitStatuses(starsBySlug)));
+    }).catch(() => {});
+  }, []);
   const [showDonateBtn, setShowDonateBtn] = useState(true);
   const [hasUnplayedDaily, setHasUnplayedDaily] = useState(false);
 
@@ -230,6 +241,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   const displayTotalStars = authState.user?.campaignStats?.totalStars ?? stats.totalStars;
 
   const todayKey = useMemo(() => dateToLocalKey(new Date()), []);
+  const weeklyLore = useMemo(() => globalWeeklyPrompt(), []);
   const [isDailyNudgeDismissedToday, setIsDailyNudgeDismissedToday] = useState(() => isDailyNudgeDismissedForDate(todayKey));
 
   const dismissDailyNudgeForToday = useCallback(() => {
@@ -269,6 +281,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
 
     try {
       const overview = await api.getCampaignOverview();
+
+      // Весь обучающий контент живёт в тематических модулях (главах), а не в
+      // плоских тирах сложности (categories). Если модули есть — открываем их список.
+      if ((overview.modules?.length ?? 0) > 0) {
+        setCampaignLandingView('modules');
+        navigate('levels');
+        return;
+      }
+
       const firstUnlockedLevel = overview.categories
         ?.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
         .flatMap((category) => [...(category.levels ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
@@ -429,7 +450,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
   ]);
 
   const isColdUser = displayTotalStars <= 0 && currentStreak <= 0;
-  const allowDonateCta = !authState.isNewUser && !isColdUser;
+  // В VK Mini App донат-кнопки скрыты: правила ВК разрешают приём платежей
+  // в мини-аппах только через VK Pay — внешние платёжные ссылки заворачивает модерация.
+  const allowDonateCta = !IS_VK_MINIAPP && !authState.isNewUser && !isColdUser;
 
   const primaryAction = useMemo(() => {
     if (!state.settings.hasSeenHowTo) {
@@ -583,6 +606,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
                   <div className={cn("font-bold", styles.statsCard.text.primary)}>
                     {currentStreak} {getDaysWord(currentStreak)}
                   </div>
+                  <div className={cn("text-[10px] leading-tight", styles.statsCard.text.secondary)}>
+                    {nextRewardHint}
+                  </div>
                 </div>
               </div>
               
@@ -624,73 +650,50 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
         </div>
       </motion.div>
 
-      {/* Daily goal + streak widgets */}
+      {/* Цель дня — компактная строка */}
       <motion.section
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.36 }}
-        className="mx-5 mb-5 grid grid-cols-1 gap-3"
+        className="mx-5 mb-5"
       >
-        <div className={cn(
-          'rounded-2xl border p-4',
-          styles.buttons.card.background,
-          styles.buttons.card.border
-        )}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className={cn('text-xs mb-1', styles.buttons.text.muted)}>Цель дня</div>
-              <div className={cn('font-semibold', styles.buttons.text.primary)}>{dailyGoalCard.title}</div>
+        <button
+          type="button"
+          onClick={dailyGoalCard.onClick}
+          className={cn(
+            'w-full rounded-2xl border p-3 flex items-center gap-3 text-left active:scale-[0.985] transition-transform',
+            styles.buttons.card.background,
+            styles.buttons.card.border
+          )}
+        >
+          <div className={cn(
+            'w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0',
+            dailyGoalCard.iconDone ? 'bg-emerald-500/20' : 'bg-amber-500/20'
+          )}>
+            {dailyGoalCard.iconDone ? (
+              <CheckCircle2 size={17} className="text-emerald-400" />
+            ) : (
+              <Target size={17} className="text-amber-400" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className={cn('text-[10px] uppercase tracking-wider font-semibold', styles.buttons.text.muted)}>
+              Цель дня · {dailyGoalCard.progress}
             </div>
-            <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', dailyGoalCard.iconDone ? 'bg-emerald-500/20' : 'bg-amber-500/20')}>
-              {dailyGoalCard.iconDone ? (
-                <CheckCircle2 size={18} className="text-emerald-400" />
-              ) : (
-                <Target size={18} className="text-amber-400" />
-              )}
+            <div className={cn('text-sm font-semibold truncate mt-0.5', styles.buttons.text.primary)}>
+              {dailyGoalCard.title}
             </div>
           </div>
-
-          <div className={cn('mt-2 text-[11px]', styles.buttons.text.muted)}>
-            {dailyGoalCard.hint}
-          </div>
-
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <div className={cn('text-xs', styles.buttons.text.muted)}>
-              {dailyGoalCard.progress}
-            </div>
-            <button
-              type="button"
-              onClick={dailyGoalCard.onClick}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-black/5 hover:bg-black/10 text-stone-700'
-              )}
-            >
-              {dailyGoalCard.cta}
-              <ArrowRight size={13} />
-            </button>
-          </div>
-        </div>
-
-        <div className={cn(
-          'rounded-2xl border p-4',
-          styles.buttons.card.background,
-          styles.buttons.card.border
-        )}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className={cn('text-xs mb-1', styles.buttons.text.muted)}>Серия</div>
-              <div className={cn('font-semibold', styles.buttons.text.primary)}>
-                {currentStreak} {getDaysWord(currentStreak)} подряд
-              </div>
-            </div>
-            <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', styles.statsCard.streakIcon)}>
-              <Flame size={18} className="text-white" />
-            </div>
-          </div>
-
-          <div className={cn('mt-3 text-xs', styles.buttons.text.muted)}>{nextRewardHint}</div>
-        </div>
+          <span className={cn(
+            'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold flex-shrink-0',
+            dailyGoalCard.iconDone
+              ? 'bg-emerald-500/15 text-emerald-500'
+              : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+          )}>
+            {dailyGoalCard.cta}
+            <ArrowRight size={12} />
+          </span>
+        </button>
       </motion.section>
 
       {/* Menu buttons */}
@@ -741,6 +744,45 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             </div>
           )}
 
+          {/* Мой профиль — компактная строка с аватаром */}
+          {authState.isAuthenticated && authState.user && (
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => navigate('profile')}
+              className={cn(
+                "w-full p-3 rounded-2xl border transition-all flex items-center gap-3",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                styles.buttons.card.borderHover
+              )}
+            >
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 p-0.5 flex-shrink-0">
+                {authState.user.photoUrl ? (
+                  <img src={authState.user.photoUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  <div className={cn(
+                    "w-full h-full rounded-full flex items-center justify-center font-bold text-sm",
+                    isDark ? "bg-stone-800 text-amber-400" : "bg-white text-amber-600"
+                  )}>
+                    {authState.user.name?.[0]?.toUpperCase() || '?'}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <div className={cn("font-semibold truncate", styles.buttons.text.primary)}>
+                  {authState.user.name || 'Игрок'}
+                </div>
+                <div className={cn("text-xs", styles.buttons.text.muted)}>Мой профиль</div>
+              </div>
+              <span className={cn("text-lg", styles.buttons.text.muted)}>›</span>
+            </motion.button>
+          )}
+
+          <div className={cn("flex items-center gap-2 pt-3 pb-0.5")}>
+            <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em]", styles.buttons.text.muted)}>Прогресс</span>
+            <span className={cn("flex-1 h-px", isDark ? "bg-white/10" : "bg-stone-200")} />
+          </div>
           {/* Статистика и Рекорды */}
           <div className="grid grid-cols-2 gap-3">
             <motion.button
@@ -759,15 +801,6 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
               </div>
               <div className="text-left">
                 <div className={cn("font-semibold", styles.buttons.text.primary)}>Статистика</div>
-              </div>
-
-              <div className={cn(
-                "absolute bottom-3 right-3 z-20 px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide border",
-                isDark
-                  ? "bg-violet-500/20 text-violet-300 border-violet-400/25"
-                  : "bg-violet-100 text-violet-700 border-violet-200"
-              )}>
-                Бета
               </div>
             </motion.button>
 
@@ -791,68 +824,113 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             </motion.button>
           </div>
 
-          {/* Словарь */}
+          <div className={cn("flex items-center gap-2 pt-3 pb-0.5")}>
+            <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em]", styles.buttons.text.muted)}>Обучение</span>
+            <span className={cn("flex-1 h-px", isDark ? "bg-white/10" : "bg-stone-200")} />
+          </div>
+          {/* Учебник — фичевая карточка курса */}
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('dictionary')}
-            className={cn(
-              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
-              styles.buttons.card.background,
-              styles.buttons.card.border,
-              styles.buttons.card.borderHover
-            )}
+            onClick={() => navigate('textbook')}
+            className="relative w-full p-4 rounded-2xl overflow-hidden group text-left"
           >
-            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", styles.buttons.iconColors.dictionary.bg)}>
-              <BookOpen size={22} className={styles.buttons.iconColors.dictionary.icon} />
-            </div>
-            <div className="text-left flex-1">
-              <div className={cn("font-semibold", styles.buttons.text.primary)}>Словарь</div>
-              <div className={cn("text-sm", styles.buttons.text.muted)}>{stats.learnedWords.length} из {totalVerifiedWords ?? '...'} слов</div>
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-amber-500 to-orange-600" />
+            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" />
+            <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full bg-white/10 blur-xl" />
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+                <GraduationCap size={24} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-lg text-white leading-tight">Учебник</div>
+                <div className="text-xs text-white/80 mt-0.5">
+                  {tbProgress && tbProgress.done > 0
+                    ? `Пройдено ${tbProgress.done} из ${tbProgress.total} уроков`
+                    : 'Путь от алфавита до свободных фраз'}
+                </div>
+                <div className="mt-2 h-1.5 rounded-full bg-white/25 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-white transition-all duration-700"
+                    style={{ width: `${tbProgress ? (tbProgress.done / Math.max(1, tbProgress.total)) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <ArrowRight size={18} className="text-white/80 flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
             </div>
           </motion.button>
 
-          {/* Настройки */}
+          {/* Из сообщества — витрина народного учебника + вопрос недели */}
           <motion.button
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('settings')}
+            onClick={() => navigate('community')}
             className={cn(
-              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
-              styles.buttons.card.background,
-              styles.buttons.card.border,
-              styles.buttons.card.borderHover
+              "relative w-full p-3.5 rounded-2xl border overflow-hidden text-left flex items-center gap-3 group",
+              isDark ? "bg-amber-500/[0.07] border-amber-500/25" : "bg-amber-50/70 border-amber-200",
             )}
           >
-            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", styles.buttons.iconColors.settings.bg)}>
-              <Settings size={22} className={styles.buttons.iconColors.settings.icon} />
+            <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full bg-amber-400/10 blur-2xl pointer-events-none" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-md">
+              <ScrollText size={20} className="text-white" />
             </div>
-            <div className="text-left flex-1">
-              <div className={cn("font-semibold", styles.buttons.text.primary)}>Настройки</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className={cn("font-bold text-sm", styles.buttons.text.primary)}>Из сообщества</span>
+                {weeklyLore && (
+                  <span className={cn("text-[9px] font-bold uppercase tracking-wide px-1.5 py-[2px] rounded", isDark ? "bg-amber-500/20 text-amber-300" : "bg-amber-100 text-amber-700")}>вопрос недели</span>
+                )}
+              </div>
+              <div className={cn("text-[11px] mt-0.5 line-clamp-2 leading-snug", styles.buttons.text.muted)}>
+                {weeklyLore ? weeklyLore.prompt : 'Истории, факты и пословицы от носителей языка'}
+              </div>
             </div>
+            <ArrowRight size={16} className={cn("flex-shrink-0 group-hover:translate-x-0.5 transition-transform", isDark ? "text-amber-400" : "text-amber-500")} />
           </motion.button>
 
-          {/* Как играть */}
-          <motion.button
-            whileHover={{ scale: 1.02, y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => navigate('howto')}
-            className={cn(
-              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
-              styles.buttons.card.background,
-              styles.buttons.card.border,
-              styles.buttons.card.borderHover
-            )}
-          >
-            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", styles.buttons.iconColors.help.bg)}>
-              <HelpCircle size={22} className={styles.buttons.iconColors.help.icon} />
-            </div>
-            <div className="text-left flex-1">
-              <div className={cn("font-semibold", styles.buttons.text.primary)}>Как играть</div>
-              <div className={cn("text-sm", styles.buttons.text.muted)}>Пошаговое обучение</div>
-            </div>
-          </motion.button>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Словарь */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('dictionary')}
+              className={cn(
+                "p-3.5 rounded-2xl border transition-all group text-left",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                styles.buttons.card.borderHover
+              )}
+            >
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform", styles.buttons.iconColors.dictionary.bg)}>
+                <BookOpen size={20} className={styles.buttons.iconColors.dictionary.icon} />
+              </div>
+              <div className={cn("font-semibold text-sm", styles.buttons.text.primary)}>Словарь</div>
+              <div className={cn("text-[11px] mt-0.5 truncate", styles.buttons.text.muted)}>{stats.learnedWords.length} из {totalVerifiedWords ?? '…'}</div>
+            </motion.button>
+            {/* Как играть */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('howto')}
+              className={cn(
+                "p-3.5 rounded-2xl border transition-all group text-left",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                styles.buttons.card.borderHover
+              )}
+            >
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform", styles.buttons.iconColors.help.bg)}>
+                <HelpCircle size={20} className={styles.buttons.iconColors.help.icon} />
+              </div>
+              <div className={cn("font-semibold text-sm", styles.buttons.text.primary)}>Как играть</div>
+              <div className={cn("text-[11px] mt-0.5 truncate", styles.buttons.text.muted)}>Пошаговое обучение</div>
+            </motion.button>
+          </div>
 
+          <div className={cn("flex items-center gap-2 pt-3 pb-0.5")}>
+            <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em]", styles.buttons.text.muted)}>Сообщество</span>
+            <span className={cn("flex-1 h-px", isDark ? "bg-white/10" : "bg-stone-200")} />
+          </div>
           {/* Үгын Дархан */}
           <motion.button
             onClick={() => navigate('contribute')}
@@ -935,31 +1013,44 @@ export const MainMenu: React.FC<MainMenuProps> = ({ store }) => {
             </motion.button>
           )}
 
-          {/* Вопросы и ответы */}
-          <motion.button
-            onClick={() => {
-              openLink('https://t.me/frntdev');
-            }}
-            whileHover={{ scale: 1.02, y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            className={cn(
-              "w-full p-4 rounded-2xl border transition-all flex items-center gap-4 group",
-              styles.buttons.card.background,
-              styles.buttons.card.border,
-              "hover:border-violet-500/50"
-            )}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.55 }}
-          >
-            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", styles.buttons.iconColors.help.bg)}>
-              <HelpCircle size={22} className={styles.buttons.iconColors.help.icon} />
-            </div>
-            <div className="text-left flex-1">
-              <div className={cn("font-semibold", styles.buttons.text.primary)}>Вопросы и ответы</div>
-              <div className={cn("text-sm", styles.buttons.text.muted)}>Telegram: @frntdev</div>
-            </div>
-          </motion.button>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Настройки */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('settings')}
+              className={cn(
+                "p-3.5 rounded-2xl border transition-all group text-left",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                styles.buttons.card.borderHover
+              )}
+            >
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform", styles.buttons.iconColors.settings.bg)}>
+                <Settings size={20} className={styles.buttons.iconColors.settings.icon} />
+              </div>
+              <div className={cn("font-semibold text-sm", styles.buttons.text.primary)}>Настройки</div>
+              <div className={cn("text-[11px] mt-0.5 truncate", styles.buttons.text.muted)}>Тема, звук, язык</div>
+            </motion.button>
+            {/* Вопросы и ответы */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => { openLink('https://t.me/frntdev'); }}
+              className={cn(
+                "p-3.5 rounded-2xl border transition-all group text-left",
+                styles.buttons.card.background,
+                styles.buttons.card.border,
+                styles.buttons.card.borderHover
+              )}
+            >
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-2 group-hover:scale-110 transition-transform", styles.buttons.iconColors.help.bg)}>
+                <HelpCircle size={20} className={styles.buttons.iconColors.help.icon} />
+              </div>
+              <div className={cn("font-semibold text-sm", styles.buttons.text.primary)}>Вопросы</div>
+              <div className={cn("text-[11px] mt-0.5 truncate", styles.buttons.text.muted)}>Telegram: @frntdev</div>
+            </motion.button>
+          </div>
 
           {/* Admin panel (admin only) */}
           {isAdmin && (

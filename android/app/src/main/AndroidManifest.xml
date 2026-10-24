@@ -22,6 +22,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Deep link для возврата из VK OAuth: ru.burlive.app://vk?code=... -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ru.burlive.app" />
+            </intent-filter>
+
         </activity>
 
         <provider
@@ -38,4 +46,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- запись произношений в словаре (админ/модератор) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- navigator.vibrate() в WebView без этого разрешения молча игнорируется -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

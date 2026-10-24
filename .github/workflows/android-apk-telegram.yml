@@ -11,7 +11,7 @@ on:
         description: 'Send APK to Telegram (signed internal build)'
         required: false
         type: boolean
-        default: true
+        default: false
   push:
     branches:
       - master
@@ -20,7 +20,10 @@ on:
     - cron: '15 2 * * *'
 
 jobs:
+  quality:
+    uses: ./.github/workflows/quality-gate.yml
   build-debug-apk:
+    needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -37,7 +40,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Setup Java 21
@@ -52,14 +55,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web assets
-        run: npm run build
-
-      - name: Sync Capacitor Android project
-        run: npm run android:sync
-
       - name: Prepare build metadata
         id: meta
+        env:
+          INPUT_LABEL: ${{ inputs.release_label }}
+          INPUT_PUBLISH: ${{ inputs.publish_telegram }}
         run: |
           set -euo pipefail
 
@@ -67,15 +67,13 @@ jobs:
           SHORT_SHA=$(git rev-parse --short HEAD)
           EVENT_NAME="${GITHUB_EVENT_NAME}"
 
-          INPUT_LABEL="${{ github.event.inputs.release_label }}"
-          INPUT_PUBLISH="${{ github.event.inputs.publish_telegram }}"
 
           RELEASE_LABEL=""
           PUBLISH_TELEGRAM=false
 
           if [ "$EVENT_NAME" = "schedule" ]; then
             RELEASE_LABEL="nightly-$(date -u +%Y%m%d)"
-            PUBLISH_TELEGRAM=true
+            PUBLISH_TELEGRAM=false
           elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             if [ -n "$INPUT_LABEL" ]; then
               RELEASE_LABEL="$INPUT_LABEL"
@@ -83,7 +81,7 @@ jobs:
               RELEASE_LABEL="manual-v${APP_VERSION}-build-${GITHUB_RUN_NUMBER}"
             fi
 
-            if [ "$INPUT_PUBLISH" = "false" ]; then
+            if [ "$INPUT_PUBLISH" != "true" ]; then
               PUBLISH_TELEGRAM=false
             else
               PUBLISH_TELEGRAM=true
@@ -101,8 +99,9 @@ jobs:
             APK_SOURCE_PATH="${RELEASE_APK_OUTPUT_PATH}"
           else
             BUILD_KIND="debug"
-            VERSION_CODE=""
-            VERSION_NAME=""
+            # Растущий versionCode, чтобы Android ставил каждую сборку как обновление «поверх».
+            VERSION_CODE=$(date -u +%y%j%H%M)
+            VERSION_NAME="${APP_VERSION}"
             APK_SOURCE_PATH="${DEBUG_APK_OUTPUT_PATH}"
           fi
 
@@ -121,6 +120,16 @@ jobs:
             echo "apk_source_path=$APK_SOURCE_PATH"
             echo "file_name=$FILE_NAME"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Build offline assets with matching native version
+        env:
+          VITE_APP_VERSION_CODE: ${{ steps.meta.outputs.version_code }}
+          VITE_APP_VERSION_NAME: ${{ steps.meta.outputs.version_name }}
+          VITE_API_URL: ${{ vars.ANDROID_API_URL || 'https://buryat-game.ru/api' }}
+        run: npm test && npm run build:android && npm run size:check
+
+      - name: Sync Capacitor Android project
+        run: npm run android:sync
 
       - name: Validate signing secrets (signed internal only)
         if: steps.meta.outputs.publish_telegram == 'true'
@@ -168,6 +177,9 @@ jobs:
 
       - name: Build debug APK (artifact-only path)
         if: steps.meta.outputs.publish_telegram != 'true'
+        env:
+          ORG_GRADLE_PROJECT_BURLIVE_VERSION_CODE: ${{ steps.meta.outputs.version_code }}
+          ORG_GRADLE_PROJECT_BURLIVE_VERSION_NAME: ${{ steps.meta.outputs.version_name }}
         run: |
           set -e
           npm run android:build:debug

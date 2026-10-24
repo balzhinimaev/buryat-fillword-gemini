@@ -1,38 +1,14 @@
-import { execSync } from 'node:child_process';
-
-const run = (cmd) => execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
-
-const baseRef = process.env.BASE_REF || process.env.GITHUB_BASE_REF || 'master';
-const remoteBase = `origin/${baseRef}`;
-
-let diffRange = `${remoteBase}...HEAD`;
-
-try {
-  run(`git rev-parse --verify ${remoteBase}`);
-} catch {
-  // Fallback for local runs without fetched remote branch
-  diffRange = 'HEAD~1...HEAD';
-}
-
-let changed = '';
-try {
-  changed = run(`git diff --name-only --diff-filter=ACMR ${diffRange}`);
-} catch {
-  changed = '';
-}
-
-const files = changed
-  .split('\n')
-  .map((s) => s.trim())
-  .filter(Boolean)
-  .filter((f) => /\.(ts|tsx|js|jsx)$/.test(f));
-
-if (files.length === 0) {
-  console.log('✅ No changed JS/TS files to lint');
-  process.exit(0);
-}
-
-console.log(`🔎 Linting changed files (${files.length}) against ${diffRange}`);
-
-const escaped = files.map((f) => `'${f.replace(/'/g, "'\\''")}'`).join(' ');
-execSync(`npx eslint ${escaped}`, { stdio: 'inherit' });
+import { execFileSync } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
+const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+const event = process.env.GITHUB_EVENT_PATH ? JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')) : {};
+let base = event.pull_request?.base?.sha || event.before;
+if (!base || /^0+$/.test(base)) base = process.env.BASE_REF || 'origin/master';
+if (git('rev-parse', base) === git('rev-parse', 'HEAD')) base = 'HEAD^';
+const files = new Set([
+  ...git('diff', '--name-only', '--diff-filter=ACMR', `${base}...HEAD`).split('\n'),
+  ...git('diff', '--name-only', '--diff-filter=ACMR', 'HEAD').split('\n'),
+  ...git('ls-files', '--others', '--exclude-standard').split('\n'),
+].filter(f => /\.(ts|tsx|js|jsx|mjs)$/.test(f) && existsSync(f)));
+if (!files.size) console.log('No changed JS/TS files');
+else execFileSync('npx', ['--no-install', 'eslint', ...files], { stdio: 'inherit' });

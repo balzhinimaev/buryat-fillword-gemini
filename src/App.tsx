@@ -1,10 +1,11 @@
 // src/App.tsx
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, LazyMotion, domAnimation, m } from 'framer-motion';
 import { useGameStore } from './store/gameStore';
-import { useMemo, useEffect, useRef, lazy, Suspense } from 'react';
+import { useMemo, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { ThemeProvider } from './theme/ThemeContext';
 import { getTheme } from './theme';
 import { TelegramThemeSync } from './components/TelegramThemeSync';
+import { ScreenErrorBoundary } from './components/ScreenErrorBoundary';
 import { useAuth } from './store/authStore';
 import { api, type AnalyticsEventContext } from './services/api';
 import { getResumeFirstLevelSlug } from './utils/campaignResume';
@@ -12,6 +13,30 @@ import { trackAnalyticsEventsNonBlocking } from './utils/analytics';
 import { extractStartAppPayload, parseStartAppIntent } from './utils/startapp';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { useTelegram } from './hooks/useTelegram';
+import { OFFLINE } from './config/offline';
+import { checkApkUpdate, type ApkUpdateInfo } from './services/appUpdate';
+import { prefetchData, prefetchScreens } from './services/prefetch';
+import { notifyReady, revertToBuiltin, applyOta, type OtaInfo } from './services/otaUpdate';
+const syncDictionary = () => import('./services/offlineDict').then(m => m.syncDictionary());
+const syncCampaigns = () => import('./services/offlineCampaign').then(m => m.syncCampaigns());
+const syncLore = () => import('./services/offlineLore').then(m => m.syncLore());
+import { syncCampaignProgress } from './services/offlineSync';
+import { captureReferralCode, claimPendingReferral } from './services/referral';
+import { syncQueue } from './services/contribSync';
+
+// Автопуш локальных правок админ-словаря: только если очередь непуста (сам проверяет сеть/токены).
+// Динамический импорт — чтобы не тащить код синка в главный чанк (он нужен только админу).
+const pushAdminEditsIfAny = () => {
+  import('./services/adminDictSync')
+    .then(async (m) => {
+      if (await m.hasPendingAdminEdits()) return m.pushAdminQueue();
+    })
+    .catch(() => {});
+};
+import { Browser } from '@capacitor/browser';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+import { parseVkReturn, consumeWebVkReturn } from './services/vkAuth';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./screens/MainMenu'));
@@ -20,9 +45,14 @@ const LevelsScreen = lazy(() => import('./screens/LevelsScreen'));
 const LevelPackScreen = lazy(() => import('./screens/LevelPackScreen'));
 const GameScreen = lazy(() => import('./screens/GameScreen'));
 const SettingsScreen = lazy(() => import('./screens/SettingsScreen'));
+const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
 const StatsScreen = lazy(() => import('./screens/StatsScreen'));
 const LeaderboardScreen = lazy(() => import('./screens/LeaderboardScreen'));
 const DictionaryScreen = lazy(() => import('./screens/DictionaryScreen'));
+const TextbookScreen = lazy(() => import('./screens/TextbookScreen').then(m => ({ default: m.TextbookScreen })));
+const TextbookLessonScreen = lazy(() => import('./screens/TextbookLessonScreen').then(m => ({ default: m.TextbookLessonScreen })));
+const CommunityLoreScreen = lazy(() => import('./screens/CommunityLoreScreen'));
+const LoreArticleScreen = lazy(() => import('./screens/LoreArticleScreen'));
 const WordDetailScreen = lazy(() => import('./screens/WordDetailScreen'));
 const DebugGridScreen = lazy(() => import('./screens/DebugGridScreen'));
 const AdminScreen = lazy(() => import('./screens/AdminScreen'));
@@ -34,6 +64,9 @@ const HowToPlayScreen = lazy(() => import('./screens/HowToPlayScreen'));
 const AdminLevelEditorScreen = lazy(() => import('./screens/AdminLevelEditorScreen'));
 const AdminDailyWordScreen = lazy(() => import('./screens/AdminDailyWordScreen'));
 const AdminCampaignMapVariantsScreen = lazy(() => import('./screens/AdminCampaignMapVariantsScreen'));
+const AdminDictionaryScreen = lazy(() => import('./screens/AdminDictionaryScreen'));
+const AdminVoiceStudioScreen = lazy(() => import('./screens/AdminVoiceStudioScreen'));
+const AdminWordReviewScreen = lazy(() => import('./screens/AdminWordReviewScreen'));
 const SupportScreen = lazy(() => import('./screens/SupportScreen'));
 const AuthScreen = lazy(() => import('./screens/AuthScreen'));
 
@@ -63,9 +96,102 @@ export default function App() {
     navigate,
   } = store;
   const currentTheme = getTheme(settings.theme);
-  const { state: authState, refreshUser } = useAuth();
+  const { state: authState, refreshUser, vkLogin } = useAuth();
   const { isTelegram } = useTelegram();
   const startupFlowCheckedRef = useRef(false);
+  const [apkUpdate, setApkUpdate] = useState<ApkUpdateInfo | null>(null);
+  const [updDismissed, setUpdDismissed] = useState(false);
+  const [otaInfo, setOtaInfo] = useState<OtaInfo | null>(null);
+  const [otaPct, setOtaPct] = useState<number | null>(null);
+  const [otaError, setOtaError] = useState(false);
+  const handleOtaUpdate = async () => {
+    if (!otaInfo || otaPct !== null) return;
+    setOtaError(false);
+    setOtaPct(0);
+    try {
+      await applyOta(otaInfo, setOtaPct); // set() перезагрузит webview — код ниже обычно не выполнится
+    } catch {
+      setOtaPct(null);
+      setOtaError(true);
+    }
+  };
+  const openApkUpdate = async () => {
+    if (!apkUpdate?.apkUrl) return;
+    try {
+      await Browser.open({ url: apkUpdate.apkUrl });
+    } catch {
+      window.open(apkUpdate.apkUrl, '_blank');
+    }
+  };
+
+  // Обновления: подтверждаем рабочий бандл (capgo), проверяем OTA веб-обновление
+  // и наличие нового APK. Всё мягко падает в офлайне.
+  useEffect(() => {
+    (async () => {
+      // Сначала подтверждаем, что ТЕКУЩИЙ бандл рабочий (иначе capgo откатит) — и только потом
+      // проверяем/применяем новый OTA-бандл. Порядок критичен для защиты от «кирпича».
+      await notifyReady();
+      // Без OTA-магии: сбрасываем любой ранее применённый OTA-бандл и всегда используем
+      // встроенный в APK. Обновления — только через установку нового APK.
+      revertToBuiltin();
+      prefetchScreens(); // фоновая догрузка чанков экранов (в простое)
+      prefetchData(); // прогрев обзора кампаний и первой страницы словаря
+      // Баннер обновления APK — только в нативном приложении (в вебе бессмысленно).
+      if (Capacitor.isNativePlatform()) {
+        checkApkUpdate().then(setApkUpdate).catch(() => {});
+      }
+      // Веб-возврат VK ID: ?vk_code+vk_device_id в URL → завершаем вход, затем синкаем прогресс.
+      const webVk = consumeWebVkReturn();
+      if (webVk) {
+        void Promise.resolve(vkLogin(webVk)).then(() => {
+          if (OFFLINE) syncCampaignProgress().catch(() => {});
+        });
+      }
+      // В офлайн-сборке тихо докачиваем свежий контент (словарь + кампании) и синкаем прогресс
+      // (если пользователь уже входил — есть токен) и очередь добавленных слов, при наличии сети.
+      if (OFFLINE) {
+        syncDictionary().catch(() => {});
+        syncCampaigns().catch(() => {});
+        syncLore().catch(() => {});
+        syncCampaignProgress().catch(() => {});
+        syncQueue().catch(() => {});
+      }
+      pushAdminEditsIfAny();
+    })();
+  }, []);
+
+  // Появилась сеть — повторяем фоновую синхронизацию всего офлайн-накопленного.
+  useEffect(() => {
+    if (!OFFLINE) return;
+    const onOnline = () => {
+      syncDictionary().catch(() => {});
+      syncCampaigns().catch(() => {});
+      syncLore().catch(() => {});
+      syncCampaignProgress().catch(() => {});
+      syncQueue().catch(() => {});
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, []);
+
+  // Правки админ-словаря пушим при появлении сети в любой сборке (и веб, и натив).
+  useEffect(() => {
+    window.addEventListener('online', pushAdminEditsIfAny);
+    return () => window.removeEventListener('online', pushAdminEditsIfAny);
+  }, []);
+
+  // VK OAuth deep-link: ru.burlive.app://vk?code=... → завершаем вход.
+  useEffect(() => {
+    const subPromise = CapacitorApp.addListener('appUrlOpen', async ({ url }) => {
+      const ret = parseVkReturn(url);
+      if (!ret) return;
+      try { await Browser.close(); } catch { /* ignore */ }
+      await Promise.resolve(vkLogin(ret));
+      // после входа синкаем офлайн-прогресс в аккаунт
+      if (OFFLINE) syncCampaignProgress().catch(() => {});
+    });
+    return () => { subPromise.then((s) => s.remove()).catch(() => {}); };
+  }, [vkLogin]);
 
   const startAppIntent = useMemo(() => {
     const telegramStartParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param ?? null;
@@ -113,6 +239,20 @@ export default function App() {
       loadSettingsFromApi();
     }
   }, [authState.isAuthenticated, authState.isLoading, loadSettingsFromApi]);
+
+  // Рефералка: захват кода на старте, claim после авторизации + тост о бонусе
+  const [refBonusXp, setRefBonusXp] = useState<number | null>(null);
+  useEffect(() => { captureReferralCode(); }, []);
+  useEffect(() => {
+    if (authState.isAuthenticated && !authState.isLoading) {
+      void claimPendingReferral().then((xp) => {
+        if (xp > 0) {
+          setRefBonusXp(xp);
+          setTimeout(() => setRefBonusXp(null), 7000);
+        }
+      });
+    }
+  }, [authState.isAuthenticated, authState.isLoading]);
 
   // Базовый heartbeat активности при входе в приложение
   useEffect(() => {
@@ -184,6 +324,12 @@ export default function App() {
 
     (async () => {
       let resumeSlug: string | null = null;
+
+      // Офлайн-режим: нет сервера/кампании — сразу в выбор режима (доступен level-mode).
+      if (OFFLINE) {
+        navigate('gameMode');
+        return;
+      }
 
       try {
         const overview = await api.getCampaignOverview();
@@ -329,10 +475,20 @@ export default function App() {
         return <GameScreen store={store} />;
       case 'settings':
         return <SettingsScreen store={store} />;
+      case 'profile':
+        return <ProfileScreen store={store} />;
       case 'stats':
         return <StatsScreen store={store} />;
       case 'leaderboard':
         return <LeaderboardScreen store={store} />;
+      case 'textbook':
+        return <TextbookScreen store={store} />;
+      case 'textbookLesson':
+        return <TextbookLessonScreen store={store} />;
+      case 'community':
+        return <CommunityLoreScreen store={store} />;
+      case 'loreArticle':
+        return <LoreArticleScreen store={store} />;
       case 'dictionary':
         return <DictionaryScreen store={store} />;
       case 'wordDetail':
@@ -353,6 +509,12 @@ export default function App() {
         return <AdminDailyWordScreen store={store} />;
       case 'adminCampaignMaps':
         return <AdminCampaignMapVariantsScreen store={store} />;
+      case 'adminDictionary':
+        return <AdminDictionaryScreen store={store} />;
+      case 'adminVoiceStudio':
+        return <AdminVoiceStudioScreen store={store} />;
+      case 'adminWordReview':
+        return <AdminWordReviewScreen store={store} />;
       case 'support':
         return <SupportScreen store={store} />;
       default:
@@ -368,8 +530,73 @@ export default function App() {
       <div 
         className={`min-h-[100dvh] w-full ${isTelegram ? 'max-w-md shadow-2xl' : `${isWebNarrow ? 'max-w-2xl' : 'max-w-6xl'} px-0 md:px-4 lg:px-6`} mx-auto overflow-hidden relative transition-colors duration-150 ease-out ${screenBackground}`}
       >
-        <AnimatePresence mode="wait">
-          <motion.div
+        {refBonusXp !== null && (
+          <div className="w-full flex items-center gap-2 py-2 px-3 bg-amber-500 text-white text-sm font-semibold">
+            <span className="flex-1 text-center">🎁 +{refBonusXp} XP — бонус за вход по приглашению!</span>
+            <button
+              type="button"
+              onClick={() => setRefBonusXp(null)}
+              aria-label="Скрыть"
+              className="px-2 opacity-80 hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {otaInfo && (
+          <div className="w-full py-2 px-3 bg-emerald-600 text-white text-sm font-medium">
+            {otaPct === null ? (
+              <div className="flex items-center gap-2">
+                <span className="flex-1 text-center">
+                  {otaError
+                    ? '⚠️ Не удалось обновить — попробуйте ещё раз'
+                    : `🔄 Доступно обновление ${otaInfo.version}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleOtaUpdate}
+                  className="px-3 py-1 rounded-lg bg-white/25 font-semibold hover:bg-white/35"
+                >
+                  Обновить
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOtaInfo(null)}
+                  aria-label="Скрыть"
+                  className="px-2 opacity-80 hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="text-center mb-1">Обновление… {otaPct}%</div>
+                <div className="h-1.5 bg-white/25 rounded-full overflow-hidden">
+                  <div className="h-full bg-white transition-all duration-200" style={{ width: `${otaPct}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {apkUpdate?.available && !updDismissed && (
+          <div className="w-full flex items-center gap-2 py-2 px-3 bg-amber-500 text-white text-sm font-medium">
+            <button type="button" onClick={openApkUpdate} className="flex-1 text-center underline-offset-2">
+              🔄 Доступно обновление {apkUpdate.versionName} — скачать APK
+            </button>
+            <button
+              type="button"
+              onClick={() => setUpdDismissed(true)}
+              aria-label="Скрыть"
+              className="px-2 opacity-80 hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <LazyMotion features={domAnimation}><AnimatePresence mode="wait">
+          <m.div
             key={effectiveScreen}
             variants={pageVariants}
             initial="initial"
@@ -378,17 +605,19 @@ export default function App() {
             transition={pageTransition}
             className={`min-h-[100dvh] ${isTelegram ? '' : 'md:my-4 md:rounded-3xl md:shadow-2xl md:border md:border-stone-200/60 dark:md:border-stone-700/60 overflow-hidden'}`}
           >
-            <Suspense
-              fallback={(
-                <div className={`min-h-[100dvh] flex items-center justify-center text-sm ${currentTheme.text.muted}`}>
-                  Загрузка…
-                </div>
-              )}
-            >
-              {renderScreen()}
-            </Suspense>
-          </motion.div>
-        </AnimatePresence>
+            <ScreenErrorBoundary resetKey={effectiveScreen} onGoHome={() => navigate('menu')}>
+              <Suspense
+                fallback={(
+                  <div className={`min-h-[100dvh] flex items-center justify-center text-sm ${currentTheme.text.muted}`}>
+                    Загрузка…
+                  </div>
+                )}
+              >
+                {renderScreen()}
+              </Suspense>
+            </ScreenErrorBoundary>
+          </m.div>
+        </AnimatePresence></LazyMotion>
       </div>
     </ThemeProvider>
   );

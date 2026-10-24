@@ -1,8 +1,9 @@
 // src/screens/LevelsScreen.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star, ArrowLeft, Layers, Lock, Clock, Hash, RefreshCw, Sparkles } from 'lucide-react';
-import { CategoryCard, cn } from '../components/ui';
+import { CategoryCard } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
@@ -26,30 +27,17 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     setCampaignPreferredModuleId,
   } = store;
   const { theme } = useTheme();
-  const [showModulesChapter, setShowModulesChapter] = useState(state.campaignLandingView === 'modules');
+  // Кампании показываем ТОЛЬКО как модули: классический вид (тиры сложности) всегда пуст,
+  // и переключение на него из-за campaignLandingView кидало «назад» на пустую главу.
+  const showModulesChapter = true;
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
-  const entryLandingViewRef = useRef(state.campaignLandingView);
 
+  // Единая предсказуемая навигация «назад»:
+  //  • внутри модуля (открыт список его уровней) → возвращаемся к списку модулей;
+  //  • на списке модулей или в классическом виде → выходим на предыдущий экран (меню/выбор режима).
   const handleBack = useCallback(() => {
-    if (showModulesChapter && selectedModuleId) {
+    if (selectedModuleId) {
       setSelectedModuleId(null);
-      setCampaignPreferredModuleId(null);
-      return;
-    }
-
-    if (showModulesChapter) {
-      // Если пользователь зашёл в экран сразу через кнопку «Спецмодули»,
-      // ожидаемое поведение back — выйти на предыдущий экран (выбор режима),
-      // а не переключать его на «Первую главу».
-      if (entryLandingViewRef.current === 'modules') {
-        setCampaignLandingView(null);
-        setCampaignPreferredModuleId(null);
-        goBack();
-        return;
-      }
-
-      setShowModulesChapter(false);
-      setCampaignLandingView('chapters');
       setCampaignPreferredModuleId(null);
       return;
     }
@@ -62,7 +50,6 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     selectedModuleId,
     setCampaignLandingView,
     setCampaignPreferredModuleId,
-    showModulesChapter,
   ]);
 
   useBackButton(handleBack);
@@ -117,13 +104,6 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     void loadOverview();
   }, [loadOverview]);
 
-  useEffect(() => {
-    const goModules = state.campaignLandingView === 'modules';
-    setShowModulesChapter(goModules);
-    if (!goModules) {
-      setSelectedModuleId(null);
-    }
-  }, [state.campaignLandingView]);
 
   const difficultySections = useMemo(() => {
     const cats = overview?.categories ?? [];
@@ -434,6 +414,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                           name={module.title ?? module.titleBur ?? 'Модуль'}
                           description={moduleDescription}
                           stars={moduleStars}
+                          starsTotal={moduleTotalStars}
                           isLocked={moduleLocked}
                           difficulty={moduleDifficulty}
                           onClick={() => {
@@ -452,8 +433,6 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
 
                         <div className={cn('flex items-center justify-between px-2', theme.text.muted)}>
                           <div className="flex items-center gap-2 text-[11px]">
-                            <span>⭐ {moduleStars}/{moduleTotalStars}</span>
-                            <span>•</span>
                             <span>{sortedLevels.length} ур.</span>
                           </div>
 

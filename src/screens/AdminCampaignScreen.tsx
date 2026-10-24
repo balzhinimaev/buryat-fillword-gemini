@@ -12,7 +12,7 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
@@ -350,6 +350,7 @@ export const AdminCampaignScreen: React.FC<AdminCampaignScreenProps> = ({ store 
 
       if (editingLessonSlug) {
         const { slug: _ignoredSlug, ...updateData } = payload;
+        void _ignoredSlug;
         await api.updateCampaignAdminLevel(editingLessonSlug, updateData);
         setInfo(`Урок ${editingLessonSlug} сохранён`);
       } else {

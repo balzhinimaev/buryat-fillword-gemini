@@ -24,8 +24,9 @@ import {
   Megaphone,
   Layers,
   CalendarDays,
+  Mic,
 } from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn } from '../utils/cn';
 import { StickyHeader } from '../components/StickyHeader';
 import { useTheme } from '../theme/ThemeContext';
 import { useBackButton } from '../hooks/useTelegram';
@@ -995,6 +996,30 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({ store }) => {
               onClick={() => navigate('debug')}
               isDark={isDark}
               color={isDark ? "bg-cyan-500/30" : "bg-cyan-100"}
+            />
+            <NavCard
+              icon={<BookOpen size={18} className="text-white" />}
+              title="Словарь (офлайн-редактор)"
+              subtitle="Правка слов и диалектов без сети, push при подключении"
+              onClick={() => navigate('adminDictionary')}
+              isDark={isDark}
+              color={isDark ? "bg-teal-500/30" : "bg-teal-100"}
+            />
+            <NavCard
+              icon={<Mic size={18} className="text-white" />}
+              title="Студия озвучки"
+              subtitle="Записать произношения слов подряд, одно за другим"
+              onClick={() => navigate('adminVoiceStudio')}
+              isDark={isDark}
+              color={isDark ? "bg-rose-500/30" : "bg-rose-100"}
+            />
+            <NavCard
+              icon={<CheckCircle2 size={18} className="text-white" />}
+              title="Проверка носителем"
+              subtitle="Вычитка слов конвейером: верно / исправить / отклонить"
+              onClick={() => navigate('adminWordReview')}
+              isDark={isDark}
+              color={isDark ? "bg-emerald-500/30" : "bg-emerald-100"}
             />
             <NavCard
               icon={<BookOpen size={18} className="text-white" />}

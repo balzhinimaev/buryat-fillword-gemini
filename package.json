@@ -1,11 +1,11 @@
 {
   "name": "buryat-wordsearch",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.14.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run build:web",
     "lint": "eslint .",
     "lint:changed": "node ./scripts/lint-changed.mjs",
     "test": "vitest run",
@@ -18,12 +18,17 @@
     "android:copy": "npx cap copy android",
     "android:build:debug": "cd android && ./gradlew assembleDebug",
     "android:build:release": "cd android && ./gradlew assembleRelease",
-    "android:bundle:release": "cd android && ./gradlew bundleRelease"
+    "android:bundle:release": "cd android && ./gradlew bundleRelease",
+    "build:web": "node scripts/build.mjs web",
+    "build:android": "node scripts/build.mjs android"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/core": "^8.1.0",
     "@capacitor/push-notifications": "^8.0.1",
+    "@capgo/capacitor-updater": "^8.49.7",
     "@types/canvas-confetti": "^1.9.0",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
@@ -31,6 +36,7 @@
     "lucide-react": "^0.554.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "sharp": "^0.33.5",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
@@ -58,5 +64,8 @@
   },
   "overrides": {
     "vite": "npm:rolldown-vite@7.2.2"
+  },
+  "engines": {
+    "node": ">=24 <25"
   }
 }

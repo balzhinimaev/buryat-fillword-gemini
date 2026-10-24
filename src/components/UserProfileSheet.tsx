@@ -5,7 +5,7 @@ import {
   X, Loader2, AlertCircle, Star, Zap, Flame, BookOpen,
   CheckCircle2, Calendar, TrendingUp, Clock,
 } from 'lucide-react';
-import { cn } from './ui';
+import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import { api, type UserProfileResponse, type UserProfileXpHistoryItem } from '../services/api';
 
@@ -24,7 +24,15 @@ const XP_TYPE_LABELS: Record<string, { label: string; emoji: string }> = {
   word_verified: { label: 'Проверка слов', emoji: '✅' },
   word_approved: { label: 'Одобренные слова', emoji: '🏅' },
   daily_login: { label: 'Ежедневный вход', emoji: '📅' },
+  daily_word_complete: { label: 'Филлворд дня', emoji: '☀️' },
   streak_bonus: { label: 'Бонус за серию', emoji: '🔥' },
+  textbook_theory: { label: 'Теория учебника', emoji: '📖' },
+  textbook_quiz: { label: 'Квизы учебника', emoji: '🎯' },
+  textbook_exam: { label: 'Экзамен курса', emoji: '🎓' },
+  audio_approved: { label: 'Одобренные озвучки', emoji: '🎙️' },
+  report_confirmed: { label: 'Полезные жалобы', emoji: '🚩' },
+  referral_inviter: { label: 'Приглашённые друзья', emoji: '🤝' },
+  referral_invitee: { label: 'Бонус за приглашение', emoji: '🎁' },
   achievement_unlocked: { label: 'Достижения', emoji: '🏆' },
   admin_adjustment: { label: 'Корректировка', emoji: '⚙️' },
 };
@@ -56,31 +64,26 @@ function formatRegDate(isoDate: string): string {
 
 export const UserProfileSheet: React.FC<UserProfileSheetProps> = ({ userId, onClose }) => {
   const { theme, isDark } = useTheme();
-  const [profile, setProfile] = useState<UserProfileResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ userId: string; profile: UserProfileResponse | null; error: string | null } | null>(null);
+  const current = result?.userId === userId ? result : null;
+  const profile = current?.profile ?? null;
+  const isLoading = !!userId && !current;
+  const error = current?.error ?? null;
   const sheetRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const isOpen = userId !== null;
 
   useEffect(() => {
-    if (!userId) {
-      setProfile(null);
-      setError(null);
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    setProfile(null);
-
+    if (!userId) return;
+    let cancelled = false;
     api.getUserProfile(userId)
-      .then(setProfile)
-      .catch((e) => {
-        const msg = e instanceof Error ? e.message : (e as { message?: string })?.message || 'Не удалось загрузить профиль';
-        setError(msg);
-      })
-      .finally(() => setIsLoading(false));
+      .then(profile => { if (!cancelled) setResult({ userId, profile, error: null }); })
+      .catch((e: unknown) => {
+        const error = e instanceof Error ? e.message : 'Не удалось загрузить профиль';
+        if (!cancelled) setResult({ userId, profile: null, error });
+      });
+    return () => { cancelled = true; };
   }, [userId]);
 
   // Swipe-to-dismiss logic
@@ -196,7 +199,7 @@ interface ProfileContentProps {
   isDark: boolean;
 }
 
-const ProfileContent: React.FC<ProfileContentProps> = ({ profile, theme, isDark }) => {
+export const ProfileContent: React.FC<ProfileContentProps> = ({ profile, theme, isDark }) => {
   const { user, xp, streak, campaign, dictionary, xpByType, recentXpHistory } = profile;
 
   return (
