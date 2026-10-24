@@ -830,6 +830,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     if (e.button !== 0) return;
     if (foundCellsRegistry.has(`${r}-${c}`)) return;
 
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+
     // Кешируем позиции клеток при начале выделения
     updateCellRects();
 
@@ -850,7 +852,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         : ['#F59E0B', '#EA580C', '#059669', '#0284C7'];
 
       confetti({ 
-        particleCount: 150, 
+        particleCount: 150,
+        disableForReducedMotion: true,
         spread: 70, 
         origin: { y: 0.6 }, 
         colors: confettiColors
@@ -1265,15 +1268,18 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     const handleEnd = () => { if (isSelecting) handlePointerUp(); };
 
     window.addEventListener('pointermove', handleMove);
-    window.addEventListener('touchmove', handleMove, { passive: false });
+    const cancel = () => { setIsSelecting(false); setSelectedPath([]); };
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('blur', cancel);
     window.addEventListener('pointerup', handleEnd);
-    window.addEventListener('touchend', handleEnd);
+
 
     return () => {
       window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('blur', cancel);
       window.removeEventListener('pointerup', handleEnd);
-      window.removeEventListener('touchend', handleEnd);
+
     };
   }, [isSelecting, foundCellsRegistry, handlePointerUp, findCellAtPoint, state.settings.soundEnabled]);
 
@@ -1838,8 +1844,8 @@ ${levelInfo}
             </div>
             <div className={cn("text-sm opacity-70 mb-4", styles.categoryTitle.text)}>
               {isCampaignStarting
-                ? 'Вызываем /start и готовим поле'
-                : 'Мы вызываем /start до показа уровня, чтобы сервер выдал sessionId античита.'}
+                ? 'Готовим игровое поле…'
+                : 'Нажми «Начать», чтобы открыть игровое поле.'}
             </div>
             <button
               onClick={() => void initCampaignGame()}
@@ -1908,7 +1914,7 @@ ${levelInfo}
       </main>
 
       {/* Footer - Words to find */}
-      {((!isCampaignMode && !!levelModeSessionId) || (isCampaignMode && !!campaignSessionId)) && (
+      {((isDailyMode && !!dailySessionId) || (isEndlessMode && !!levelModeSessionId) || (isCampaignMode && !!campaignSessionId)) && (
       <footer className={cn("p-4 pb-8 z-10", styles.footer.background, styles.footer.border)}>
         <div className="flex items-center justify-between mb-3">
           <h3 className={cn("text-xs font-bold uppercase tracking-wider", styles.footer.title)}>

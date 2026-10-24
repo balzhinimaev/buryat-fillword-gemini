@@ -1,8 +1,9 @@
+import { readProgress, writeProgress, progressOwner } from './progressStorage';
 // Учебник бурятского: контент из вшитого textbook.json + прогресс в localStorage.
 // Юнит «пройден», когда теория отмечена изученной И хотя бы один урок практики
 // сыгран на ≥1★ (звёзды берём из прогресса кампаний).
 import bundled from '../data/textbook.json';
-import { getCampaignOverview, completeTextbookLesson } from './api';
+import { getCampaignOverview, completeTextbookLesson, getTextbookMyState, getStoredTokens } from './api';
 
 export interface TextbookWord {
   bur: string;
@@ -74,6 +75,11 @@ const PROGRESS_KEY = 'burlive_textbook_progress';
 export const QUIZ_PASS_RATIO = 0.75;
 
 interface UnitProgress {
+  syncVersion?: number;
+  theoryHidden?: boolean;
+  pendingTheory?: string;
+  pendingQuiz?: { id: string; answers?: Array<{ word: string; answer: string }> };
+
   theoryReadAt?: string;
   /** лучший результат квиза, например "7/8" числами */
   quizBest?: { correct: number; total: number };
@@ -88,7 +94,7 @@ export function getTextbook(): TextbookData {
 
 function loadProgress(): ProgressMap {
   try {
-    const raw = localStorage.getItem(PROGRESS_KEY);
+    const raw = readProgress(PROGRESS_KEY);
     const parsed = raw ? (JSON.parse(raw) as ProgressMap) : {};
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch {
@@ -98,7 +104,7 @@ function loadProgress(): ProgressMap {
 
 function saveProgress(map: ProgressMap): void {
   try {
-    localStorage.setItem(PROGRESS_KEY, JSON.stringify(map));
+    writeProgress(PROGRESS_KEY, JSON.stringify(map));
   } catch {
     /* приватный режим */
   }
@@ -111,11 +117,13 @@ export function isTheoryRead(slug: string): boolean {
 export function markTheoryRead(slug: string, read = true): void {
   const map = loadProgress();
   if (read) {
-    map[slug] = { ...map[slug], theoryReadAt: new Date().toISOString() };
+    const stamp = new Date().toISOString();
+    map[slug] = { ...map[slug], theoryReadAt: stamp, pendingTheory: stamp, theoryHidden: false };
   } else {
-    map[slug] = { ...map[slug], theoryReadAt: undefined };
+    map[slug] = { ...map[slug], theoryReadAt: undefined, pendingTheory: undefined, theoryHidden: true };
   }
   saveProgress(map);
+  if (read) void syncTextbookProgress();
 }
 
 export function getQuizBest(slug: string): { correct: number; total: number } | null {
@@ -123,27 +131,74 @@ export function getQuizBest(slug: string): { correct: number; total: number } | 
 }
 
 /** сохраняет результат квиза; лучший результат не ухудшается */
-export function saveQuizResult(slug: string, correct: number, total: number): void {
+export function saveQuizResult(slug: string, correct: number, total: number, answers?: Array<{ word: string; answer: string }>): void {
+  if (!Number.isInteger(total) || total < 1 || !Number.isInteger(correct) || correct < 0 || correct > total) return;
   const map = loadProgress();
   const prev = map[slug]?.quizBest;
   const better = !prev || correct / total > prev.correct / prev.total;
-  const passedNow =
-    !map[slug]?.quizPassedAt && correct / total >= QUIZ_PASS_RATIO;
+  const passedNow = correct / total >= QUIZ_PASS_RATIO;
   map[slug] = {
     ...map[slug],
     quizBest: better ? { correct, total } : prev,
+    pendingQuiz: passedNow && (better || !map[slug]?.pendingQuiz?.answers) ? { id: crypto.randomUUID(), answers } : map[slug]?.pendingQuiz,
     quizPassedAt:
       map[slug]?.quizPassedAt ??
       (correct / total >= QUIZ_PASS_RATIO ? new Date().toISOString() : undefined),
   };
   saveProgress(map);
 
-  // Первая сдача — фиксируем веху на сервере (XP за квиз/экзамен).
-  // Fire-and-forget: офлайн/гость не ломают сохранение локального прогресса;
-  // сервер идемпотентен — повторная отправка XP не задвоит.
-  if (passedNow) {
-    void completeTextbookLesson(slug, 'quiz')?.catch?.(() => {});
-  }
+  if (passedNow) void syncTextbookProgress();
+}
+
+export const TEXTBOOK_PROGRESS_EVENT = 'textbook:progress';
+const syncing = new Map<string, Promise<void>>();
+export function syncTextbookProgress(): Promise<void> {
+  const owner = progressOwner();
+  if (owner === 'guest' || !getStoredTokens() || navigator.onLine === false) return Promise.resolve();
+  const active = syncing.get(owner);
+  if (active) return active;
+  const work = (async () => {
+    try {
+      const snapshot = loadProgress();
+      // Recover pre-upgrade completions whose old one-shot upload may have failed.
+      for (const value of Object.values(snapshot)) {
+        if (value.syncVersion === 2) continue;
+        if (value.theoryReadAt && !value.pendingTheory) value.pendingTheory = value.theoryReadAt;
+        if (value.quizPassedAt && !value.pendingQuiz) value.pendingQuiz = { id: crypto.randomUUID() };
+        value.syncVersion = 2;
+      }
+      saveProgress(snapshot);
+      for (const [slug, value] of Object.entries(snapshot)) {
+        for (const kind of ['theory', 'quiz'] as const) {
+          if (owner !== progressOwner()) return;
+          const marker = kind === 'theory' ? value.pendingTheory : value.pendingQuiz?.id;
+          if (!marker) continue;
+          try {
+            const ack = await completeTextbookLesson(slug, kind, kind === 'quiz' ? value.pendingQuiz?.answers : undefined);
+            if (!ack || owner !== progressOwner()) return;
+            const current = loadProgress();
+            if (kind === 'theory' && current[slug]?.pendingTheory === marker) delete current[slug].pendingTheory;
+            if (kind === 'quiz' && current[slug]?.pendingQuiz?.id === marker) delete current[slug].pendingQuiz;
+            saveProgress(current);
+          } catch { /* Keep pending data for reconnect/relaunch, including a lost acknowledgement. */ }
+        }
+      }
+      const remote = await getTextbookMyState();
+      if (!remote?.progress || owner !== progressOwner()) return;
+      const current = loadProgress();
+      for (const [slug, value] of Object.entries(remote.progress)) {
+        const local = current[slug] || {};
+        const best = value.quizBest && (!local.quizBest || value.quizBest.correct / value.quizBest.total > local.quizBest.correct / local.quizBest.total)
+          ? value.quizBest : local.quizBest;
+        current[slug] = { ...local, theoryReadAt: local.theoryHidden ? undefined : local.theoryReadAt || value.theoryReadAt, syncVersion: 2,
+          quizPassedAt: local.quizPassedAt || value.quizPassedAt, quizBest: best };
+      }
+      saveProgress(current);
+      window.dispatchEvent(new Event(TEXTBOOK_PROGRESS_EVENT));
+    } catch { /* Local state remains authoritative while offline. */ }
+  })().finally(() => syncing.delete(owner));
+  syncing.set(owner, work);
+  return work;
 }
 
 // ---------- работа над ошибками ----------
@@ -161,7 +216,7 @@ type MistakesMap = Record<string, MistakeEntry>;
 
 function loadMistakes(): MistakesMap {
   try {
-    const raw = localStorage.getItem(MISTAKES_KEY);
+    const raw = readProgress(MISTAKES_KEY);
     const parsed = raw ? (JSON.parse(raw) as MistakesMap) : {};
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch {
@@ -171,7 +226,7 @@ function loadMistakes(): MistakesMap {
 
 function saveMistakes(map: MistakesMap): void {
   try {
-    localStorage.setItem(MISTAKES_KEY, JSON.stringify(map));
+    writeProgress(MISTAKES_KEY, JSON.stringify(map));
   } catch {
     /* приватный режим */
   }
@@ -408,6 +463,7 @@ export interface PracticeLessonInfo {
  * (запрос перехватывается офлайн-движком, форма одинаковая).
  */
 export async function fetchPracticeLessons(): Promise<Record<string, PracticeLessonInfo>> {
+  await syncTextbookProgress();
   const out: Record<string, PracticeLessonInfo> = {};
   try {
     const overview = await getCampaignOverview();

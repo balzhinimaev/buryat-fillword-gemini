@@ -21,6 +21,7 @@ const syncDictionary = () => import('./services/offlineDict').then(m => m.syncDi
 const syncCampaigns = () => import('./services/offlineCampaign').then(m => m.syncCampaigns());
 const syncLore = () => import('./services/offlineLore').then(m => m.syncLore());
 import { syncCampaignProgress } from './services/offlineSync';
+const syncTextbook = () => import('./services/textbook').then(m => m.syncTextbookProgress()).catch(() => {});
 import { captureReferralCode, claimPendingReferral } from './services/referral';
 import { syncQueue } from './services/contribSync';
 
@@ -159,6 +160,14 @@ export default function App() {
       pushAdminEditsIfAny();
     })();
   }, []);
+
+  useEffect(() => {
+    const sync = () => { void syncTextbook(); if (OFFLINE) void syncCampaignProgress(); };
+    sync();
+    window.addEventListener('online', sync);
+    const interval = window.setInterval(sync, 30_000);
+    return () => { window.removeEventListener('online', sync); clearInterval(interval); };
+  }, [authState.user?._id, authState.isAuthenticated]);
 
   // Появилась сеть — повторяем фоновую синхронизацию всего офлайн-накопленного.
   useEffect(() => {

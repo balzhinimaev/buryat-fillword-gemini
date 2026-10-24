@@ -1,3 +1,4 @@
+import { readProgress, writeProgress } from './progressStorage';
 // Офлайн «Филлворд дня»: детерминированный пазл по дате из вшитого словаря.
 // У всех игроков в один день одинаковый набор слов (сеяный PRNG от даты),
 // результаты хранятся локально. В офлайн-сборке используется всегда —
@@ -97,7 +98,7 @@ export function offlineDailyWords(dateKey = offlineDailyDateKey()): OfflineDaily
 
 function loadRecs(): Record<string, DailyRec> {
   try {
-    return JSON.parse(localStorage.getItem(RESULTS_KEY) || '{}') as Record<string, DailyRec>;
+    return JSON.parse(readProgress(RESULTS_KEY) || '{}') as Record<string, DailyRec>;
   } catch {
     return {};
   }
@@ -105,7 +106,7 @@ function loadRecs(): Record<string, DailyRec> {
 
 function saveRecs(m: Record<string, DailyRec>): void {
   try {
-    localStorage.setItem(RESULTS_KEY, JSON.stringify(m));
+    writeProgress(RESULTS_KEY, JSON.stringify(m));
   } catch {
     /* ignore */
   }

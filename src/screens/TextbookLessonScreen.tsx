@@ -25,6 +25,7 @@ import type { GameStore } from '../store/gameStore';
 import { hintOf, useGameLang } from '../services/gameLang';
 import {
   buildQuiz,
+  TEXTBOOK_PROGRESS_EVENT,
   fetchPracticeLessons,
   getQuizBest,
   getTextbook,
@@ -37,7 +38,6 @@ import { TextbookQuiz } from '../components/TextbookQuiz';
 import { TextbookFlashcards } from '../components/TextbookFlashcards';
 import { burAudioUrl, hasBurAudio } from '../services/burAudio';
 import {
-  completeTextbookLesson,
   getTextbookMyState,
   getTextbookStats,
   unvoteTextbookLesson,
@@ -84,6 +84,16 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
   const [myVote, setMyVote] = useState<LessonVoteType | null>(null);
   const [voteBusy, setVoteBusy] = useState(false);
   const learned = new Set(store.state.stats.learnedWords.map((w: string) => w.toUpperCase()));
+
+  useEffect(() => {
+    const update = () => {
+      setTheoryRead(slug ? isTheoryRead(slug) : false);
+      setQuizBest(slug ? getQuizBest(slug) : null);
+    };
+    update();
+    window.addEventListener(TEXTBOOK_PROGRESS_EVENT, update);
+    return () => window.removeEventListener(TEXTBOOK_PROGRESS_EVENT, update);
+  }, [slug]);
 
   // Статистика урока: сколько людей прошло + лайки/дизлайки (мягко падает офлайн)
   useEffect(() => {
@@ -172,14 +182,7 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
     const next = !theoryRead;
     markTheoryRead(unit.slug, next);
     setTheoryRead(next);
-    if (next) {
-      // фиксируем прохождение на сервере (уникальность — на бэкенде)
-      void completeTextbookLesson(unit.slug)
-        .then((r) => {
-          if (r) setLessonStats((prev) => (prev ? { ...prev, completedUsers: r.completedUsers } : prev));
-        })
-        .catch(() => {});
-    }
+
   };
 
   const completedLabel = (n: number): string => {

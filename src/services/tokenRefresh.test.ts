@@ -59,3 +59,25 @@ describe('refreshTokensOnce (single-flight)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('account-switch isolation', () => {
+  const jwt = (sub: string) => `x.${btoa(JSON.stringify({sub}))}.x`;
+  it.each([200, 401])('late refresh status %i cannot replace or clear a new login', async (status) => {
+    const api = await import('./api');
+    api.setStoredTokens({ access_token: jwt('alice'), refresh_token: 'alice-refresh' });
+    let finish!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { finish = resolve; })));
+    const pending = api.refreshTokensOnce();
+    api.setStoredTokens({ access_token: jwt('bob'), refresh_token: 'bob-refresh' });
+    finish(new Response(JSON.stringify({ access_token: jwt('alice'), refresh_token: 'late-alice' }), { status }));
+    await pending;
+    expect(api.getStoredTokens()?.refresh_token).toBe('bob-refresh');
+    api.clearStoredTokens();
+  });
+  it('does not resurrect another tab’s logged-out session from memory', async () => {
+    const api = await import('./api');
+    api.setStoredTokens({access_token:jwt('alice'),refresh_token:'alice-refresh'});
+    localStorage.removeItem('auth_tokens');
+    expect(api.getStoredTokens()).toBeNull();
+  });
+});

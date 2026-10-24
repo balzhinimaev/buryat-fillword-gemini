@@ -23,6 +23,7 @@ import {
   buildListeningQuiz,
   buildReviewQuiz,
   courseProgress,
+  TEXTBOOK_PROGRESS_EVENT,
   EXAM_SLUG,
   fetchPracticeLessons,
   getExamBest,
@@ -88,6 +89,7 @@ const Chip: React.FC<{ icon: React.ReactNode; label: string; done?: boolean; acc
 
 export const TextbookScreen: React.FC<Props> = ({ store }) => {
   const { theme, isDark } = useTheme();
+  const [progressRevision, setProgressRevision] = useState(0);
   const [lessons, setLessons] = useState<Record<string, PracticeLessonInfo>>({});
   const [reviewOpen, setReviewOpen] = useState(false);
   const [examOpen, setExamOpen] = useState(false);
@@ -99,6 +101,16 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
 
   useEffect(() => {
     void fetchPracticeLessons().then(setLessons);
+  }, []);
+
+  useEffect(() => {
+    const update = () => {
+      setProgressRevision(v => v + 1);
+      setExamBest(getExamBest());
+      setListeningBest(getQuizBest(LISTENING_SLUG));
+    };
+    window.addEventListener(TEXTBOOK_PROGRESS_EVENT, update);
+    return () => window.removeEventListener(TEXTBOOK_PROGRESS_EVENT, update);
   }, []);
 
   // Аудирование: подтягиваем озвученные слова словаря (онлайн)
@@ -124,7 +136,7 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
     () => Object.fromEntries(Object.entries(lessons).map(([slug, l]) => [slug, l.stars])),
     [lessons],
   );
-  const statuses = useMemo(() => getUnitStatuses(starsBySlug), [starsBySlug]);
+  const statuses = useMemo(() => { void progressRevision; return getUnitStatuses(starsBySlug); }, [starsBySlug, progressRevision]);
   const progress = courseProgress(statuses);
   const nextIdx = statuses.findIndex((s) => !s.completed);
   const allDone = progress.done === progress.total;

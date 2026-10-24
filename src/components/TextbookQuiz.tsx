@@ -1,7 +1,7 @@
 // Квиз учебника: вопросы по лексике с мгновенной обратной связью.
 // Используется и в уроке (saveSlug задан — результат идёт в прогресс юнита),
 // и в «работе над ошибками» (без saveSlug). Каждый ответ обновляет трекер ошибок.
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, RotateCcw, Target, X } from 'lucide-react';
 import { cn } from '../utils/cn';
@@ -41,6 +41,7 @@ export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, 
   const [picked, setPicked] = useState<number | null>(null);
   const [correct, setCorrect] = useState(0);
   const [done, setDone] = useState(false);
+  const answers = useRef<Array<{ word: string; answer: string }>>([]);
 
   const q = quiz[qi];
   const passNeed = Math.ceil(quiz.length * QUIZ_PASS_RATIO);
@@ -48,23 +49,27 @@ export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, 
   const pick = (i: number) => {
     if (picked !== null || !q) return;
     setPicked(i);
+    answers.current.push({ word: q.word.bur, answer: q.options[i].bur });
     const ok = i === q.correctIndex;
     recordQuizAnswer(q.word.bur, ok);
     const nextCorrect = correct + (ok ? 1 : 0);
     setCorrect(nextCorrect);
-    setTimeout(() => {
-      if (qi + 1 >= quiz.length) {
-        if (saveSlug) saveQuizResult(saveSlug, nextCorrect, quiz.length);
-        setDone(true);
-        onFinished();
-      } else {
-        setQi(qi + 1);
-        setPicked(null);
-      }
-    }, 700);
+  };
+
+  const next = () => {
+    if (picked === null || done) return;
+    if (qi + 1 >= quiz.length) {
+      if (saveSlug) saveQuizResult(saveSlug, correct, quiz.length, answers.current);
+      setDone(true);
+      onFinished();
+    } else {
+      setQi(qi + 1);
+      setPicked(null);
+    }
   };
 
   const retry = () => {
+    answers.current = [];
     setAttempt((a) => a + 1);
     setQi(0);
     setPicked(null);
@@ -167,6 +172,9 @@ export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, 
                 );
               })}
             </div>
+            {picked !== null && <button onClick={next} className="mt-4 w-full min-h-11 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white">
+              {qi + 1 === quiz.length ? 'Посмотреть результат' : 'Дальше'}
+            </button>}
             </motion.div>
             </AnimatePresence>
           </>

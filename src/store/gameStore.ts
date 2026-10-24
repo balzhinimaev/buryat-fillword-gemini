@@ -1,3 +1,4 @@
+import { readProgress, writeProgress, progressOwner } from '../services/progressStorage';
 // src/store/gameStore.ts
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { 
@@ -185,7 +186,7 @@ export const LEVEL_PACKS: LevelPack[] = [
 // Загрузка состояния из localStorage
 const loadState = (): GameState => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = readProgress(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       return {
@@ -208,11 +209,11 @@ const loadState = (): GameState => {
 };
 
 // Сохранение состояния (без screenHistory — она runtime-only)
-const saveState = (state: GameState) => {
+const saveState = (state: GameState, owner: string) => {
   try {
     const toSave: Partial<GameState> = { ...state };
     delete toSave.screenHistory;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    writeProgress(STORAGE_KEY, JSON.stringify(toSave), owner);
   } catch (e) {
     console.error('Failed to save game state:', e);
   }
@@ -226,12 +227,13 @@ const XP_BONUS_FAST = 50; // Бонус за быстрое прохождени
 
 // Хук для управления состоянием игры
 export const useGameStore = () => {
+  const [owner] = useState(progressOwner);
   const [state, setState] = useState<GameState>(loadState);
 
   // Сохраняем при каждом изменении
   useEffect(() => {
-    saveState(state);
-  }, [state]);
+    saveState(state, owner);
+  }, [state, owner]);
 
   // Навигация (с сохранением истории)
   const navigate = useCallback((screen: Screen) => {

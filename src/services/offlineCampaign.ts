@@ -1,3 +1,4 @@
+import { readProgress, writeProgress } from './progressStorage';
 // Офлайн-движок кампаний: overview/уровень/старт/submit из вшитых данных + прогресс в localStorage.
 // Воспроизводит ровно те же формы ответов, что и серверные эндпоинты (см. api.ts).
 import bundled from '../data/offlineCampaignLevels.json';
@@ -79,16 +80,16 @@ export async function syncCampaigns(): Promise<{ ok: boolean; chapters: number }
 interface LevelRec { stars: number; bestTimeSeconds?: number; attempts: number; firstCompletedAt?: string }
 
 function loadLevels(): Record<string, LevelRec> {
-  try { return JSON.parse(localStorage.getItem(LEVELS_KEY) || '{}'); } catch { return {}; }
+  try { return JSON.parse(readProgress(LEVELS_KEY) || '{}'); } catch { return {}; }
 }
 function saveLevels(m: Record<string, LevelRec>) {
-  try { localStorage.setItem(LEVELS_KEY, JSON.stringify(m)); } catch { /* ignore */ }
+  try { writeProgress(LEVELS_KEY, JSON.stringify(m)); } catch { /* ignore */ }
 }
 function loadSess(): Record<string, { slug: string; wordCount: number }> {
-  try { return JSON.parse(localStorage.getItem(SESS_KEY) || '{}'); } catch { return {}; }
+  try { return JSON.parse(readProgress(SESS_KEY) || '{}'); } catch { return {}; }
 }
 function saveSess(m: Record<string, { slug: string; wordCount: number }>) {
-  try { localStorage.setItem(SESS_KEY, JSON.stringify(m)); } catch { /* ignore */ }
+  try { writeProgress(SESS_KEY, JSON.stringify(m)); } catch { /* ignore */ }
 }
 function totalEarned(levels: Record<string, LevelRec>): number {
   return Object.values(levels).reduce((s, r) => s + (r.stars || 0), 0);
