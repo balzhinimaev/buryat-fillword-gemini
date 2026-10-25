@@ -1,3 +1,4 @@
+import { readProgress } from './progressStorage';
 // Локальная статистика игрока — источник истины в офлайн-сборке.
 // Читает сохранённое состояние gameStore напрямую из localStorage, чтобы
 // офлайн-реализации /auth/me и /activity/streak отдавали реальные цифры, а не нули.
@@ -20,7 +21,7 @@ export interface StoredPlayerStats {
 
 export function loadLocalPlayerStats(): StoredPlayerStats {
   try {
-    const parsed = JSON.parse(localStorage.getItem(GAME_KEY) || 'null') as {
+    const parsed = JSON.parse(readProgress(GAME_KEY) || 'null') as {
       stats?: StoredPlayerStats;
     } | null;
     return parsed?.stats ?? {};

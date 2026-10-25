@@ -1,3 +1,4 @@
+import { readProgress, writeProgress } from './progressStorage';
 // Локальный (офлайн) движок уровневого режима.
 // Полностью заменяет серверные эндпоинты level-mode: генерация уровня из вшитого
 // словаря, подсчёт звёзд и хранение прогресса в localStorage. Сетка строится тем же
@@ -25,19 +26,19 @@ const SESSION_KEY = 'offline_lm_sessions'; // sessionId -> реальное чи
 // Запоминаем, сколько слов реально в выданном уровне (для честного подсчёта звёзд).
 function rememberSessionTotal(sessionId: string, total: number): void {
   try {
-    const m = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}') as Record<string, number>;
+    const m = JSON.parse(readProgress(SESSION_KEY) || '{}') as Record<string, number>;
     m[sessionId] = total;
     // не даём разрастаться
     const keys = Object.keys(m);
     if (keys.length > 50) delete m[keys[0]];
-    localStorage.setItem(SESSION_KEY, JSON.stringify(m));
+    writeProgress(SESSION_KEY, JSON.stringify(m));
   } catch {
     /* ignore */
   }
 }
 function sessionTotal(sessionId: string): number | null {
   try {
-    const m = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}') as Record<string, number>;
+    const m = JSON.parse(readProgress(SESSION_KEY) || '{}') as Record<string, number>;
     return typeof m[sessionId] === 'number' ? m[sessionId] : null;
   } catch {
     return null;
@@ -54,14 +55,14 @@ type ProgressMap = Record<string, StoredLevel>;
 
 function loadProgress(): ProgressMap {
   try {
-    return JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}') as ProgressMap;
+    return JSON.parse(readProgress(PROGRESS_KEY) || '{}') as ProgressMap;
   } catch {
     return {};
   }
 }
 function saveProgress(p: ProgressMap): void {
   try {
-    localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+    writeProgress(PROGRESS_KEY, JSON.stringify(p));
   } catch {
     /* ignore */
   }

@@ -392,6 +392,10 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
           <span className="text-3xl drop-shadow">{isPrizeMode ? '💰' : '🏆'}</span>
         </div>
 
+        {type === 'stars' && <p className="text-xs opacity-80 mb-3 relative z-10">
+          Офлайн-звёзды сохраняются в личном прогрессе. Для места в рейтинге проходите уровни онлайн.
+        </p>}
+
         {/* Табы: тип рейтинга */}
         <div className="flex gap-2 mb-3">
           {TYPE_TABS.map((tab) => {

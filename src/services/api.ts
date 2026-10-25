@@ -1,3 +1,4 @@
+import { prepareOwnerChange, notifyOwnerChange, progressOwner } from './progressStorage';
 // API сервис для работы с бэкендом.
 // Офлайн-сборка (OFFLINE=true) работает по принципу local-first:
 //  - игровое ядро (кампании, уровни, дейлик, статистика, настройки) — ВСЕГДА из локальных данных;
@@ -582,6 +583,7 @@ interface StoredTokens {
 // localStorage не читается, и авторизованные запросы (в т.ч. завершение
 // онбординга) падают с 401. Память переживает это в рамках сессии.
 let memoryTokens: StoredTokens | null = null;
+let memoryOnlyTokens = false;
 
 function parseTokens(raw: string | null): StoredTokens | null {
   if (!raw) return null;
@@ -601,7 +603,7 @@ function parseTokens(raw: string | null): StoredTokens | null {
 export const getStoredTokens = (): StoredTokens | null => {
   try {
     const fromLs = parseTokens(localStorage.getItem(TOKEN_KEY));
-    if (fromLs) {
+    if (fromLs || !memoryOnlyTokens) {
       memoryTokens = fromLs;
       return fromLs;
     }
@@ -612,20 +614,27 @@ export const getStoredTokens = (): StoredTokens | null => {
 };
 
 export const setStoredTokens = (tokens: StoredTokens): void => {
+  prepareOwnerChange();
   if (!tokens?.access_token || !tokens?.refresh_token) {
     memoryTokens = null;
     try { localStorage.removeItem(TOKEN_KEY); } catch { /* недоступно */ }
+    memoryOnlyTokens = false;
+    notifyOwnerChange();
     return;
   }
   memoryTokens = { access_token: tokens.access_token, refresh_token: tokens.refresh_token };
   // localStorage — для персистентности между запусками; если недоступен,
   // токен всё равно живёт в памяти на текущую сессию.
-  try { localStorage.setItem(TOKEN_KEY, JSON.stringify(memoryTokens)); } catch { /* недоступно */ }
+  try { localStorage.setItem(TOKEN_KEY, JSON.stringify(memoryTokens)); memoryOnlyTokens = false; } catch { memoryOnlyTokens = true; }
+  notifyOwnerChange(tokens.access_token);
 };
 
 export const clearStoredTokens = (): void => {
+  prepareOwnerChange();
   memoryTokens = null;
+  memoryOnlyTokens = false;
   try { localStorage.removeItem(TOKEN_KEY); } catch { /* недоступно */ }
+  notifyOwnerChange();
 };
 
 // ---------------------------------------------------------------------------
@@ -635,7 +644,7 @@ export const clearStoredTokens = (): void => {
 // выигрывал только первый, остальные получали 401 и сносили сессию —
 // отсюда «Сессия истекла» и вечный повторный вход. Теперь refresh один на всех.
 // ---------------------------------------------------------------------------
-let refreshInFlight: Promise<StoredTokens | null> | null = null;
+const refreshFlights = new Map<string, Promise<StoredTokens | null>>();
 
 // Межвкладочная защита: localStorage общий, а refresh_token одноразовый.
 // Две вкладки (или PWA + вкладка) на старте одновременно шлют один токен →
@@ -652,11 +661,14 @@ async function withCrossTabLock<T>(fn: () => Promise<T>): Promise<T> {
 
 /** null — сессия мертва (refresh отвергнут); StoredTokens — можно повторять запрос */
 export function refreshTokensOnce(): Promise<StoredTokens | null> {
-  if (refreshInFlight) return refreshInFlight;
   const snapshot = getStoredTokens();
-  refreshInFlight = withCrossTabLock(async () => {
+  if (!snapshot?.refresh_token) return Promise.resolve(null);
+  const active = refreshFlights.get(snapshot.refresh_token);
+  if (active) return active;
+  const owner = progressOwner();
+  const refreshInFlight = withCrossTabLock(async () => {
     const current = getStoredTokens();
-    if (!current?.refresh_token) return null;
+    if (!current?.refresh_token || progressOwner() !== owner) return null;
     // Пока ждали замок, другая вкладка успела обновить токены — берём их.
     if (snapshot?.refresh_token && current.refresh_token !== snapshot.refresh_token) {
       console.log('✅ Токены уже обновлены другой вкладкой');
@@ -671,6 +683,7 @@ export function refreshTokensOnce(): Promise<StoredTokens | null> {
       });
       if (refreshResponse.ok) {
         const refreshed: RefreshResponse = await refreshResponse.json();
+        if (getStoredTokens()?.refresh_token !== current.refresh_token || progressOwner() !== owner) return null;
         const nextTokens: StoredTokens = {
           access_token: refreshed.access_token,
           refresh_token: refreshed.refresh_token ?? current.refresh_token,
@@ -679,6 +692,7 @@ export function refreshTokensOnce(): Promise<StoredTokens | null> {
         setStoredTokens(nextTokens);
         return nextTokens;
       }
+      if (getStoredTokens()?.refresh_token !== current.refresh_token || progressOwner() !== owner) return null;
       const refreshStatus = refreshResponse.status;
       console.log('❌ Не удалось обновить токен:', refreshStatus);
       if (refreshStatus === 401 || refreshStatus === 403) {
@@ -689,17 +703,15 @@ export function refreshTokensOnce(): Promise<StoredTokens | null> {
       return current;
     } catch (e) {
       console.log('❌ Ошибка сети при обновлении токена, сохраняем сессию:', e);
-      return current;
-    } finally {
-      // ожидающие уже держат ссылку на этот promise — сброс безопасен сразу
-      refreshInFlight = null;
+      return progressOwner() === owner ? getStoredTokens() : null;
     }
-  });
+  }).finally(() => { refreshFlights.delete(snapshot.refresh_token); });
+  refreshFlights.set(snapshot.refresh_token, refreshInFlight);
   return refreshInFlight;
 }
 
 // Базовая функция для API запросов
-async function apiRequest<T>(
+export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
   isRetry = false
@@ -711,6 +723,7 @@ async function apiRequest<T>(
     throw { statusCode: 0, message: 'Нет подключения к интернету', error: 'offline' } as ApiError;
   }
 
+  const owner = progressOwner();
   const tokens = getStoredTokens();
   
   const headers: HeadersInit = {
@@ -727,11 +740,16 @@ async function apiRequest<T>(
     headers,
   });
 
+  if (owner !== progressOwner()) throw { statusCode: 409, message: 'Аккаунт изменился' };
+
   if (!response.ok) {
     const error: ApiError = await response.json().catch(() => ({
       statusCode: response.status,
       message: response.statusText,
     }));
+
+    error.statusCode = response.status;
+    if (owner !== progressOwner()) throw { statusCode: 409, message: 'Аккаунт изменился' };
 
     // Если 401 и это не retry - пробуем обновить токен
     // НЕ пытаемся обновить токен если сам запрос /auth/refresh вернул 401
@@ -743,6 +761,7 @@ async function apiRequest<T>(
       // single-flight: параллельные 401 ждут ОДИН общий refresh
       // (refresh_token одноразовый — гонка сжигала сессию, см. refreshTokensOnce)
       const nextTokens = await refreshTokensOnce();
+      if (owner !== progressOwner()) throw { statusCode: 409, message: 'Аккаунт изменился' };
       if (nextTokens) {
         // если access сменился — повторяем запрос; иначе (временная ошибка
         // refresh) отдаём исходную ошибку без сноса сессии
@@ -781,7 +800,9 @@ async function apiRequest<T>(
     return undefined as T;
   }
 
-  return response.json();
+  const result = await response.json();
+  if (owner !== progressOwner()) throw { statusCode: 409, message: 'Аккаунт изменился' };
+  return result;
 }
 
 // Общий финал всех входов: POST на auth-эндпоинт + сохранение выданной пары токенов
@@ -1160,11 +1181,12 @@ export type LessonVoteType = 'upvote' | 'downvote';
 export async function completeTextbookLesson(
   slug: string,
   kind: 'theory' | 'quiz' = 'theory',
+  answers?: Array<{ word: string; answer: string }>,
 ): Promise<{ completedUsers: number; xpGained?: number } | undefined> {
   if (!authedNetUsable()) return undefined;
   return apiRequest(`/textbook/lesson/${encodeURIComponent(slug)}/complete`, {
     method: 'POST',
-    body: JSON.stringify({ kind }),
+    body: JSON.stringify({ kind, answers }),
   });
 }
 
@@ -1174,7 +1196,7 @@ export async function getTextbookStats(): Promise<{ lessons: TextbookLessonStats
 }
 
 export async function getTextbookMyState(): Promise<
-  { completed: string[]; votes: Record<string, LessonVoteType> } | undefined
+  { completed: string[]; votes: Record<string, LessonVoteType>; progress?: Record<string, { theoryReadAt?: string; quizPassedAt?: string; quizBest?: { correct: number; total: number } }> } | undefined
 > {
   if (!authedNetUsable()) return undefined;
   return apiRequest('/textbook/my', { method: 'GET' });
