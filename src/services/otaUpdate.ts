@@ -34,6 +34,7 @@ export async function revertToBuiltin(): Promise<void> {
 
 // Проверка доступности OTA-обновления (БЕЗ применения). Возвращает info или null.
 export async function checkOtaAvailable(): Promise<OtaInfo | null> {
+  if (import.meta.env.VITE_TEST_APP === 'true') return null; // Keep test and production installs separate.
   if (!Capacitor.isNativePlatform()) return null;
   try {
     const r = await fetch(OTA_MANIFEST_URL, { cache: 'no-store' });

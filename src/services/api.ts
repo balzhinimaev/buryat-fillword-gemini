@@ -16,6 +16,14 @@ const hasServerSession = (): boolean => !!getStoredTokens()?.refresh_token;
 const netUsable = (): boolean => !OFFLINE || isNetOnline();
 const authedNetUsable = (): boolean => netUsable() && (!OFFLINE || hasServerSession());
 
+// A local Android player is not a server session. Do not report this as lost connectivity.
+const requireAuthedNetwork = (): void => {
+  if (!netUsable()) throw new Error('Нет подключения к интернету');
+  if (OFFLINE && !hasServerSession()) {
+    throw new Error('Для этого действия нужен вход в серверный аккаунт. Локальный профиль работает без входа, но не даёт доступа к онлайн-мастерской.');
+  }
+};
+
 // Событие для уведомления о необходимости переавторизации
 export const AUTH_REQUIRED_EVENT = 'auth:required';
 
@@ -213,7 +221,7 @@ export interface UpdateOnboardingRequest {
 
 // Обновление имени
 export async function updateName(name: string): Promise<UserResponse> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  requireAuthedNetwork();
   return apiRequest<UserResponse>('/users/me/name', {
     method: 'PATCH',
     body: JSON.stringify({ name }),
@@ -926,7 +934,7 @@ export async function refreshToken(): Promise<RefreshResponse> {
 
 // Текущий пользователь
 export async function getMe(): Promise<MeResponse> {
-  if (OFFLINE) return (await import('./offlineStubs')).offlineMe();
+  if (OFFLINE && !hasServerSession()) return (await import('./offlineStubs')).offlineMe();
   return apiRequest<MeResponse>('/auth/me', { method: 'GET' });
 }
 
@@ -1140,13 +1148,13 @@ export async function getUserStats(): Promise<UserStats> {
 
 // Присоединиться к хранителям языка
 export async function joinLanguageKeepers(): Promise<UserResponse> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  requireAuthedNetwork();
   return apiRequest<UserResponse>('/users/me/join-keepers', { method: 'POST' });
 }
 
 // Покинуть хранителей языка
 export async function leaveLanguageKeepers(): Promise<UserResponse> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  requireAuthedNetwork();
   return apiRequest<UserResponse>('/users/me/leave-keepers', { method: 'POST' });
 }
 
@@ -1158,7 +1166,7 @@ export async function getPendingWords(): Promise<PendingWord[]> {
 
 // Голосование за слово
 export async function voteWord(data: VoteRequest): Promise<VoteResponse> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  requireAuthedNetwork();
   return apiRequest<VoteResponse>('/votes', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -1224,7 +1232,7 @@ export async function unvoteTextbookLesson(
 
 // Обновление онбординга
 export async function updateOnboarding(data: UpdateOnboardingRequest): Promise<UserResponse> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  requireAuthedNetwork();
   return apiRequest<UserResponse>('/users/me/onboarding', {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -2727,7 +2735,7 @@ export async function createContentReport(data: {
   type: ContentReportType;
   message?: string;
 }): Promise<ContentReport> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  requireAuthedNetwork();
   return apiRequest<ContentReport>('/reports', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -2801,7 +2809,7 @@ export async function getLoreItem(id: string): Promise<LoreItem> {
 }
 
 export async function addLoreComment(id: string, text: string): Promise<LoreItem> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  requireAuthedNetwork();
   return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments`, {
     method: 'POST',
     body: JSON.stringify({ text }),
@@ -2809,7 +2817,7 @@ export async function addLoreComment(id: string, text: string): Promise<LoreItem
 }
 
 export async function editLoreComment(id: string, commentId: string, text: string): Promise<LoreItem> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  requireAuthedNetwork();
   return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
     method: 'PATCH',
     body: JSON.stringify({ text }),
@@ -2817,7 +2825,7 @@ export async function editLoreComment(id: string, commentId: string, text: strin
 }
 
 export async function deleteLoreComment(id: string, commentId: string): Promise<LoreItem> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  requireAuthedNetwork();
   return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
     method: 'DELETE',
   });
@@ -2859,7 +2867,7 @@ export async function createLoreItem(data: {
   dialectId?: string;
   relatedBur?: string[];
 }): Promise<LoreItem> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineOnly();
+  requireAuthedNetwork();
   return apiRequest<LoreItem>('/lore', {
     method: 'POST',
     body: JSON.stringify(data),

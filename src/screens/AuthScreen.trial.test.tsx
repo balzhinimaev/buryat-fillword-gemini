@@ -37,3 +37,13 @@ it('plays before login, keeps entered email and only marks the tutorial after co
   expect(auth.passwordRegister).not.toHaveBeenCalled();
   expect(auth.requestEmailOtp).not.toHaveBeenCalled();
 });
+
+it('returns to the caller only after a successful server login', async () => {
+  const success = vi.fn();
+  auth.passwordLogin.mockResolvedValueOnce(undefined);
+  render(<AuthScreen onSuccess={success} />);
+  fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'player@example.com' } });
+  fireEvent.change(screen.getByPlaceholderText('минимум 6 символов'), { target: { value: 'example-password' } });
+  fireEvent.click(screen.getByRole('button', { name: /^Войти$/ }));
+  await vi.waitFor(() => expect(success).toHaveBeenCalledOnce());
+});

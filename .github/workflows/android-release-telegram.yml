@@ -3,6 +3,10 @@ name: Android Release (signed) + Telegram
 on:
   workflow_dispatch:
     inputs:
+      test_server:
+        description: 'Separate Burlive Test app using the isolated test server'
+        type: boolean
+        default: false
       publish_telegram:
         description: 'Send signed build to the configured Telegram target'
         type: boolean
@@ -30,6 +34,9 @@ jobs:
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      BURLIVE_TEST_APP: ${{ inputs.test_server && 'true' || 'false' }}
+      VITE_TEST_APP: ${{ inputs.test_server && 'true' || 'false' }}
     permissions:
       contents: read
 
@@ -190,7 +197,7 @@ jobs:
         env:
           VITE_APP_VERSION_CODE: ${{ steps.meta.outputs.version_code }}
           VITE_APP_VERSION_NAME: ${{ steps.meta.outputs.version_name }}
-          VITE_API_URL: ${{ vars.ANDROID_API_URL || 'https://buryat-game.ru/api' }}
+          VITE_API_URL: ${{ inputs.test_server && 'https://fillword.31.76.83.11.sslip.io/api' || vars.ANDROID_API_URL || 'https://buryat-game.ru/api' }}
         run: npm test && npm run build:android && npm run size:check
 
       - name: Sync Capacitor Android project

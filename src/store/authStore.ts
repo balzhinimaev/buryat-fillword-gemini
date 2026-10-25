@@ -525,6 +525,10 @@ export function useAuthStore(): AuthStore {
       // Офлайн-режим: без сети и без Telegram — заходим под локальным игроком.
       if (OFFLINE) {
         hasTriedAuthRef.current = true;
+        if (getStoredTokens()?.refresh_token && loadUser()) {
+          if (navigator.onLine !== false) await refreshSessionOnStart();
+          if (getStoredTokens()?.refresh_token) return;
+        }
         const offlineUser = await buildOfflineUser();
         saveUser(offlineUser);
         setState({
@@ -629,7 +633,7 @@ export function useAuthStore(): AuthStore {
     // Офлайн-сборка: источник истины — локальные данные. Пересобираем блоки
     // статистики из offlineMe() без сети и токенов — иначе campaignStats/streak/xp
     // замирают на снимке момента запуска и «статистика не растёт» до перезапуска.
-    if (OFFLINE) {
+    if (OFFLINE && !getStoredTokens()?.refresh_token) {
       // Даём gameStore дописать своё состояние в localStorage (сохранение идёт в useEffect
       // того же коммита React) — иначе прочитаем XP/стрик до их записи.
       await new Promise(resolve => setTimeout(resolve, 0));

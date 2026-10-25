@@ -39,7 +39,8 @@ android {
     compileSdk = rootProject.ext.compileSdkVersion
 
     defaultConfig {
-        applicationId "ru.burlive.app"
+        applicationId (System.getenv('BURLIVE_TEST_APP') == 'true' ? "ru.burlive.app.test" : "ru.burlive.app")
+        manifestPlaceholders = [appLabel: System.getenv('BURLIVE_TEST_APP') == 'true' ? 'Burlive Test' : 'Burlive', appScheme: System.getenv('BURLIVE_TEST_APP') == 'true' ? 'ru.burlive.app.test' : 'ru.burlive.app']
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode releaseVersionCode ?: appRelease.versionCode
