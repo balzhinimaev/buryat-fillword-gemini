@@ -934,7 +934,7 @@ export async function refreshToken(): Promise<RefreshResponse> {
 
 // Текущий пользователь
 export async function getMe(): Promise<MeResponse> {
-  if (OFFLINE) return (await import('./offlineStubs')).offlineMe();
+  if (OFFLINE && !hasServerSession()) return (await import('./offlineStubs')).offlineMe();
   return apiRequest<MeResponse>('/auth/me', { method: 'GET' });
 }
 

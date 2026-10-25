@@ -15,6 +15,13 @@ describe('Android workshop connectivity errors', () => {
     await expect(joinLanguageKeepers()).rejects.toThrow('вход в серверный аккаунт');
     expect(fetch).not.toHaveBeenCalled();
   });
+  it('loads the real keeper profile after Android login', async () => {
+    const { getMe, setStoredTokens } = await import('./api');
+    setStoredTokens({ access_token: 'test-access', refresh_token: 'test-refresh' });
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ _id: 'server-user', isLanguageKeeper: true }), { status: 200 }));
+    await expect(getMe()).resolves.toMatchObject({ _id: 'server-user', isLanguageKeeper: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
   it('reports an actual disconnected device separately', async () => {
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
     const { joinLanguageKeepers } = await import('./api');

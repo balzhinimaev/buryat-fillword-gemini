@@ -1,7 +1,7 @@
 // src/screens/WordContributionScreen.tsx
 // «Үгын Дархан» — словарная мастерская: добавление слов (с озвучкой),
 // проверка слов и озвучек сообществом, «моё» (вклад со статусами), рейтинг.
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -39,6 +39,7 @@ import {
   getWordsStats,
   getLanguageKeepersLeaderboard,
   joinLanguageKeepers,
+  getStoredTokens,
   getPendingAudioSuggestions,
   getOpenContentReports,
   getPendingLore,
@@ -50,6 +51,7 @@ import { AudioModerationPanel } from '../components/contribution/AudioModeration
 import { ReportsModerationPanel } from '../components/contribution/ReportsModerationPanel';
 import { LoreModerationPanel } from '../components/contribution/LoreModerationPanel';
 import { OFFLINE } from '../config/offline';
+const AuthScreen = lazy(() => import('./AuthScreen'));
 import { submitWordOfflineAware, syncQueue, queueStats } from '../services/contribSync';
 import { syncDictionary } from '../services/offlineDict';
 
@@ -64,6 +66,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
   const { user: telegramUser } = useTelegram();
   const { theme, isDark } = useTheme();
 
+  const [showServerLogin, setShowServerLogin] = useState(false);
   const [joinCompletedLocally, setJoinCompletedLocally] = useState(false);
 
   const isLanguageKeeper = Boolean(authState.user?.isLanguageKeeper || joinCompletedLocally);
@@ -214,6 +217,11 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
     </div>
   );
 
+  if (showServerLogin) return <Suspense fallback={<p>Загрузка входа…</p>}>
+    <button type="button" onClick={() => setShowServerLogin(false)} className="p-4">Назад в мастерскую</button>
+    <AuthScreen onSuccess={() => setShowServerLogin(false)} />
+  </Suspense>;
+
   return (
     <div className={cn(
       "min-h-[100dvh] flex flex-col",
@@ -285,7 +293,14 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
 
       {/* Контент */}
       <main className="flex-1 px-4 pb-6 pt-4 overflow-y-auto relative z-10">
-        {!isLanguageKeeper ? (
+        {OFFLINE && !getStoredTokens()?.refresh_token ? (
+          <div className="p-5 space-y-4">
+            <h2 className="text-xl font-semibold">Вход в онлайн-мастерскую</h2>
+            <p>Игра доступна без аккаунта. Чтобы добавлять и проверять слова в общем словаре, войдите или зарегистрируйтесь.</p>
+            {import.meta.env.VITE_TEST_APP === 'true' && <p>Тестовый сервер: аккаунты здесь отдельные от основной игры.</p>}
+            <button type="button" className="px-5 py-3 rounded-xl bg-amber-600 text-white" onClick={() => setShowServerLogin(true)}>Войти или зарегистрироваться</button>
+          </div>
+        ) : !isLanguageKeeper ? (
           <WelcomeScreen
             onJoinKeepers={handleJoinKeepers}
             telegramUser={telegramUser}

@@ -12,6 +12,7 @@ export interface ApkUpdateInfo {
 }
 
 export async function checkApkUpdate(): Promise<ApkUpdateInfo | null> {
+  if (import.meta.env.VITE_TEST_APP === 'true') return null; // Keep test and production installs separate.
   try {
     const r = await fetch(VERSION_URL, { cache: 'no-store' });
     if (!r.ok) return null;

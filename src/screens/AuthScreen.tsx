@@ -25,7 +25,7 @@ const TITLES: Record<AuthMode, { title: string; subtitle: (email: string, codeSe
   reset: { title: 'Сброс пароля', subtitle: (email, codeSent) => codeSent ? `Код отправлен на ${email}` : 'Пришлём код для смены пароля' },
 };
 
-export default function AuthScreen({ onTrialComplete }: { onTrialComplete?: () => void }) {
+export default function AuthScreen({ onTrialComplete, onSuccess }: { onTrialComplete?: () => void; onSuccess?: () => void }) {
   const [showTrial, setShowTrial] = useState(false);
   const {
     state, requestEmailOtp, verifyEmailOtp,
@@ -85,6 +85,7 @@ export default function AuthScreen({ onTrialComplete }: { onTrialComplete?: () =
         if (otp.trim().length !== 6 || !passwordValid) return;
         await passwordReset(email.trim(), otp.trim(), password);
       }
+      onSuccess?.();
     } catch { /* ошибка уже в сторе */ }
   };
 
