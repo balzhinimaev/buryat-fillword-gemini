@@ -423,7 +423,7 @@ export const useGameStore = () => {
   }, [state.endlessProgress]);
 
   // Настройки — обновляем локально + синхронизируем с API
-  const updateSettings = useCallback((updates: Partial<GameSettings>) => {
+  const updateSettings = useCallback((updates: Partial<GameSettings>, options?: { localOnly?: boolean }) => {
     // Оптимистично обновляем UI сразу
     setState(prev => ({
       ...prev,
@@ -432,7 +432,7 @@ export const useGameStore = () => {
 
     // Синхронизируем с API (fire & forget, не блокируем UI)
     const apiUpdate = toApiSettingsUpdate(updates);
-    if (apiUpdate) {
+    if (apiUpdate && !options?.localOnly) {
       apiPatchSettings(apiUpdate).catch(err => {
         console.warn('⚠️ Не удалось сохранить настройки на сервере:', err);
       });
