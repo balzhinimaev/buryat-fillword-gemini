@@ -33,7 +33,7 @@ export function usePushNotifications(isPushFlowEnabled: boolean): void {
   const registeredTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isNativeAndroid()) return;
+    if (import.meta.env.VITE_TEST_APP === 'true' || !isNativeAndroid()) return;
 
     let cancelled = false;
 
