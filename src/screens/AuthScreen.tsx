@@ -1,7 +1,7 @@
 // Экран входа: классические вход/регистрация по email+паролю (логин = email),
 // сброс пароля по коду из письма, вход по одноразовому коду как альтернатива,
 // плюс соц-входы (ВКонтакте, Telegram внутри Mini App) — см. ./auth/.
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, KeyRound, Mail, ShieldCheck, UserPlus } from 'lucide-react';
 import { useAuth } from '../store/authStore';
@@ -11,6 +11,8 @@ import { cn } from '../utils/cn';
 import { TextField, PasswordField, SubmitButton } from './auth/controls';
 import { SocialLoginButtons } from './auth/SocialLoginButtons';
 import { useResendCountdown } from './auth/useResendCountdown';
+
+const TrialLesson = lazy(() => import('../components/TrialLesson'));
 
 type AuthMode = 'login' | 'register' | 'otp' | 'reset';
 
@@ -23,7 +25,8 @@ const TITLES: Record<AuthMode, { title: string; subtitle: (email: string, codeSe
   reset: { title: 'Сброс пароля', subtitle: (email, codeSent) => codeSent ? `Код отправлен на ${email}` : 'Пришлём код для смены пароля' },
 };
 
-export default function AuthScreen() {
+export default function AuthScreen({ onTrialComplete }: { onTrialComplete?: () => void }) {
+  const [showTrial, setShowTrial] = useState(false);
   const {
     state, requestEmailOtp, verifyEmailOtp,
     passwordLogin, passwordRegister, passwordReset, clearError,
@@ -202,9 +205,20 @@ export default function AuthScreen() {
     </>
   );
 
+  if (showTrial) return <Suspense fallback={<p className={cn('p-6', theme.text.muted)}>Готовим пробное занятие…</p>}>
+    <TrialLesson guest onExit={() => setShowTrial(false)} continueLabel="Перейти ко входу" onContinue={() => { onTrialComplete?.(); setShowTrial(false); }} />
+  </Suspense>;
+
   return (
     <div className={cn('min-h-[100dvh] flex flex-col px-5 py-8', theme.backgrounds.primaryGradient)}>
       <div className="flex-1 flex flex-col justify-center max-w-md w-full mx-auto">
+        {(mode === 'login' || mode === 'register') && <section className="mb-6">
+          <p className={cn('text-xs uppercase tracking-widest mb-2', theme.text.muted)}>Бурятский · Филлворд</p>
+          <h2 className={cn('text-2xl font-bold tracking-tight', theme.text.primary)}>Сначала попробуй</h2>
+          <p className={cn('text-sm mt-2 leading-relaxed', theme.text.muted)}>Три слова, маленькое поле и первый шаг в язык. Без аккаунта и таймера.</p>
+          <button type="button" onClick={() => setShowTrial(true)} className="w-full min-h-12 mt-4 px-5 py-3 rounded-2xl bg-amber-500 text-stone-950 font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-500">Попробовать без регистрации</button>
+          <p className={cn('text-xs mt-3 text-center', theme.text.muted)}>Уже играешь? Войди ниже.</p>
+        </section>}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}

@@ -334,11 +334,8 @@ export default function App() {
     (async () => {
       let resumeSlug: string | null = null;
 
-      // Офлайн-режим: нет сервера/кампании — сразу в выбор режима (доступен level-mode).
-      if (OFFLINE) {
-        navigate('gameMode');
-        return;
-      }
+      // Native offline startup lands on Today; explicit deep links still take priority.
+      if (OFFLINE && !startAppIntent) return;
 
       try {
         const overview = await api.getCampaignOverview();
@@ -390,10 +387,7 @@ export default function App() {
         return;
       }
 
-      // Fallback: resume-first-flow для обычного старта без deep-link
-      if (resumeSlug && currentScreen === 'menu') {
-        navigate('gameMode');
-      }
+      // Keep Today visible; the primary action offers the saved campaign level.
     })();
 
     return () => {
@@ -405,7 +399,6 @@ export default function App() {
     shouldShowOnboarding,
     settings.hasSeenHowTo,
     startAppIntent,
-    currentScreen,
     setCampaignResumeSlug,
     setCampaignLandingView,
     setCampaignPreferredModuleId,
@@ -467,7 +460,7 @@ export default function App() {
           </div>
         );
       case 'auth':
-        return <AuthScreen />;
+        return <AuthScreen onTrialComplete={() => store.updateSettings({ hasSeenHowTo: true }, { localOnly: true })} />;
       case 'onboarding':
         return <OnboardingScreen store={store} />;
       case 'howto':
