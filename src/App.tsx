@@ -40,7 +40,7 @@ import { Capacitor } from '@capacitor/core';
 import { parseVkReturn, consumeWebVkReturn } from './services/vkAuth';
 
 // Screens (lazy-loaded для code splitting)
-const MainMenu = lazy(() => import('./screens/MainMenu'));
+const MainMenu = lazy(() => import('./courses/CourseMenu'));
 const GameModeSelectScreen = lazy(() => import('./screens/GameModeSelectScreen'));
 const LevelsScreen = lazy(() => import('./screens/LevelsScreen'));
 const LevelPackScreen = lazy(() => import('./screens/LevelPackScreen'));
