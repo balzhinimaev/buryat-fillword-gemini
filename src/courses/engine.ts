@@ -1,12 +1,19 @@
 import type { Coord } from '../types';
-import type { CourseLesson, CourseWord, LearningCourse } from './czech';
+import type { CourseLesson, CourseWord, LearningCourse } from './model';
+import { languageRules } from './model';
 export interface CoursePlacement { word: CourseWord; path: Coord[] }
 export interface CourseBoard { grid: string[][]; words: CoursePlacement[]; size: number }
 /** Czech CH is one cell; NFC preserves accents even for decomposed input. */
 export function courseLetters(text: string, language = 'cs'): string[] {
   const value = text.normalize('NFC').toLocaleUpperCase(language);
   if (!/^[\p{L}]+$/u.test(value)) throw new Error('A course word must contain letters only');
-  return language === 'cs' ? value.match(/CH|./gu) || [] : [...value];
+  const digraphs = languageRules[language]?.digraphs || [];
+  const letters: string[] = [];
+  for (let index = 0; index < value.length;) {
+    const letter = digraphs.find(digraph => value.startsWith(digraph, index)) || String.fromCodePoint(value.codePointAt(index)!);
+    letters.push(letter); index += letter.length;
+  }
+  return letters;
 }
 function shuffle<T>(items: T[], random: () => number): T[] {
   const result = [...items];
