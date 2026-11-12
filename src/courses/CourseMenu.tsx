@@ -5,45 +5,32 @@ import type { Coord } from '../types';
 import { czechCourse, type LearningCourse, type CourseId, type CourseLesson } from './czech';
 import { extendSelection, selectedWord, type CourseBoard } from './engine';
 import { chosenCourse, chooseCourse, completedLessons, completeCourseLesson, syncCourseProgress, COURSE_PROGRESS_EVENT } from './progress';
-import { progressOwner, PROGRESS_OWNER_EVENT } from '../services/progressStorage';
+import { progressOwner } from '../services/progressStorage';
 import { readDraft, writeDraft, clearDraft, draftBoard } from './draft';
-import { courses, courseById, uniqueWords } from './catalog';
-import { languageRules } from './model';
+import { englishCourse } from './english';
 import ReviewPractice from './ReviewPractice';
 import { dueWords } from './review';
 const MainMenu = lazy(() => import('../screens/MainMenu'));
 const button = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600';
 
 export default function CourseMenu({ store }: { store: GameStore }) {
-  const [owner, setOwner] = useState(progressOwner);
-  useEffect(() => { const changed = () => setOwner(progressOwner()); window.addEventListener(PROGRESS_OWNER_EVENT, changed); return () => window.removeEventListener(PROGRESS_OWNER_EVENT, changed); }, []);
-  return <CourseShell key={owner} store={store} />;
-}
-
-function CourseShell({ store }: { store: GameStore }) {
-  const [classic, setClassic] = useState(false);
   const [course, setCourse] = useState<CourseId>(chosenCourse);
   const [error, setError] = useState('');
   return <>
     <section aria-label="Выбор изучаемого языка" className="border-b border-stone-200 bg-white px-4 py-4 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
       <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
         <div><p className="flex items-center gap-2 text-sm font-semibold"><Globe2 size={17} aria-hidden />Мои языки</p><p className="mt-1 text-xs text-stone-500 dark:text-stone-400">Объяснения и переводы на русском</p></div>
-        <div className="flex flex-wrap gap-2">{courses.map(({id, title}) => <button key={id} type="button" aria-pressed={course === id} className={`${button} ${course === id ? 'bg-emerald-700 text-white' : 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-200'}`} onClick={() => { try { chooseCourse(id); setCourse(id); setClassic(false); setError(''); } catch { setError('Не удалось сохранить выбор языка. Проверьте свободное место.'); } }}>{title}</button>)}</div>
+        <div className="flex flex-wrap gap-2">{([['bua-ru', 'Бурятский'], ['cs-ru', 'Чешский'], ['en-ru', 'Английский']] as const).map(([id, title]) => <button key={id} type="button" aria-pressed={course === id} className={`${button} ${course === id ? 'bg-emerald-700 text-white' : 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-200'}`} onClick={() => { try { chooseCourse(id); setCourse(id); setError(''); } catch { setError('Не удалось сохранить выбор языка. Проверьте свободное место.'); } }}>{title}</button>)}</div>
       </div>
-      <nav aria-label="Аккаунт и настройки" className="mx-auto mt-2 flex max-w-3xl gap-2">
-        <button type="button" className={button} onClick={() => store.navigate('profile')}>Профиль</button>
-        <button type="button" className={button} onClick={() => store.navigate('settings')}>Настройки</button>
-      </nav>
       {error && <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">{error}</p>}
     </section>
     <Suspense fallback={<p className="p-8 text-center">Загружаем курс…</p>}>
-      {course === 'bua-ru' && <div className="px-4 py-3 text-center"><button className={button} onClick={() => setClassic(value => !value)}>{classic ? '← К общему курсу' : 'Классические режимы, звёзды и учебник'}</button><p className="text-xs text-stone-500">Прежние достижения сохранены. Учебная практика не начисляет рейтинговые баллы.</p></div>}
-      {classic && course === 'bua-ru' ? <MainMenu store={store} /> : <LearningCourseScreen key={course} course={courseById(course)} />}
+      {course === 'bua-ru' ? <MainMenu store={store} /> : <CzechCourse key={course} course={course === 'en-ru' ? englishCourse : czechCourse} />}
     </Suspense>
   </>;
 }
 
-export function LearningCourseScreen({ course = czechCourse }: { course?: LearningCourse }) {
+export function CzechCourse({ course = czechCourse }: { course?: LearningCourse }) {
   const [completed, setCompleted] = useState(() => completedLessons(undefined, course));
   const [reviewTime, setReviewTime] = useState(Date.now);
   useEffect(() => { const timer = window.setInterval(() => setReviewTime(Date.now()), 60000); return () => clearInterval(timer); }, []);
@@ -74,11 +61,11 @@ export function LearningCourseScreen({ course = czechCourse }: { course?: Learni
   };
   return <main className="min-h-[80dvh] bg-stone-50 px-4 py-6 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
     <div className="mx-auto max-w-3xl">
-      {review ? <ReviewPractice course={course} onBack={() => setReview(false)} /> : lesson ? <CourseLessonScreen course={course} key={lesson.id} lesson={lesson} onBack={() => setLesson(null)} onComplete={() => finish(lesson.id)} onReview={() => { setLesson(null); setReview(true); }} onNext={() => { const index = course.lessons.findIndex(l => l.id === lesson.id); setLesson(course.lessons[index + 1] || null); }} /> : <>
+      {review ? <ReviewPractice course={course} onBack={() => setReview(false)} /> : lesson ? <CzechLesson course={course} key={lesson.id} lesson={lesson} onBack={() => setLesson(null)} onComplete={() => finish(lesson.id)} onNext={() => { const index = course.lessons.findIndex(l => l.id === lesson.id); setLesson(course.lessons[index + 1] || null); }} /> : <>
         <div className="mb-6 rounded-3xl bg-emerald-800 p-6 text-white">
           <p className="text-sm font-medium text-emerald-100">{course.nativeTitle} · первые шаги</p>
           <h1 className="mt-2 text-3xl font-bold">{course.title} через игру</h1>
-          <p className="mt-3 max-w-lg text-sm leading-relaxed text-emerald-50">Слов в словаре: {uniqueWords(course).length}. Уроков: {course.lessons.length}. Сначала познакомьтесь со словами, затем найдите их на поле. {languageRules[course.language]?.note}</p>
+          <p className="mt-3 max-w-lg text-sm leading-relaxed text-emerald-50">48 слов в 8 небольших уроках. Сначала познакомьтесь со словами, затем найдите их на поле. {course.language === 'cs' ? 'Буквы со значками сохраняются, а CH занимает одну клетку.' : 'Каждая английская буква занимает отдельную клетку.'}</p>
           <p className="mt-4 font-semibold">Пройдено {completed.length} из {course.lessons.length} уроков</p>
           <progress aria-label={`Прогресс курса: ${course.title}`} value={completed.length} max={course.lessons.length} className="mt-2 h-2 w-full accent-emerald-300" />
           <button type="button" className={`${button} mt-4 bg-white text-emerald-900`} onClick={() => setLesson(course.lessons.find(l => readDraft(l, course)) || course.lessons.find(l => !completed.includes(l.id)) || course.lessons[0])}><Play size={18} aria-hidden />{completed.length || course.lessons.some(l => readDraft(l, course)) ? 'Продолжить обучение' : 'Начать первый урок'}</button>
@@ -90,9 +77,9 @@ export function LearningCourseScreen({ course = czechCourse }: { course?: Learni
         </section>
         <div className="grid gap-3 sm:grid-cols-2">{course.lessons.map((item, index) => <button type="button" key={item.id} onClick={() => setLesson(item)} className="flex min-h-24 items-center gap-4 rounded-2xl border border-stone-200 bg-white p-4 text-left focus-visible:outline-emerald-600 dark:border-stone-700 dark:bg-stone-900">
           <span aria-hidden className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${completed.includes(item.id) ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600'}`}>{completed.includes(item.id) ? <Check size={22} /> : index + 1}</span>
-          <span><span className="block font-bold">{item.title}</span><span className="mt-1 block text-sm text-stone-500 dark:text-stone-400">Слов: {item.words.length} · {completed.includes(item.id) ? 'Пройдено — можно повторить' : 'Урок и филворд'}</span></span>
+          <span><span className="block font-bold">{item.title}</span><span className="mt-1 block text-sm text-stone-500 dark:text-stone-400">6 слов · {completed.includes(item.id) ? 'Пройдено — можно повторить' : 'Урок и филворд'}</span></span>
         </button>)}</div>
-        <details className="mt-6 rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900"><summary className="min-h-11 cursor-pointer font-semibold">Словарь курса · {uniqueWords(course).length}</summary><dl className="mt-3 grid gap-3 sm:grid-cols-2">{uniqueWords(course).map(word => <div key={word.id}><dt lang={course.language} className="font-semibold">{word.text}</dt><dd className="text-sm text-stone-500 dark:text-stone-400">{word.ru}</dd></div>)}</dl></details>
+        <details className="mt-6 rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900"><summary className="min-h-11 cursor-pointer font-semibold">Словарь курса · 48 слов</summary><dl className="mt-3 grid gap-3 sm:grid-cols-2">{course.lessons.flatMap(l => l.words).map(word => <div key={word.id}><dt lang={course.language} className="font-semibold">{word.text}</dt><dd className="text-sm text-stone-500 dark:text-stone-400">{word.ru}</dd></div>)}</dl></details>
       </>}
       <p className="mt-5 text-sm text-stone-600 dark:text-stone-400" role="status">{status}</p>
       {owner === 'guest' && <p className="mt-1 text-xs text-stone-500">Гостевой прогресс привязан к этому устройству. При смене аккаунта он не переносится автоматически.</p>}
@@ -100,7 +87,7 @@ export function LearningCourseScreen({ course = czechCourse }: { course?: Learni
   </main>;
 }
 
-function CourseLessonScreen({ course, lesson, onBack, onComplete, onNext, onReview }: { course: LearningCourse; lesson: CourseLesson; onBack: () => void; onComplete: () => void; onNext: () => void; onReview: () => void }) {
+function CzechLesson({ course, lesson, onBack, onComplete, onNext }: { course: LearningCourse; lesson: CourseLesson; onBack: () => void; onComplete: () => void; onNext: () => void }) {
   const [owner] = useState(progressOwner);
   const [draft] = useState(() => readDraft(lesson, course));
   const [version] = useState<1 | 2>(() => draft?.version ?? 2);
@@ -165,7 +152,7 @@ function CourseLessonScreen({ course, lesson, onBack, onComplete, onNext, onRevi
       {!voice && <p className="mt-3 text-xs text-stone-500">На устройстве нет доступного офлайн-голоса для выбранного языка. Урок можно пройти без озвучки.</p>}
       <button type="button" className={`${button} mt-5 w-full bg-emerald-700 text-white`} onClick={() => { setBoard(draftBoard(lesson, seed, course, version)); persist([]); }}><Play size={18} aria-hidden />Найти слова на поле</button>
     </> : <>
-      <p className="my-3 text-sm text-stone-600 dark:text-stone-300">Ведите по буквам или нажимайте клетки по очереди, затем «Проверить». Только вверх, вниз, вправо и влево. {languageRules[course.language]?.note}</p>
+      <p className="my-3 text-sm text-stone-600 dark:text-stone-300">Ведите по буквам или нажимайте клетки по очереди, затем «Проверить». Только вверх, вниз, вправо и влево. {course.language === 'cs' ? 'CH — одна клетка.' : 'Одна буква — одна клетка.'}</p>
       <p className="mb-3 font-semibold" aria-live="polite">Найдено {found.length} из {lesson.words.length}</p>
       <p aria-live="polite" className="mb-3 min-h-7 text-center font-bold" lang={course.language}>{selected.length ? selected.map(p => board.grid[p.r][p.c]).join(' · ') : '…'}</p>
       <div className="mx-auto grid w-full max-w-md touch-none select-none gap-1.5" style={{ gridTemplateColumns: `repeat(${board.size}, minmax(0, 1fr))` }} aria-label={`Поле филворда: ${course.title}`}
@@ -183,7 +170,7 @@ function CourseLessonScreen({ course, lesson, onBack, onComplete, onNext, onRevi
       <p role="status" className="my-3 min-h-6 text-sm">{notice}</p>
       <ul className="grid gap-2 sm:grid-cols-2">{lesson.words.map(word => <li key={word.id} className={`rounded-xl p-3 text-sm ${found.includes(word.id) ? 'bg-emerald-100 text-emerald-900' : 'bg-white dark:bg-stone-900'}`}>{found.includes(word.id) ? `${word.text} — ${word.ru} ✓` : word.ru}</li>)}</ul>
       {!allFound && <details className="mt-4"><summary className="min-h-11 cursor-pointer text-sm font-semibold">Подсказка: как пишутся слова</summary><p lang={course.language} className="p-3">{lesson.words.filter(w => !found.includes(w.id)).map(w => w.text).join(' · ')}</p></details>}
-      {allFound && <section className="mt-5 rounded-2xl bg-emerald-100 p-5 text-emerald-950"><h2 className="text-xl font-bold">Отлично! Все слова найдены</h2><p className="mt-2">{saved ? 'Результат сохранён в выбранном курсе.' : 'Результат ещё не сохранён.'}</p>{!saved && <button type="button" className={`${button} mt-3 bg-white`} onClick={() => { try { finish(); } catch { setNotice('Сохранение недоступно. Проверьте свободное место.'); } }}>Сохранить результат</button>}<button type="button" className={`${button} mt-3 bg-emerald-800 text-white`} disabled={!saved} onClick={onNext}><BookOpen size={18} aria-hidden />Следующий урок</button><button type="button" disabled={!saved} className={`${button} mt-3 ml-2 bg-white`} onClick={onReview}>Проверить запоминание</button></section>}
+      {allFound && <section className="mt-5 rounded-2xl bg-emerald-100 p-5 text-emerald-950"><h2 className="text-xl font-bold">Отлично! Все слова найдены</h2><p className="mt-2">{saved ? 'Результат сохранён в выбранном курсе.' : 'Результат ещё не сохранён.'}</p>{!saved && <button type="button" className={`${button} mt-3 bg-white`} onClick={() => { try { finish(); } catch { setNotice('Сохранение недоступно. Проверьте свободное место.'); } }}>Сохранить результат</button>}<button type="button" className={`${button} mt-3 bg-emerald-800 text-white`} onClick={onNext}><BookOpen size={18} aria-hidden />Следующий урок</button></section>}
     </>}
   </>;
 }

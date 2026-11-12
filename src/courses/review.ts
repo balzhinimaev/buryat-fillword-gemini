@@ -1,4 +1,4 @@
-import type { LearningCourse, CourseWord } from './model';
+import type { LearningCourse, CourseWord } from './czech';
 import { completedLessons } from './progress';
 import { progressOwner, readProgress, writeProgress } from '../services/progressStorage';
 export interface ReviewRecord { text: string; stage: number; due: number; mistakes: number }
@@ -17,7 +17,7 @@ export function reviewRecords(course: LearningCourse, owner = progressOwner()): 
 }
 export function dueWords(course: LearningCourse, now=Date.now()): CourseWord[] {
  const completed=completedLessons(undefined,course), records=reviewRecords(course);
- return [...new Map(course.lessons.filter(l=>completed.includes(l.id)).flatMap(l=>l.words).map(word=>[word.id,word])).values()]
+ return course.lessons.filter(l=>completed.includes(l.id)).flatMap(l=>l.words)
   .filter(w=>!records[w.id] || records[w.id].due<=now)
   .sort((a,b)=>(records[b.id]?.mistakes||0)-(records[a.id]?.mistakes||0) || (records[a.id]?.due||0)-(records[b.id]?.due||0));
 }

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, cleanup, act } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import CourseMenu, { LearningCourseScreen } from './CourseMenu';
+import CourseMenu, { CzechCourse } from './CourseMenu';
 import { completedLessons } from './progress';
 import { czechCourse } from './czech';
 import * as engine from './engine';
@@ -11,14 +11,14 @@ beforeEach(() => { localStorage.clear(); vi.spyOn(engine, 'courseBoard').mockImp
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it('switches courses and leaves Buryat as the default', async () => {
   render(<CourseMenu store={{} as never} />);
-  expect(await screen.findByText('Бурятский через игру')).toBeTruthy();
+  expect(await screen.findByText('Бурятский учебник')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Чешский' }));
   expect(screen.getByText('Чешский через игру')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Бурятский' }));
-  expect(await screen.findByText('Бурятский через игру')).toBeTruthy();
+  expect(await screen.findByText('Бурятский учебник')).toBeTruthy();
 });
 it('lets a keyboard user finish a lesson and records only Czech completion', async () => {
-  render(<LearningCourseScreen />);
+  render(<CzechCourse />);
   fireEvent.click(screen.getByRole('button', { name: /Еда и напитки/ }));
   expect(screen.getByText(/CH–L–É–B/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Найти слова на поле' }));
@@ -34,7 +34,7 @@ it('lets a keyboard user finish a lesson and records only Czech completion', asy
 });
 
 it('restores the same board and found words after leaving and reopening a lesson', async () => {
-  const view = render(<LearningCourseScreen />);
+  const view = render(<CzechCourse />);
   fireEvent.click(screen.getByRole('button', { name: /Еда и напитки/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Найти слова на поле' }));
   const lesson = czechCourse.lessons.find(l => l.id === 'food')!;
@@ -44,7 +44,7 @@ it('restores the same board and found words after leaving and reopening a lesson
   expect(screen.getByText('Найдено 1 из 6')).toBeTruthy();
   const cells = screen.getAllByRole('button').filter(b => b.hasAttribute('data-course-cell')).map(b => b.textContent);
   view.unmount();
-  render(<LearningCourseScreen />);
+  render(<CzechCourse />);
   fireEvent.click(screen.getByRole('button', { name: 'Продолжить обучение' }));
   expect(screen.getByText('Игра восстановлена. Продолжайте с того же места.')).toBeTruthy();
   expect(screen.getByText('Найдено 1 из 6')).toBeTruthy();
@@ -73,7 +73,7 @@ it('opens English, completes a lesson and keeps Czech progress untouched', async
   await act(async()=>{await Promise.resolve();});
 });
 it('offers a first-letter hint without marking a word found and clears selection on blur', async () => {
-  render(<LearningCourseScreen />);
+  render(<CzechCourse />);
   fireEvent.click(screen.getByRole('button', {name:/Еда и напитки/}));
   fireEvent.click(screen.getByRole('button',{name:'Найти слова на поле'}));
   fireEvent.click(screen.getByRole('button',{name:'Показать первую букву'}));
