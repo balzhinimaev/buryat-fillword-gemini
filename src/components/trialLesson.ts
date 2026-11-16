@@ -15,8 +15,18 @@ export function extendTrialPath(path: number[], cell: number): number[] {
   const distance = Math.abs(Math.floor(cell / 5) - Math.floor(last / 5)) + Math.abs(cell % 5 - last % 5);
   return distance === 1 ? [...path, cell] : path;
 }
-export function matchTrialWord(path: number[]): number {
-  return TRIAL_WORDS.findIndex(word => word.path.length === path.length && (
+export function matchTrialWord(path: number[], words = TRIAL_WORDS): number {
+  return words.findIndex(word => word.path.length === path.length && (
     word.path.every((cell, i) => cell === path[i]) || word.path.every((cell, i) => cell === path[path.length - 1 - i])
   ));
+}
+
+export function languageTrial(language: string) {
+  if (language === 'bua-ru') return { letters: TRIAL_LETTERS, words: TRIAL_WORDS };
+  const words = language === 'en-ru'
+    ? [{ bur: 'SUN', ru: 'Солнце', path: [0, 1, 2] }, { bur: 'WATER', ru: 'Вода', path: [10, 11, 12, 13, 14] }, { bur: 'HOME', ru: 'Дом', path: [20, 21, 22, 23] }]
+    : [{ bur: 'LES', ru: 'Лес', path: [0, 1, 2] }, { bur: 'VODA', ru: 'Вода', path: [10, 11, 12, 13] }, { bur: 'DŮM', ru: 'Дом', path: [20, 21, 22] }];
+  const letters = Array.from({ length: 25 }, (_, i) => 'ASOTELM'[i % 7]);
+  for (const w of words) w.path.forEach((cell, i) => { letters[cell] = w.bur[i]; });
+  return { letters, words };
 }

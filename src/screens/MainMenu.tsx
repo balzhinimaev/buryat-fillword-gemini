@@ -1,3 +1,7 @@
+import { readClassicDraft } from '../courses/classicDraft';
+import { additionalCourse, courseTitle, isAdditionalCourse } from '../courses/activeCourse';
+import { completedLessons, syncCourseProgress } from '../courses/progress';
+import ReviewPractice from '../courses/ReviewPractice';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, BarChart3, BookOpen, CheckCircle2, ChevronDown, Flame, GraduationCap, Heart, HelpCircle, Home, MessageCircle, Play, RotateCcw, Settings, Shield, Star, Trophy, UserRound } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -22,6 +26,9 @@ function localDate(value: string | Date): string {
 export const MainMenu = ({ store }: { store: GameStore }) => {
   const { state, navigate } = store;
   const { stats } = state;
+  const course = additionalCourse();
+  const [spacedReview, setSpacedReview] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
   const { openLink } = useTelegram();
@@ -54,6 +61,15 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
   }, []);
   useEffect(() => { if (auth.isAuthenticated) void refreshUser(); }, [auth.isAuthenticated, refreshUser]);
 
+  useEffect(() => {
+    if (!course) return;
+    let live = true;
+    const sync = () => { void syncCourseProgress(course).then(ok => {
+      if (live) setSyncStatus(ok ? 'Пройденные уроки синхронизированы с аккаунтом.' : 'Пройденные уроки сохранены на устройстве.');
+    }).catch(() => { if (live) setSyncStatus('Пройденные уроки сохранены на устройстве; синхронизация повторится при подключении.'); }); };
+    sync(); window.addEventListener('online', sync);
+    return () => { live = false; window.removeEventListener('online', sync); };
+  }, [course]);
   const statuses = useMemo(() => {
     void revision;
     return getUnitStatuses(Object.fromEntries(Object.entries(lessons).map(([slug, lesson]) => [slug, lesson.stars])));
@@ -61,14 +77,16 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
   const progress = courseProgress(statuses);
   const nextUnit = statuses.find(unit => !unit.completed && (unit.theoryRead || unit.quizPassed || unit.practiceStars > 0))
     ?? statuses.find(unit => !unit.completed);
-  const streak = auth.user?.streak?.current ?? stats.currentStreak;
-  const stars = auth.user?.campaignStats?.totalStars ?? stats.totalStars;
-  const level = auth.user?.xp?.level ?? stats.level;
-  const xpProgress = Math.min(100, Math.max(0, auth.user?.xp?.progressPercent ?? store.xpProgress * 100));
-  const lastActive = auth.user?.streak?.lastActiveDate ?? stats.lastPlayedDate;
+  const streak = (isAdditionalCourse() ? undefined : auth.user)?.streak?.current ?? stats.currentStreak;
+  const stars = course ? Object.values(lessons).reduce((sum, l) => sum + l.stars, 0) : auth.user?.campaignStats?.totalStars ?? stats.totalStars;
+  const level = (isAdditionalCourse() ? undefined : auth.user)?.xp?.level ?? stats.level;
+  const xpProgress = Math.min(100, Math.max(0, (isAdditionalCourse() ? undefined : auth.user)?.xp?.progressPercent ?? store.xpProgress * 100));
+  const lastActive = (isAdditionalCourse() ? undefined : auth.user)?.streak?.lastActiveDate ?? stats.lastPlayedDate;
   const goalDone = Boolean(lastActive && localDate(lastActive) === today);
   const first = !state.settings.hasSeenHowTo;
-  const hasResume = Boolean(state.campaignResumeSlug);
+  const savedLesson = course?.lessons.find(l => readClassicDraft(l.id));
+  const resumeSlug = state.campaignResumeSlug ?? savedLesson?.id;
+  const hasResume = Boolean(resumeSlug);
   const allowDonate = !IS_VK_MINIAPP && !auth.isNewUser && (stars > 0 || streak > 0);
   const card = cn('rounded-2xl border', styles.buttons.card.background, styles.buttons.card.border);
   const focus = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber-500';
@@ -76,10 +94,10 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
   const primaryHint = first ? 'Попробуй на небольшом поле, без таймера' : hasResume ? 'Вернись к начатому уровню' : nextUnit ? nextUnit.unit.title : 'Курс пройден — закрепи знания в игре';
   const continueLearning = () => {
     if (first) { navigate('howto'); return; }
-    if (state.campaignResumeSlug) {
-      trackAnalyticsEventNonBlocking('resume_clicked', { ctx: { source: 'menu' }, props: { slug: state.campaignResumeSlug } });
+    if (resumeSlug) {
+      trackAnalyticsEventNonBlocking('resume_clicked', { ctx: { source: 'menu' }, props: { slug: resumeSlug } });
       store.setCampaignLandingView(null);
-      store.selectCategory(state.campaignResumeSlug);
+      store.selectCategory(resumeSlug);
       store.setCampaignResumeSlug(null);
       return;
     }
@@ -94,12 +112,13 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
       <ArrowRight size={16} className={styles.buttons.text.muted} />
     </button>;
   };
+  if (spacedReview && course) return <ReviewPractice course={course} onBack={() => setSpacedReview(false)} />;
   return (
     <div className={cn('min-h-[100dvh] flex flex-col', styles.pageGradient)} style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}>
       <div className="w-full max-w-2xl mx-auto px-4 sm:px-6" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}>
         <header className="flex items-center justify-between gap-3 mb-6">
           <div>
-            <p className={cn('text-xs tracking-widest uppercase', styles.title.secondary)}>Бурятский · Филлворд</p>
+            <p className={cn('text-xs tracking-widest uppercase', styles.title.secondary)}>{courseTitle()} · Филлворд</p>
             <h1 className={cn('text-3xl font-bold tracking-tight mt-1', styles.title.primary)}>Сегодня</h1>
           </div>
           <button type="button" onClick={() => navigate('profile')} aria-label="Открыть профиль" className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0', card, focus)}>
@@ -107,6 +126,10 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
           </button>
         </header>
         <main className="space-y-5">
+          {course && <section className={cn(card, 'p-4 text-sm')}>
+            <p>{syncStatus} Звёзды, XP и результаты проверок пока хранятся на этом устройстве отдельно для каждого языка.</p>
+            {completedLessons(undefined, course).length > 0 && <button className="mt-3 min-h-11 font-semibold" onClick={() => setSpacedReview(true)}>Повторить слова по расписанию</button>}
+          </section>}
           <section aria-label="Следующее занятие">
             <p className={cn('text-sm mb-3', styles.buttons.text.secondary)}>Несколько минут для себя и родного языка.</p>
             <button type="button" onClick={continueLearning} className={cn('w-full rounded-3xl p-5 sm:p-6 text-left text-white relative overflow-hidden', styles.buttons.play.gradient, focus)}>
@@ -148,17 +171,17 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
             <div className="pt-2">
               {secondary('Филлворд дня', Play, () => { if (first) navigate('howto'); else store.startDailyGame(); }, 'Новая задача каждый день')}
               {secondary('Словарь', BookOpen, () => navigate('dictionary'), 'Переводы и произношение')}
-              {secondary('Статистика', BarChart3, () => navigate('stats'), `До следующего уровня: ${auth.user?.xp?.xpRemainingToNextLevel ?? store.xpToNextLevel} XP`)}
+              {secondary('Статистика', BarChart3, () => navigate('stats'), `До следующего уровня: ${(isAdditionalCourse() ? undefined : auth.user)?.xp?.xpRemainingToNextLevel ?? store.xpToNextLevel} XP`)}
               <div className={cn('h-1 rounded-full mx-3 mb-2 overflow-hidden', styles.statsCard.progressTrack)}><div className={cn('h-full', styles.statsCard.progressFill)} style={{ width: `${xpProgress}%` }} /></div>
-              {secondary('Рейтинг', Trophy, () => navigate('leaderboard'))}
-              {secondary('Из сообщества', MessageCircle, () => navigate('community'), 'Истории и культура Бурятии')}
-              {secondary('Үгын Дархан', Heart, () => navigate('contribute'), 'Помоги сохранить язык')}
+              {!course && secondary('Рейтинг', Trophy, () => navigate('leaderboard'))}
+              {!course && secondary('Из сообщества', MessageCircle, () => navigate('community'), 'Истории и культура Бурятии')}
+              {!course && secondary('Үгын Дархан', Heart, () => navigate('contribute'), 'Помоги сохранить язык')}
               {allowDonate && secondary('Поддержать проект', Heart, () => navigate('support'))}
               {secondary('Как играть', HelpCircle, () => navigate('howto'), 'Попробовать на маленьком поле')}
               {secondary('Настройки', Settings, () => navigate('settings'), 'Тема, звук и язык')}
               {secondary('Новости проекта', MessageCircle, () => openLink('https://t.me/bur_live'))}
               {secondary('Задать вопрос', HelpCircle, () => openLink('https://t.me/frntdev'))}
-              {auth.user?.role === 'admin' && secondary('Админ-панель', Shield, () => navigate('admin'))}
+              {!course && auth.user?.role === 'admin' && secondary('Админ-панель', Shield, () => navigate('admin'))}
             </div>
           </details>
           <p className={cn('text-xs text-center pt-1 pb-6', styles.footer.text)}>Учись понемногу. Возвращайся, когда удобно.</p>

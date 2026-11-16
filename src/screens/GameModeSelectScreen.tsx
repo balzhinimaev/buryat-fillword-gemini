@@ -1,3 +1,4 @@
+import { courseTitle } from '../courses/activeCourse';
 // src/screens/GameModeSelectScreen.tsx
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -356,7 +357,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
             Выбери режим игры
           </h1>
           <p className={cn("text-sm", styles.buttons.text.muted)}>
-            Изучай бурятский язык в своём темпе
+            {courseTitle()} — изучай в своём темпе
           </p>
         </motion.div>
       </header>

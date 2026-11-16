@@ -1,3 +1,4 @@
+import { courseTextbookTitle, isAdditionalCourse } from '../courses/activeCourse';
 // Учебный план — «путь обучения»: вертикальный таймлайн уроков с узлами-статусами,
 // прогресс-кольцо курса в шапке, работа над ошибками и выпускной экзамен.
 import React, { useEffect, useMemo, useState } from 'react';
@@ -115,7 +116,7 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
 
   // Аудирование: подтягиваем озвученные слова словаря (онлайн)
   useEffect(() => {
-    if (OFFLINE || !navigator.onLine) return;
+    if (OFFLINE || isAdditionalCourse() || !navigator.onLine) return;
     let alive = true;
     api.getWords({ status: 'verified', hasAudio: true, limit: 500 })
       .then((res) => {
@@ -229,7 +230,7 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
         </div>
         <div className="flex items-center gap-4 mt-2 px-1">
           <div className="flex-1 min-w-0">
-            <h1 className="text-[22px] font-extrabold leading-tight">Учебник бурятского</h1>
+            <h1 className="text-[22px] font-extrabold leading-tight">{courseTextbookTitle()}</h1>
             <p className="text-xs opacity-70 mt-1.5 leading-relaxed">
               {progress.total} уроков: от алфавита до свободных фраз.
               {allDone ? ' Курс пройден — остался экзамен!' : ' Двигайтесь по пути сверху вниз.'}

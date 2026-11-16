@@ -1,4 +1,5 @@
-import { readProgress, writeProgress } from './progressStorage';
+import { additionalCourse, courseWords, courseLetters } from '../courses/activeCourse';
+import { readProgress, writeProgress } from './courseStorage';
 // Локальный (офлайн) движок уровневого режима.
 // Полностью заменяет серверные эндпоинты level-mode: генерация уровня из вшитого
 // словаря, подсчёт звёзд и хранение прогресса в localStorage. Сетка строится тем же
@@ -19,7 +20,7 @@ interface OfflineWord {
   difficulty: number;
 }
 
-const DICT = wordsData as OfflineWord[];
+const dictionary = (): OfflineWord[] => additionalCourse() ? courseWords() : wordsData as OfflineWord[];
 const PROGRESS_KEY = 'offline_lm_progress';
 const SESSION_KEY = 'offline_lm_sessions'; // sessionId -> реальное число слов уровня
 
@@ -95,17 +96,20 @@ function shuffle<T>(arr: T[]): T[] {
 // Подбор слов под уровень: по сложности и так, чтобы помещались в сетку.
 function pickWords(n: number): OfflineWord[] {
   const { gridSize, wordCount, maxDifficulty } = offlineLevelParams(n);
-  let pool = DICT.filter(
+  let pool = dictionary().filter(
     (w) => w.difficulty <= maxDifficulty && w.bur.length >= 2 && w.bur.length <= gridSize,
   );
   if (pool.length < wordCount) {
     // ослабляем фильтр сложности, оставляя ограничение по длине
-    pool = DICT.filter((w) => w.bur.length >= 2 && w.bur.length <= gridSize);
+    pool = dictionary().filter((w) => w.bur.length >= 2 && w.bur.length <= gridSize);
   }
   if (pool.length < wordCount) {
-    pool = DICT.filter((w) => w.bur.length >= 2);
+    pool = dictionary().filter((w) => w.bur.length >= 2);
   }
-  return shuffle(pool).slice(0, Math.min(wordCount, pool.length));
+  const picked = shuffle(pool).slice(0, Math.min(wordCount, pool.length));
+  if (!additionalCourse()) return picked;
+  let remaining = gridSize * gridSize;
+  return picked.filter(w => { const count = courseLetters(w.bur).length; if (count > remaining) return false; remaining -= count; return true; });
 }
 
 function makeSessionId(): string {

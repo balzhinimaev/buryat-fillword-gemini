@@ -1,4 +1,5 @@
-import { readProgress, writeProgress } from './progressStorage';
+import { additionalCourse, courseWords } from '../courses/activeCourse';
+import { readProgress, writeProgress } from './courseStorage';
 // Офлайн «Филлворд дня»: детерминированный пазл по дате из вшитого словаря.
 // У всех игроков в один день одинаковый набор слов (сеяный PRNG от даты),
 // результаты хранятся локально. В офлайн-сборке используется всегда —
@@ -62,7 +63,7 @@ export interface OfflineDailyWord {
 
 export function offlineDailyWords(dateKey = offlineDailyDateKey()): OfflineDailyWord[] {
   const rnd = mulberry32(seedFromString(`burlive-daily-${dateKey}`));
-  const pool = (bundled as RawWord[])
+  const pool = (additionalCourse() ? courseWords() : bundled as RawWord[])
     .map((w, i) => ({
       bur: w.bur.trim().toUpperCase(),
       rus: w.ru.trim(),

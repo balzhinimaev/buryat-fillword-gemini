@@ -60,7 +60,7 @@ const isValid = (r: number, c: number, size: number) =>
 // Рандомизация turnBias для разных слов даёт более разнообразные формы путей.
 const placeWordDFS = (
   grid: string[][],
-  word: string,
+  word: string | string[],
   pos: number,
   r: number,
   c: number,
@@ -628,15 +628,18 @@ const generateRandomHamiltonianPath = (gridSize: number, maxAttempts: number = 2
  */
 export const generateServerLevel = (
   gridSize: number,
-  serverWords: WordData[]
+  serverWords: WordData[],
+  rules?: { letters: (word: string) => string[]; alphabet: string[] }
 ): GameState => {
-  const ALPHABET = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯӨҮҺ";
+  const ALPHABET = rules?.alphabet ?? Array.from("АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯӨҮҺ");
+  const letters = rules?.letters ?? ((word: string) => Array.from(word));
   const corners: Corner[] = ['tl', 'tr', 'bl', 'br'];
   const axes: SnakeAxis[] = ['row', 'col'];
 
   // Нормализуем слова
   const normalizedWords: WordData[] = (serverWords ?? [])
     .map(w => ({
+      ...w,
       bur: normalizeBurForGrid(w?.bur ?? ''),
       ru: String(w?.ru ?? '').trim(),
     }))
@@ -647,7 +650,11 @@ export const generateServerLevel = (
   }
 
   // Сортируем: длинные слова первыми (им труднее найти путь)
-  const sortedWords = [...normalizedWords].sort((a, b) => b.bur.length - a.bur.length);
+  const sortedWords = [...normalizedWords].sort((a, b) => letters(b.bur).length - letters(a.bur).length);
+
+  if (rules && normalizedWords.reduce((n, w) => n + letters(w.bur).length, 0) > gridSize * gridSize) {
+    throw new Error("Слова не помещаются на поле");
+  }
 
   const allCells: Coord[] = [];
   for (let r = 0; r < gridSize; r++) {
@@ -672,7 +679,7 @@ export const generateServerLevel = (
     let allPlaced = true;
 
     for (const wordObj of sortedWords) {
-      const word = wordObj.bur.toUpperCase();
+      const word = letters(wordObj.bur);
       // Случайный turnBias для этого слова: от 0.4 (прямолинейный) до 0.85 (закрученный)
       const wordTurnBias = 0.4 + Math.random() * 0.45;
       // Перемешанные стартовые позиции
@@ -742,7 +749,7 @@ export const generateServerLevel = (
 
   let cursor = 0;
   for (const w of shuffledWords) {
-    const word = w.bur;
+    const word = letters(w.bur);
     if (cursor + word.length > cells.length) break;
     const path = cells.slice(cursor, cursor + word.length);
     for (let i = 0; i < word.length; i++) {
@@ -820,8 +827,8 @@ export const pathsMatch = (path1: Coord[], path2: Coord[]): boolean => {
 };
 
 // Палиндром: одинаково читается слева-направо и справа-налево (после нормализации)
-export const isPalindromeWord = (bur: string): boolean => {
-  const s = normalizeBurForGrid(bur);
+export const isPalindromeWord = (bur: string, letters?: (word: string) => string[]): boolean => {
+  const s = letters ? letters(normalizeBurForGrid(bur)) : normalizeBurForGrid(bur);
   if (s.length < 2) return false;
   for (let i = 0, j = s.length - 1; i < j; i++, j--) {
     if (s[i] !== s[j]) return false;
@@ -836,7 +843,7 @@ export const isPalindromeWord = (bur: string): boolean => {
 //   - полные палиндромы (обратный путь)
 //   - палиндромные окончания/начала (например, «ДУУЛАХА» → суффикс «АХА»)
 //   - любые перестановки в участках с одинаковыми буквами
-export const findWordByPath = (placedWords: PlacedWord[], selectedPath: Coord[]): PlacedWord | undefined => {
+export const findWordByPath = (placedWords: PlacedWord[], selectedPath: Coord[], letters?: (word: string) => string[]): PlacedWord | undefined => {
   for (const pw of placedWords) {
     // Быстрая проверка: точное совпадение путей (наиболее частый случай)
     if (pathsMatch(pw.path, selectedPath)) return pw;
@@ -846,9 +853,10 @@ export const findWordByPath = (placedWords: PlacedWord[], selectedPath: Coord[])
 
     // Строим карту «клетка → буква» из размещённого слова
     const wordUpper = pw.word.bur.toUpperCase();
+    const units = letters ? letters(wordUpper) : wordUpper;
     const cellToLetter = new Map<string, string>();
     for (let i = 0; i < pw.path.length; i++) {
-      cellToLetter.set(`${pw.path[i].r},${pw.path[i].c}`, wordUpper[i]);
+      cellToLetter.set(`${pw.path[i].r},${pw.path[i].c}`, units[i]);
     }
 
     // Проверяем: все выбранные клетки принадлежат этому слову

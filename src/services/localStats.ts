@@ -1,4 +1,4 @@
-import { readProgress } from './progressStorage';
+import { readProgress } from './courseStorage';
 // Локальная статистика игрока — источник истины в офлайн-сборке.
 // Читает сохранённое состояние gameStore напрямую из localStorage, чтобы
 // офлайн-реализации /auth/me и /activity/streak отдавали реальные цифры, а не нули.

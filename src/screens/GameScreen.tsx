@@ -1,3 +1,5 @@
+import { readClassicDraft, saveClassicDraft } from '../courses/classicDraft';
+import { courseGridRules, isAdditionalCourse } from '../courses/activeCourse';
 // src/screens/GameScreen.tsx
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -566,7 +568,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
       // Используем быстрый серверный генератор (без тяжёлого межсловного бэктрекинга)
       const result = data.gridSize
-        ? generateServerLevel(data.gridSize, words)
+        ? generateServerLevel(data.gridSize, words, courseGridRules())
         : generateCampaignLevel(words);
 
       setGridLetters(result.grid);
@@ -647,6 +649,21 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
               : campaignLevel.grid.length
           );
           setPlacedWords(staticPlaced);
+          const saved = isAdditionalCourse() ? readClassicDraft(campaignSlug) : null;
+          if (saved) {
+            setFoundWordIds(new Set(saved.found));
+            setTime(saved.time);
+            const registry = new Map<string, FoundCellInfo>();
+            staticPlaced.forEach((p, wordIndex) => {
+              if (!saved.found.includes(p.word.bur)) return;
+              const cells = new Set(p.path.map(c => `${c.r}-${c.c}`));
+              p.path.forEach(c => registry.set(`${c.r}-${c.c}`, { wordIndex, neighbors: {
+                top: cells.has(`${c.r - 1}-${c.c}`), bottom: cells.has(`${c.r + 1}-${c.c}`),
+                left: cells.has(`${c.r}-${c.c - 1}`), right: cells.has(`${c.r}-${c.c + 1}`),
+              } }));
+            });
+            setFoundCellsRegistry(registry);
+          }
         } catch (error) {
           console.warn('Failed to use campaign static map, fallback to local generation', error);
           const result = generateCampaignLevel(words);
@@ -722,7 +739,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       } else {
         // Фоллбэк: генерируем сетку на клиенте
         const result = data.gridSize
-          ? generateServerLevel(data.gridSize, words)
+          ? generateServerLevel(data.gridSize, words, courseGridRules())
           : generateCampaignLevel(words);
         setGridLetters(result.grid);
         setGridSize(result.size);
@@ -961,7 +978,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       recordRoundPlayed(foundWordsArray, time, result.earnedStars ?? 0);
 
       // Офлайн-сборка: тихо выгружаем прогресс в аккаунт, если есть сеть и вход выполнен
-      if (OFFLINE) syncCampaignProgress().catch(() => {});
+      if (OFFLINE || isAdditionalCourse()) syncCampaignProgress().catch(() => {});
 
       // Локальный лидерборд оставим как "игровой счёт", но идентификатором будет slug
       addToLeaderboard({
@@ -1039,7 +1056,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     setIsSelecting(false);
     if (selectedPath.length === 0) return;
 
-    const matchedWord = findWordByPath(placedWords, selectedPath);
+    const matchedWord = findWordByPath(placedWords, selectedPath, courseGridRules()?.letters);
     const wordId = matchedWord ? matchedWord.word.bur : null;
 
     // Если путь не совпал точно, проверяем, не составил ли пользователь правильное слово другими буквами
@@ -1122,6 +1139,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
     setSelectedPath([]);
   }, [selectedPath, placedWords, foundWordIds, combo, state.settings.vibrationEnabled, state.settings.soundEnabled, finishGame, gridLetters, showToast]);
+
+  useEffect(() => {
+    if (!isAdditionalCourse() || !campaignSlug || !campaignSessionId || isCampaignStarting || isCampaignSubmitting ||
+      !placedWords.length || foundWordIds.size === placedWords.length || showWinModal) return;
+    saveClassicDraft(campaignSlug, { grid: gridLetters, size: gridSize, placedWords }, [...foundWordIds], time);
+  }, [campaignSlug, campaignSessionId, isCampaignStarting, isCampaignSubmitting, placedWords, foundWordIds, showWinModal, gridLetters, gridSize, time]);
 
   // Кеширование позиций клеток при начале выделения
   const updateCellRects = useCallback(() => {
@@ -1314,7 +1337,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
         // Для палиндромов подсказка должна быть "двусторонней":
         // игрок может начинать с любого конца, поэтому добавляем и последний символ.
-        if (pw.path.length > 1 && isPalindromeWord(pw.word.bur)) {
+        if (pw.path.length > 1 && isPalindromeWord(pw.word.bur, courseGridRules()?.letters)) {
           const lastCell = pw.path[pw.path.length - 1];
           hints.add(`${lastCell.r}-${lastCell.c}`);
         }
@@ -1332,7 +1355,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     next.add(`${first.r}-${first.c}`);
 
     // Для палиндромов пользователь может начинать с любой стороны — подсветим оба конца
-    if (pw.path.length > 1 && isPalindromeWord(pw.word.bur)) {
+    if (pw.path.length > 1 && isPalindromeWord(pw.word.bur, courseGridRules()?.letters)) {
       const last = pw.path[pw.path.length - 1];
       next.add(`${last.r}-${last.c}`);
     }
@@ -2167,7 +2190,7 @@ ${levelInfo}
                   </motion.div>
 
                   {/* Мини-рейтинг недели: ваша позиция после прохождения */}
-                  {!OFFLINE && <PostGameRating onOpenLeaderboard={() => navigate('leaderboard')} />}
+                  {!OFFLINE && !isAdditionalCourse() && <PostGameRating onOpenLeaderboard={() => navigate('leaderboard')} />}
                   
                   {/* Daily: итоги + рейтинг дня */}
                   {isDailyMode && dailyResult && (

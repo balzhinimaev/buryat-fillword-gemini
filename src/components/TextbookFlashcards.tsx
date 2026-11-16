@@ -1,3 +1,4 @@
+import { CourseWordAudio } from './CourseWordAudio';
 // Флэш-карточки слов урока: настоящий 3D-переворот (perspective + rotateY),
 // листание со сдвигом, прогресс-точки.
 import React, { useMemo, useState } from 'react';
@@ -6,8 +7,6 @@ import { ChevronLeft, ChevronRight, Layers, X } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import { hintOf, useGameLang } from '../services/gameLang';
-import { burAudioUrl, hasBurAudio } from '../services/burAudio';
-import { WaveAudioButton } from './WaveAudioButton';
 import type { TextbookWord } from '../services/textbook';
 
 interface Props {
@@ -111,11 +110,7 @@ export const TextbookFlashcards: React.FC<Props> = ({ title, words, onClose }) =
               </AnimatePresence>
             </div>
 
-            {hasBurAudio(w.bur) && (
-              <div className="flex justify-center mt-3">
-                <WaveAudioButton src={burAudioUrl(w.bur)!} size="sm" />
-              </div>
-            )}
+            <CourseWordAudio word={w.bur} />
 
             {/* прогресс-точки */}
             <div className="flex justify-center gap-1 mt-4">

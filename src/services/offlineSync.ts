@@ -1,3 +1,5 @@
+import { additionalCourse } from '../courses/activeCourse';
+import { syncCourseProgress } from '../courses/progress';
 import { apiRequest, getStoredTokens } from './api';
 import { progressOwner, readProgress, writeProgress } from './progressStorage';
 const LEVELS_KEY = 'offline_campaign_levels';
@@ -7,6 +9,8 @@ function load(owner: string): Record<string, LevelRec> {
 }
 const running = new Map<string, Promise<{ ok: boolean; merged: number }>>();
 export function syncCampaignProgress(): Promise<{ ok: boolean; merged: number }> {
+  const course = additionalCourse();
+  if (course) return syncCourseProgress(course).then(ok => ({ ok, merged: 0 })).catch(() => ({ ok: false, merged: 0 }));
   const owner = progressOwner();
   if (!getStoredTokens() || navigator.onLine === false || owner === 'guest') return Promise.resolve({ ok: false, merged: 0 });
   const active = running.get(owner);

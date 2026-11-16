@@ -1,3 +1,5 @@
+import { CourseWordAudio } from '../components/CourseWordAudio';
+import { isAdditionalCourse } from '../courses/activeCourse';
 // Урок учебника: цель, теория (буквы/лексика/фразы/грамматика/совет),
 // карточки + квиз, практика-филлворды со звёздами, переход к следующему уроку.
 import React, { useEffect, useState } from 'react';
@@ -97,7 +99,7 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
 
   // Статистика урока: сколько людей прошло + лайки/дизлайки (мягко падает офлайн)
   useEffect(() => {
-    if (!slug) return;
+    if (!slug || isAdditionalCourse()) return;
     let cancelled = false;
     getTextbookStats()
       .then((s) => {
@@ -313,7 +315,7 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
                     {learned.has(w.bur.toUpperCase()) && (
                       <CheckCircle2 size={13} className="text-emerald-500 flex-shrink-0" aria-label="выучено в игре" />
                     )}
-                    {hasBurAudio(w.bur) && <WaveAudioButton src={burAudioUrl(w.bur)!} size="sm" />}
+                    <CourseWordAudio word={w.bur} />
                   </span>
                   <span className={cn('text-[13px] text-right flex-shrink-0 max-w-[45%]', theme.text.secondary)}>
                     {hintOf({ ru: w.ru, translations: w.en ? { en: w.en } : undefined })}
@@ -466,14 +468,14 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
         )}
 
         {/* Народный учебник: факты/истории/пословицы от пользователей */}
-        <motion.div {...fade(9)}>
+        {!isAdditionalCourse() && <motion.div {...fade(9)}>
           <CommunityLoreSection
             lessonSlug={unit.slug}
             lessonTitle={unit.title.replace(/^Урок \d+\. /, '')}
             prompt={weeklyPrompt(unit.prompts)}
             onOpenArticle={store.navigateToLoreArticle}
           />
-        </motion.div>
+        </motion.div>}
 
         {/* Следующий урок */}
         {nextUnit && (

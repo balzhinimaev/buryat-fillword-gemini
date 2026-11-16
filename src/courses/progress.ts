@@ -1,3 +1,4 @@
+import { setRuntimeCourse } from './activeCourse';
 import { progressOwner, readProgress, writeProgress } from '../services/progressStorage';
 import { apiRequest } from '../services/api';
 import { czechCourse, type LearningCourse, type CourseId } from './czech';
@@ -43,4 +44,5 @@ export function chosenCourse(): CourseId {
 }
 export function chooseCourse(course: CourseId): void {
   writeProgress('learning-course:selected', course);
+  setRuntimeCourse(course);
 }

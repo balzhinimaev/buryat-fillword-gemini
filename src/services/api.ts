@@ -1,3 +1,4 @@
+import { activeCourseId, isAdditionalCourse } from '../courses/activeCourse';
 import { prepareOwnerChange, notifyOwnerChange, progressOwner } from './progressStorage';
 // API сервис для работы с бэкендом.
 // Офлайн-сборка (OFFLINE=true) работает по принципу local-first:
@@ -718,12 +719,22 @@ export function refreshTokensOnce(): Promise<StoredTokens | null> {
   return refreshInFlight;
 }
 
+async function courseLocal<T, R>(loading: Promise<T>, invoke: (provider: T) => R): Promise<R> {
+  const owner = progressOwner(); const course = activeCourseId();
+  const provider = await loading;
+  if (owner !== progressOwner() || course !== activeCourseId()) throw new Error('Аккаунт или курс изменился');
+  return invoke(provider);
+}
+
 // Базовая функция для API запросов
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
   isRetry = false
 ): Promise<T> {
+  if (isAdditionalCourse() && !/^\/(auth|courses|settings|users\/me\/settings)(\/|\?|$)/.test(endpoint)) {
+    throw new Error('Этот сетевой раздел доступен в бурятском курсе');
+  }
   // Runtime-проверка: если сети реально нет — мгновенно отдаём офлайн-ошибку
   // (без "Failed to fetch" и ожидания таймаута). При наличии сети запросы проходят
   // и в офлайн-сборке — так оживают онлайн-разделы (лидерборды, ачивки, синк).
@@ -969,19 +980,19 @@ export async function logout(): Promise<void> {
 
 // Получение категорий
 export async function getCategories(): Promise<ApiCategory[]> {
-  if (OFFLINE) return (await import('./offlineDict')).offlineGetCategories();
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineDict'), provider => provider.offlineGetCategories());
   return apiRequest<ApiCategory[]>('/categories', { method: 'GET' });
 }
 
 // Получение диалектов
 export async function getDialects(): Promise<ApiDialect[]> {
-  if (!netUsable()) return (await import('./offlineStubs')).offlineDialects();
+  if (isAdditionalCourse() || !netUsable()) return (await import('./offlineStubs')).offlineDialects();
   return apiRequest<ApiDialect[]>('/dialects', { method: 'GET' });
 }
 
 // Получение частей речи
 export async function getPartsOfSpeech(): Promise<ApiPartOfSpeech[]> {
-  if (!netUsable()) return (await import('./offlineStubs')).offlinePartsOfSpeech();
+  if (isAdditionalCourse() || !netUsable()) return (await import('./offlineStubs')).offlinePartsOfSpeech();
   return apiRequest<ApiPartOfSpeech[]>('/parts-of-speech', { method: 'GET' });
 }
 
@@ -1045,7 +1056,7 @@ export async function getProjectStats(): Promise<ProjectStats> {
 
 // Получение общей статистики слов
 export async function getWordsStats(): Promise<WordsStats> {
-  if (!netUsable()) return (await import('./offlineDict')).offlineWordsStats();
+  if (isAdditionalCourse() || !netUsable()) return courseLocal(import('./offlineDict'), provider => provider.offlineWordsStats());
   return apiRequest<WordsStats>('/words/stats', { method: 'GET' });
 }
 
@@ -1066,7 +1077,7 @@ function isDictFirstPage(params: GetWordsParams): boolean {
 }
 
 export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsResponse> {
-  if (OFFLINE) return (await import('./offlineDict')).offlineGetWords(params);
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineDict'), provider => provider.offlineGetWords(params));
   if (isDictFirstPage(params)) {
     const warmed = takeHandoff<ApiWordsResponse>('dictFirstPage');
     if (warmed) return warmed;
@@ -1094,10 +1105,10 @@ export async function getWords(params: GetWordsParams = {}): Promise<ApiWordsRes
 // В офлайн-сборке — local-first: своё слово отдаём мгновенно; незнакомый id
 // (например, серверный ObjectId из очереди синка) при сети запрашиваем у сервера.
 export async function getWordDetail(id: string): Promise<ApiWordDetailResponse> {
-  if (OFFLINE) {
-    const local = (await import('./offlineDict')).offlineFindWordDetail(id);
+  if (OFFLINE || isAdditionalCourse()) {
+    const local = await courseLocal(import('./offlineDict'), provider => provider.offlineFindWordDetail(id));
     if (local) return local;
-    if (!isNetOnline()) return (await import('./offlineDict')).offlineGetWordDetail(id);
+    if (!isNetOnline()) return courseLocal(import('./offlineDict'), provider => provider.offlineGetWordDetail(id));
   }
   return apiRequest<ApiWordDetailResponse>(`/words/${encodeURIComponent(id)}`, { method: 'GET' });
 }
@@ -1191,7 +1202,7 @@ export async function completeTextbookLesson(
   kind: 'theory' | 'quiz' = 'theory',
   answers?: Array<{ word: string; answer: string }>,
 ): Promise<{ completedUsers: number; xpGained?: number } | undefined> {
-  if (!authedNetUsable()) return undefined;
+  if (isAdditionalCourse() || !authedNetUsable()) return undefined;
   return apiRequest(`/textbook/lesson/${encodeURIComponent(slug)}/complete`, {
     method: 'POST',
     body: JSON.stringify({ kind, answers }),
@@ -1199,14 +1210,14 @@ export async function completeTextbookLesson(
 }
 
 export async function getTextbookStats(): Promise<{ lessons: TextbookLessonStats[] }> {
-  if (!netUsable()) return { lessons: [] };
+  if (isAdditionalCourse() || !netUsable()) return { lessons: [] };
   return apiRequest('/textbook/stats', { method: 'GET' });
 }
 
 export async function getTextbookMyState(): Promise<
   { completed: string[]; votes: Record<string, LessonVoteType>; progress?: Record<string, { theoryReadAt?: string; quizPassedAt?: string; quizBest?: { correct: number; total: number } }> } | undefined
 > {
-  if (!authedNetUsable()) return undefined;
+  if (isAdditionalCourse() || !authedNetUsable()) return undefined;
   return apiRequest('/textbook/my', { method: 'GET' });
 }
 
@@ -1214,7 +1225,7 @@ export async function voteTextbookLesson(
   slug: string,
   type: LessonVoteType,
 ): Promise<{ likes: number; dislikes: number; myVote: LessonVoteType } | undefined> {
-  if (!authedNetUsable()) return undefined;
+  if (isAdditionalCourse() || !authedNetUsable()) return undefined;
   return apiRequest(`/textbook/lesson/${encodeURIComponent(slug)}/vote`, {
     method: 'POST',
     body: JSON.stringify({ type }),
@@ -1224,7 +1235,7 @@ export async function voteTextbookLesson(
 export async function unvoteTextbookLesson(
   slug: string,
 ): Promise<{ likes: number; dislikes: number } | undefined> {
-  if (!authedNetUsable()) return undefined;
+  if (isAdditionalCourse() || !authedNetUsable()) return undefined;
   return apiRequest(`/textbook/lesson/${encodeURIComponent(slug)}/vote`, {
     method: 'DELETE',
   });
@@ -1397,7 +1408,7 @@ export interface CampaignLevelResultResponse extends ExtensibleRecord {
 }
 
 export async function getCampaignOverview(): Promise<CampaignOverviewResponse> {
-  if (OFFLINE) return (await import('./offlineCampaign')).offlineGetCampaignOverview();
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineCampaign'), provider => provider.offlineGetCampaignOverview());
   // прогретый prefetch'ем ответ используется ровно один раз (см. handoffCache)
   const warmed = takeHandoff<CampaignOverviewResponse>('campaignOverview');
   if (warmed) return warmed;
@@ -1406,23 +1417,23 @@ export async function getCampaignOverview(): Promise<CampaignOverviewResponse> {
 
 /** прогрев первой страницы словаря (вызывается prefetch'ем в простое) */
 export function prefillDictFirstPage(): void {
-  if (OFFLINE) return;
+  if (OFFLINE || isAdditionalCourse()) return;
   putHandoff('dictFirstPage', getWords({ ...DICT_FIRST_PAGE }));
 }
 
 /** прогрев обзора кампаний (вызывается prefetch'ем в простое) */
 export function prefillCampaignOverview(): void {
-  if (OFFLINE) return;
+  if (OFFLINE || isAdditionalCourse()) return;
   putHandoff('campaignOverview', apiRequest<CampaignOverviewResponse>('/campaign/overview', { method: 'GET' }));
 }
 
 export async function getCampaignLevel(slug: string): Promise<CampaignLevelResponse> {
-  if (OFFLINE) return (await import('./offlineCampaign')).offlineGetCampaignLevel(slug);
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineCampaign'), provider => provider.offlineGetCampaignLevel(slug));
   return apiRequest<CampaignLevelResponse>(`/campaign/level/${encodeURIComponent(slug)}`, { method: 'GET' });
 }
 
 export async function startCampaignLevel(slug: string): Promise<CampaignLevelStartResponse> {
-  if (OFFLINE) return (await import('./offlineCampaign')).offlineStartCampaignLevel(slug);
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineCampaign'), provider => provider.offlineStartCampaignLevel(slug));
   return apiRequest<CampaignLevelStartResponse>(`/campaign/level/${encodeURIComponent(slug)}/start`, { method: 'POST' });
 }
 
@@ -1430,7 +1441,7 @@ export async function submitCampaignLevel(
   slug: string,
   body: CampaignSubmitLevelResultRequest
 ): Promise<CampaignLevelResultResponse> {
-  if (OFFLINE) return (await import('./offlineCampaign')).offlineSubmitCampaignLevel(slug, body);
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineCampaign'), provider => provider.offlineSubmitCampaignLevel(slug, body));
   return apiRequest<CampaignLevelResultResponse>(`/campaign/level/${encodeURIComponent(slug)}/submit`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -1438,7 +1449,7 @@ export async function submitCampaignLevel(
 }
 
 export async function trackCampaignModuleOpened(moduleId: string, source?: string): Promise<{ ok: true }> {
-  if (!authedNetUsable()) return { ok: true };
+  if (isAdditionalCourse() || !authedNetUsable()) return { ok: true };
   return apiRequest<{ ok: true }>(`/campaign/module/${encodeURIComponent(moduleId)}/open`, {
     method: 'POST',
     body: JSON.stringify(source ? { source } : {}),
@@ -1449,7 +1460,7 @@ export async function trackCampaignPaywallShown(payload?: {
   context?: string;
   source?: string;
 }): Promise<{ ok: true }> {
-  if (!authedNetUsable()) return { ok: true };
+  if (isAdditionalCourse() || !authedNetUsable()) return { ok: true };
   return apiRequest<{ ok: true }>('/campaign/paywall/shown', {
     method: 'POST',
     body: JSON.stringify(payload ?? {}),
@@ -1468,7 +1479,7 @@ export interface ActivityStreakResponse {
 }
 
 export async function getActivityStreak(recalculate = false): Promise<ActivityStreakResponse> {
-  if (OFFLINE) return (await import('./offlineStubs')).offlineStreak();
+  if (OFFLINE || isAdditionalCourse()) return (await import('./offlineStubs')).offlineStreak();
   const params = new URLSearchParams();
   if (recalculate) params.set('recalculate', 'true');
 
@@ -1480,7 +1491,7 @@ export async function getActivityStreak(recalculate = false): Promise<ActivitySt
 
 // Серверный heartbeat активности; локальная серия дней живёт в gameStore и не зависит от него.
 export async function trackActivity(type?: string): Promise<ActivityStreakResponse> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineStreak();
+  if (isAdditionalCourse() || !authedNetUsable()) return (await import('./offlineStubs')).offlineStreak();
   const params = new URLSearchParams();
   if (type) params.set('type', type);
 
@@ -1618,7 +1629,7 @@ export interface AnalyticsAdminEngagementResponse {
 }
 
 export async function trackAnalyticsEvents(events: AnalyticsEventInput[]): Promise<IngestAnalyticsEventsResponse> {
-  if (!authedNetUsable()) return (await import('./offlineStubs')).offlineAnalyticsAck();
+  if (isAdditionalCourse() || !authedNetUsable()) return (await import('./offlineStubs')).offlineAnalyticsAck();
   if (events.length === 0) {
     return { accepted: 0, inserted: 0, duplicates: 0 };
   }
@@ -1944,7 +1955,7 @@ export interface LeaderboardParams {
 }
 
 export async function getLeaderboard(params: LeaderboardParams = {}): Promise<LeaderboardResponse> {
-  if (!netUsable()) return (await import('./offlineStubs')).offlineGlobalLeaderboard();
+  if (isAdditionalCourse() || !netUsable()) return (await import('./offlineStubs')).offlineGlobalLeaderboard();
   const searchParams = new URLSearchParams();
   if (params.type) searchParams.set('type', params.type);
   if (params.period) searchParams.set('period', params.period);
@@ -2044,6 +2055,19 @@ export interface UserProfileResponse {
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfileResponse> {
+  if (isAdditionalCourse()) {
+    if (userId !== progressOwner()) throw new Error('Профили других игроков доступны в бурятском курсе');
+    const me = await getMe();
+    const local = (await import('./offlineStubs')).offlineMe();
+    const xp = local.xp!; const campaign = local.campaignStats!; const streak = local.streak!;
+    return { user: { id: userId, name: me.name, isLanguageKeeper: false, registeredAt: me.createdAt ?? '' },
+      xp: { totalXp: xp.total, level: xp.level, xpInCurrentLevel: xp.xpInCurrentLevel,
+        xpToNextLevel: xp.xpToNextLevel, progressPercent: xp.progressPercent },
+      streak: { currentStreak: streak.current, longestStreak: streak.longest, isStreakActive: streak.current > 0 },
+      campaign: { totalStars: campaign.totalStars, levelsCompleted: campaign.levelsCompleted, levelsPlayed: campaign.totalAttempts ?? 0 },
+      dictionary: { wordsAdded: 0, wordsVerified: 0, wordsApproved: 0 }, xpByType: [], recentXpHistory: [],
+      achievements: [], nextAchievements: [], achievementSummary: { total: 0, unlocked: 0, completionPercent: 0 }, isOwnProfile: true };
+  }
   if (!netUsable()) return (await import('./offlineStubs')).offlineOnly();
   return apiRequest<UserProfileResponse>(`/users/${encodeURIComponent(userId)}/profile`, { method: 'GET' });
 }
@@ -2238,12 +2262,12 @@ export interface LevelModeLevelLeaderboardResponse {
 }
 
 export async function getLevelModeProgress(): Promise<LevelModeProgressResponse> {
-  if (OFFLINE) return (await import('./offlineEngine')).offlineGetProgress();
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineEngine'), provider => provider.offlineGetProgress());
   return apiRequest<LevelModeProgressResponse>('/level-mode/progress', { method: 'GET' });
 }
 
 export async function getLevelModeLevel(levelNumber: number): Promise<LevelModeLevelResponse> {
-  if (OFFLINE) return (await import('./offlineEngine')).offlineGetLevel(levelNumber);
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineEngine'), provider => provider.offlineGetLevel(levelNumber));
   return apiRequest<LevelModeLevelResponse>(`/level-mode/levels/${levelNumber}`, { method: 'GET' });
 }
 
@@ -2251,7 +2275,7 @@ export async function submitLevelModeLevel(
   levelNumber: number,
   body: LevelModeSubmitRequest
 ): Promise<LevelModeSubmitResponse> {
-  if (OFFLINE) return (await import('./offlineEngine')).offlineSubmit(levelNumber, body);
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineEngine'), provider => provider.offlineSubmit(levelNumber, body));
   return apiRequest<LevelModeSubmitResponse>(`/level-mode/levels/${levelNumber}/submit`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -2262,7 +2286,7 @@ export async function getLevelModeLevelLeaderboard(
   levelNumber: number,
   limit = 50,
 ): Promise<LevelModeLevelLeaderboardResponse> {
-  if (OFFLINE) return (await import('./offlineEngine')).offlineLeaderboard(levelNumber);
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineEngine'), provider => provider.offlineLeaderboard(levelNumber));
   const params = new URLSearchParams({ limit: String(limit) });
   return apiRequest<LevelModeLevelLeaderboardResponse>(
     `/level-mode/levels/${levelNumber}/leaderboard?${params.toString()}`,
@@ -2364,7 +2388,7 @@ export async function deleteAdminLevel(levelNumber: number): Promise<void> {
 }
 
 export async function getLevelDifficultyThresholds(): Promise<LevelDifficultyThresholds> {
-  if (OFFLINE) {
+  if (OFFLINE || isAdditionalCourse()) {
     return { mediumAvgAttempts: 3, hardAvgAttempts: 6, mediumAvgBestTimeSeconds: 90, hardAvgBestTimeSeconds: 180 };
   }
   return apiRequest<LevelDifficultyThresholds>('/level-mode/settings/level-difficulty-thresholds', {
@@ -2456,12 +2480,12 @@ export interface DailyWordSubmitResponse {
 // Офлайн-сборка: дейлик ВСЕГДА локальный (детерминированный по дате) — серверный дейлик
 // это другой пазл с серверной сессией, смешивать их нельзя.
 export async function getDailyWordToday(): Promise<DailyWordTodayResponse> {
-  if (OFFLINE) return (await import('./offlineDaily')).offlineGetDailyToday();
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineDaily'), provider => provider.offlineGetDailyToday());
   return apiRequest<DailyWordTodayResponse>('/daily-word/today', { method: 'GET' });
 }
 
 export async function submitDailyWord(body: DailyWordSubmitRequest): Promise<DailyWordSubmitResponse> {
-  if (OFFLINE) return (await import('./offlineDaily')).offlineSubmitDaily(body);
+  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineDaily'), provider => provider.offlineSubmitDaily(body));
   return apiRequest<DailyWordSubmitResponse>('/daily-word/today/submit', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -2488,7 +2512,7 @@ export interface DailyWordLeaderboardResponse {
 }
 
 export async function getDailyWordTodayLeaderboard(limit = 50): Promise<DailyWordLeaderboardResponse> {
-  if (OFFLINE) return (await import('./offlineStubs')).offlineDailyLeaderboard();
+  if (OFFLINE || isAdditionalCourse()) return (await import('./offlineStubs')).offlineDailyLeaderboard();
   const params = new URLSearchParams({ limit: String(limit) });
   return apiRequest<DailyWordLeaderboardResponse>(`/daily-word/today/leaderboard?${params.toString()}`, {
     method: 'GET',

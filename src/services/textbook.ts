@@ -1,4 +1,6 @@
-import { readProgress, writeProgress, progressOwner } from './progressStorage';
+import { completedLessons } from '../courses/progress';
+import { additionalCourse, courseTextbookTitle, activeCourseId } from '../courses/activeCourse';
+import { readProgress, writeProgress, progressOwner } from './courseStorage';
 // Учебник бурятского: контент из вшитого textbook.json + прогресс в localStorage.
 // Юнит «пройден», когда теория отмечена изученной И хотя бы один урок практики
 // сыгран на ≥1★ (звёзды берём из прогресса кампаний).
@@ -89,6 +91,13 @@ interface UnitProgress {
 type ProgressMap = Record<string, UnitProgress>;
 
 export function getTextbook(): TextbookData {
+  const course = additionalCourse();
+  if (course) return { version: 1, title: courseTextbookTitle(), units: course.lessons.map(lesson => ({
+    slug: lesson.id, title: lesson.title, goal: `Изучить слова по теме «${lesson.title}»`,
+    intro: lesson.note, vocab: lesson.words.map(w => ({ bur: w.text, ru: w.ru })),
+    phrases: [], grammar: null, tip: 'Изучи карточки, проверь себя и закрепи слова в филворде.',
+    practiceSlugs: [lesson.id],
+  })) };
   return bundled as TextbookData;
 }
 
@@ -153,7 +162,8 @@ export function saveQuizResult(slug: string, correct: number, total: number, ans
 export const TEXTBOOK_PROGRESS_EVENT = 'textbook:progress';
 const syncing = new Map<string, Promise<void>>();
 export function syncTextbookProgress(): Promise<void> {
-  const owner = progressOwner();
+  if (additionalCourse()) return Promise.resolve();
+  const owner = progressOwner(); const course = activeCourseId();
   if (owner === 'guest' || !getStoredTokens() || navigator.onLine === false) return Promise.resolve();
   const active = syncing.get(owner);
   if (active) return active;
@@ -170,12 +180,12 @@ export function syncTextbookProgress(): Promise<void> {
       saveProgress(snapshot);
       for (const [slug, value] of Object.entries(snapshot)) {
         for (const kind of ['theory', 'quiz'] as const) {
-          if (owner !== progressOwner()) return;
+          if ((owner !== progressOwner() || course !== activeCourseId())) return;
           const marker = kind === 'theory' ? value.pendingTheory : value.pendingQuiz?.id;
           if (!marker) continue;
           try {
             const ack = await completeTextbookLesson(slug, kind, kind === 'quiz' ? value.pendingQuiz?.answers : undefined);
-            if (!ack || owner !== progressOwner()) return;
+            if (!ack || (owner !== progressOwner() || course !== activeCourseId())) return;
             const current = loadProgress();
             if (kind === 'theory' && current[slug]?.pendingTheory === marker) delete current[slug].pendingTheory;
             if (kind === 'quiz' && current[slug]?.pendingQuiz?.id === marker) delete current[slug].pendingQuiz;
@@ -184,7 +194,7 @@ export function syncTextbookProgress(): Promise<void> {
         }
       }
       const remote = await getTextbookMyState();
-      if (!remote?.progress || owner !== progressOwner()) return;
+      if (!remote?.progress || (owner !== progressOwner() || course !== activeCourseId())) return;
       const current = loadProgress();
       for (const [slug, value] of Object.entries(remote.progress)) {
         const local = current[slug] || {};
@@ -434,7 +444,9 @@ export function getUnitStatuses(starsBySlug: Record<string, number>): UnitStatus
     const practiceStars = unit.practiceSlugs.length
       ? Math.max(0, ...unit.practiceSlugs.map((s) => starsBySlug[s] ?? 0))
       : 0;
-    const practiceDone = unit.practiceSlugs.length === 0 || practiceStars > 0;
+    const course = additionalCourse();
+    const previouslyCompleted = course ? completedLessons(undefined, course).includes(unit.slug) : false;
+    const practiceDone = unit.practiceSlugs.length === 0 || practiceStars > 0 || previouslyCompleted;
     const quizBest = p?.quizBest ?? null;
     const quizPassed = !!p?.quizPassedAt;
     return {

@@ -1,3 +1,4 @@
+import { isAdditionalCourse, courseTitle } from '../courses/activeCourse';
 // «Мой профиль»: XP/уровень, серия, звёзды, вклад в словарь + быстрые действия.
 // Просмотр чужих профилей остаётся в UserProfileSheet (лидерборд).
 import React, { useEffect, useState } from 'react';
@@ -154,6 +155,7 @@ export const ProfileScreen: React.FC<Props> = ({ store }) => {
           </div>
         )}
 
+        {isAdditionalCourse() && <p className="text-sm">{courseTitle()} · статистика этого устройства</p>}
         {!loading && profile && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             <ProfileContent profile={profile} theme={theme} isDark={isDark} />
@@ -161,11 +163,11 @@ export const ProfileScreen: React.FC<Props> = ({ store }) => {
         )}
 
         {/* Пригласи друга */}
-        {myId && !OFFLINE && <ReferralCard />}
+        {myId && !OFFLINE && !isAdditionalCourse() && <ReferralCard />}
 
         {/* Быстрые действия */}
         <div className="space-y-2 pt-2">
-          {actionRow(<Hammer size={17} />, 'Мой вклад в словарь', () => navigate('contribute'))}
+          {!isAdditionalCourse() && actionRow(<Hammer size={17} />, 'Мой вклад в словарь', () => navigate('contribute'))}
           {actionRow(<Settings size={17} />, 'Настройки', () => navigate('settings'))}
           {myId && actionRow(<LogOut size={17} />, 'Выйти из аккаунта', handleLogout, true)}
         </div>

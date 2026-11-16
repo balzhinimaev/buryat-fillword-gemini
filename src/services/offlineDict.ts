@@ -1,3 +1,4 @@
+import { additionalCourse, courseWords } from '../courses/activeCourse';
 // Офлайн-словарь для раздела «Словарь»: вшитые 516 слов + локальный кэш докачанных.
 // Инкрементальное обновление: при сети подтягиваем только НЕДОСТАЮЩИЕ verified-слова
 // с сервера и складываем в localStorage. Так словарь не пустой сразу после установки
@@ -63,6 +64,7 @@ const norm = (b: string, r: string) => `${b.trim().toUpperCase()}|${r.trim().toL
 
 // Полный словарь: вшитые + докачанные, без дублей.
 export function getAllWords(): DictWord[] {
+  if (additionalCourse()) return courseWords();
   const seen = new Set(BUILTIN.map((w) => norm(w.bur, w.ru)));
   const extra = loadExtra().filter((w) => !seen.has(norm(w.bur, w.ru)));
   return [...BUILTIN, ...extra];
@@ -141,6 +143,7 @@ export function offlineWordsStats(): WordsStats {
 
 // Инкрементальная подкачка: тянем verified-слова с сервера и добавляем только новые.
 export async function syncDictionary(maxPages = 20, pageSize = 100): Promise<{ added: number; ok: boolean }> {
+  if (additionalCourse()) return { added: 0, ok: true };
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return { added: 0, ok: false };
   const have = new Set(getAllWords().map((w) => norm(w.bur, w.ru)));
   const extra = loadExtra();

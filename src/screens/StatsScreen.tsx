@@ -1,3 +1,5 @@
+import { offlineCampaignMeStats } from '../services/offlineCampaign';
+import { isAdditionalCourse } from '../courses/activeCourse';
 // src/screens/StatsScreen.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -261,11 +263,11 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   }, [authState.isAuthenticated, authState.user?._id]);
 
   // Streak — берём из бэка или fallback на локальное
-  const currentStreak = authState.user?.streak?.current ?? stats.currentStreak;
-  const longestStreak = authState.user?.streak?.longest ?? stats.longestStreak;
+  const currentStreak = (isAdditionalCourse() ? undefined : authState.user)?.streak?.current ?? stats.currentStreak;
+  const longestStreak = (isAdditionalCourse() ? undefined : authState.user)?.streak?.longest ?? stats.longestStreak;
 
   // XP/Level — берём из бэка или fallback на локальное
-  const backendXp = authState.user?.xp;
+  const backendXp = (isAdditionalCourse() ? undefined : authState.user)?.xp;
   const displayLevel = backendXp?.level ?? stats.level;
   const displayXpProgress = backendXp
     ? backendXp.progressPercent / 100
@@ -274,7 +276,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const displayXpRemaining = backendXp?.xpRemainingToNextLevel ?? xpToNextLevel;
 
   // Campaign stats — берём из бэка или fallback на локальное
-  const campaignStats = authState.user?.campaignStats;
+  const campaignStats = isAdditionalCourse() ? offlineCampaignMeStats() : authState.user?.campaignStats;
   const displayTotalStars = campaignStats?.totalStars ?? stats.totalStars;
   const displayMaxStars = campaignStats?.maxPossibleStars ?? 36;
   const displayPlayTime = campaignStats?.totalPlayTimeSeconds ?? stats.totalTimePlayed;

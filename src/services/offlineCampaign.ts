@@ -1,4 +1,9 @@
-import { readProgress, writeProgress } from './progressStorage';
+import { readClassicDraft, saveClassicDraft, clearClassicDraft } from '../courses/classicDraft';
+import { additionalCourse, courseGridRules, courseLetters } from '../courses/activeCourse';
+import { generateServerLevel } from '../gameEngine';
+import { completeCourseLesson, syncCourseProgress } from '../courses/progress';
+import { progressOwner } from './progressStorage';
+import { readProgress, writeProgress } from './courseStorage';
 // Офлайн-движок кампаний: overview/уровень/старт/submit из вшитых данных + прогресс в localStorage.
 // Воспроизводит ровно те же формы ответов, что и серверные эндпоинты (см. api.ts).
 import bundled from '../data/offlineCampaignLevels.json';
@@ -46,6 +51,14 @@ const SYNC_BASE = API_BASE;
 
 // Источник данных: скачанный кэш (если валиден и новее), иначе вшитый снимок.
 function getChapters(): BChapter[] {
+  const course = additionalCourse();
+  if (course) return ['Знакомство и быт', 'Мир вокруг'].map((title, chapter) => ({
+    id: `${course.id}-chapter-${chapter + 1}`, title, titleBur: course.nativeTitle,
+    order: chapter + 1, requiredStars: 0, lessons: course.lessons.slice(chapter * 4, chapter * 4 + 4).map((lesson, i) => ({
+      slug: lesson.id, name: lesson.title, nameBur: '', icon: '📖', difficulty: 'easy', order: i + 1,
+      requiredStars: 0, timeLimitSeconds: 180, maxStars: 3, description: lesson.note,
+      words: lesson.words.map(w => ({ bur: w.text.normalize('NFC').toUpperCase(), ru: w.ru })), mapVariants: [],
+    })) }));
   try {
     const raw = localStorage.getItem(CONTENT_KEY);
     if (raw) {
@@ -62,6 +75,7 @@ const allLessons = (): BLesson[] => getChapters().flatMap(c => c.lessons);
 // Скачать свежий контент кампаний при наличии сети. Вызывать на старте (если онлайн).
 // Перезаписывает кэш ТОЛЬКО валидными данными — офлайн/ошибка не ломают существующий контент.
 export async function syncCampaigns(): Promise<{ ok: boolean; chapters: number }> {
+  if (additionalCourse()) return { ok: true, chapters: 2 };
   try {
     const r = await fetch(`${SYNC_BASE}/campaign/content`, { cache: 'no-store' });
     if (!r.ok) return { ok: false, chapters: 0 };
@@ -80,7 +94,10 @@ export async function syncCampaigns(): Promise<{ ok: boolean; chapters: number }
 interface LevelRec { stars: number; bestTimeSeconds?: number; attempts: number; firstCompletedAt?: string }
 
 function loadLevels(): Record<string, LevelRec> {
-  try { return JSON.parse(readProgress(LEVELS_KEY) || '{}'); } catch { return {}; }
+  try {
+    const levels: Record<string, LevelRec> = JSON.parse(readProgress(LEVELS_KEY) || '{}');
+    return levels;
+  } catch { return {}; }
 }
 function saveLevels(m: Record<string, LevelRec>) {
   try { writeProgress(LEVELS_KEY, JSON.stringify(m)); } catch { /* ignore */ }
@@ -164,6 +181,16 @@ export function offlineGetCampaignLevel(slug: string): CampaignLevelResponse {
   const l = findLesson(slug);
   if (!l) throw new Error('Уровень не найден');
   const rec = loadLevels()[slug];
+  const course = additionalCourse();
+  if (course) {
+    const size = Math.max(4, Math.ceil(Math.sqrt(l.words.reduce((n, w) => n + courseLetters(w.bur).length, 0))));
+    const saved = readClassicDraft(slug);
+    const board = saved?.board ?? generateServerLevel(size, l.words, courseGridRules());
+    if (!saved) saveClassicDraft(slug, board, [], 0);
+    return { id: l.slug, slug: l.slug, name: l.name, words: l.words.map(w => ({ ...w })), timeLimitSeconds: l.timeLimitSeconds,
+      maxStars: l.maxStars, currentStars: rec?.stars ?? 0, bestTimeSeconds: rec?.bestTimeSeconds,
+      gridSize: board.size, grid: board.grid, wordPlacements: board.placedWords.map(p => ({ ...p.word, path: p.path })) };
+  }
   const variants = l.mapVariants || [];
   const v = variants[Math.floor(Math.random() * Math.max(1, variants.length))] || variants[0];
   const wordByBur: Record<string, BWord> = {};
@@ -201,6 +228,14 @@ export function offlineSubmitCampaignLevel(
   body: CampaignSubmitLevelResultRequest,
 ): CampaignLevelResultResponse {
   const l = findLesson(slug);
+  if (additionalCourse()) {
+    const sessions = loadSess();
+    if (!l || !body.sessionId || sessions[body.sessionId]?.slug !== slug) throw new Error('Игровая сессия не найдена');
+    if (!Number.isFinite(body.timeSeconds) || body.timeSeconds < 0 || !Array.isArray(body.foundWords) ||
+      new Set(body.foundWords).size !== body.foundWords.length ||
+      !body.foundWords.every(word => l.words.some(w => w.bur === word))) throw new Error('Некорректный результат');
+    delete sessions[body.sessionId]; saveSess(sessions);
+  }
   const wordsTotal = l ? l.words.length : 0;
   const found = Array.isArray(body.foundWords) ? body.foundWords.length : 0;
   const ratio = wordsTotal > 0 ? found / wordsTotal : 0;
@@ -226,6 +261,12 @@ export function offlineSubmitCampaignLevel(
   };
   levels[slug] = next;
   saveLevels(levels);
+  const course = additionalCourse();
+  if (course && ratio >= 1) {
+    completeCourseLesson(slug, progressOwner(), course);
+    clearClassicDraft(slug);
+    void syncCourseProgress(course).catch(() => {});
+  }
 
   const totalStars = totalEarned(levels);
   const starsBefore = totalStars - (next.stars - previousBestStars);

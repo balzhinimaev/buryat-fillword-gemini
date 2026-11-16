@@ -1,8 +1,9 @@
+import { activeCourseId } from '../courses/activeCourse';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, RotateCcw } from 'lucide-react';
 import { useTheme } from '../theme/ThemeContext';
 import { cn } from '../utils/cn';
-import { extendTrialPath, matchTrialWord, TRIAL_LETTERS, TRIAL_WORDS } from './trialLesson';
+import { extendTrialPath, matchTrialWord, languageTrial } from './trialLesson';
 
 interface Props {
   onExit(): void;
@@ -13,10 +14,11 @@ interface Props {
 
 export default function TrialLesson({ onExit, onContinue, continueLabel = 'Выбрать занятие', guest = false }: Props) {
   const { theme, isDark } = useTheme();
+  const { letters: TRIAL_LETTERS, words: TRIAL_WORDS } = languageTrial(activeCourseId());
   const [path, setPath] = useState<number[]>([]);
   const [drag, setDrag] = useState<number[]>([]);
   const [found, setFound] = useState<number[]>([]);
-  const [message, setMessage] = useState('Начни с Н в левом верхнем углу и проведи вправо: НАРАН.');
+  const [message, setMessage] = useState(`Начни с ${TRIAL_WORDS[0].bur[0]} в левом верхнем углу и проведи вправо: ${TRIAL_WORDS[0].bur}.`);
   const [answer, setAnswer] = useState<number | null>(null);
   const pointer = useRef<number | null>(null);
   const dragPath = useRef<number[]>([]);
@@ -39,7 +41,7 @@ export default function TrialLesson({ onExit, onContinue, continueLabel = 'Вы�
     };
   }, []);
   const check = (selection: number[]) => {
-    const index = matchTrialWord(selection);
+    const index = matchTrialWord(selection, TRIAL_WORDS);
     if (index < 0) setMessage('Пока не получилось. Соедини соседние буквы одного слова — без пропусков.');
     else if (found.includes(index)) setMessage('Это слово уже найдено. Попробуй следующее.');
     else {
@@ -108,10 +110,10 @@ export default function TrialLesson({ onExit, onContinue, continueLabel = 'Вы�
               <span className={cn('font-semibold', found.includes(index) && 'line-through')}>{word.bur}</span><span className={theme.text.muted}>— {word.ru.toLowerCase()}</span>
             </li>)}</ul>
           </> : <>
-            <h2 className={cn('text-xl font-bold mb-4', theme.text.primary)}>Что значит «УҺАН»?</h2>
+            <h2 className={cn('text-xl font-bold mb-4', theme.text.primary)}>Что значит «{TRIAL_WORDS[1].bur}»?</h2>
             <div className="space-y-2">{TRIAL_WORDS.map((word, index) => <button key={word.bur} type="button" disabled={answer !== null} onClick={() => setAnswer(index)} className={cn(button, 'w-full text-left border', theme.borders.subtle, answer !== null && index === 1 ? (isDark ? 'bg-emerald-900 text-emerald-100' : 'bg-emerald-100 text-emerald-900') : theme.text.primary)}>{word.ru}</button>)}</div>
             {answer !== null && <div className="mt-5">
-              <p role="status" className={cn('font-semibold', theme.text.primary)}>{answer === 1 ? 'Верно! Уһан — вода.' : 'Уһан — вода. Теперь будет легче вспомнить.'}</p>
+              <p role="status" className={cn('font-semibold', theme.text.primary)}>{activeCourseId() === 'bua-ru' ? (answer === 1 ? 'Верно! Уһан — вода.' : 'Уһан — вода. Теперь будет легче вспомнить.') : `${answer === 1 ? 'Верно! ' : ''}${TRIAL_WORDS[1].bur} — вода.${answer !== 1 ? ' Теперь будет легче вспомнить.' : ''}`}</p>
               <p className={cn('text-sm mt-2 leading-relaxed', theme.text.muted)}>{guest ? 'Пробное занятие завершено. Войди, чтобы продолжить курс и сохранять свой прогресс.' : 'Отличное начало. Дальше — новые слова и небольшие занятия в своём темпе.'}</p>
               <button type="button" onClick={onContinue} className={cn(button, 'w-full mt-5 bg-amber-500 text-stone-950 inline-flex items-center justify-center gap-2')}>{continueLabel}<ArrowRight size={18} /></button>
             </div>}

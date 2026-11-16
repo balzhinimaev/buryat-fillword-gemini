@@ -1,3 +1,4 @@
+import { chooseCourse } from '../courses/progress';
 import { beforeEach, expect, test, vi } from 'vitest';
 const api = vi.hoisted(() => ({ complete: vi.fn(), state: vi.fn(), request: vi.fn() }));
 vi.mock('./api', () => ({
@@ -13,7 +14,7 @@ const key = 'burlive_textbook_progress';
 const login = (owner: string) => localStorage.setItem('auth_tokens', JSON.stringify({access_token:`a.${btoa(JSON.stringify({sub:owner}))}.c`}));
 const answers = [{word:'АБА',answer:'АБА'}];
 beforeEach(() => {
-  localStorage.clear(); login('alice'); vi.clearAllMocks();
+  localStorage.clear(); login('alice'); chooseCourse('bua-ru'); vi.clearAllMocks();
   api.state.mockResolvedValue({progress:{}}); api.complete.mockResolvedValue({xpGained:0});
   Object.defineProperty(navigator, 'onLine', {configurable:true, value:true});
 });
@@ -86,4 +87,15 @@ test('a worse retry does not replace a better quiz still waiting to upload', asy
   saveQuizResult('family',6,8,answers);
   expect(JSON.parse(readProgress(key)!).family.pendingQuiz.answers).toEqual(bestAnswers);
   release({xpGained:0}); await sync;
+});
+
+test('late Buryat textbook response cannot write into another course', async () => {
+  let release!: (v: object) => void;
+  api.state.mockImplementationOnce(() => new Promise(r => { release = r; }));
+  const pending = syncTextbookProgress();
+  chooseCourse('en-ru');
+  release({ progress: { family: { theoryReadAt: '2026-10-01' } } });
+  await pending;
+  expect(isTheoryRead('family')).toBe(false);
+  expect(readProgress('course:en-ru:burlive_textbook_progress')).toBeNull();
 });
