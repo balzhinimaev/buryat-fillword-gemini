@@ -2,7 +2,7 @@ import { CourseWordAudio } from '../components/CourseWordAudio';
 import { isAdditionalCourse } from '../courses/activeCourse';
 // Урок учебника: цель, теория (буквы/лексика/фразы/грамматика/совет),
 // карточки + квиз, практика-филлворды со звёздами, переход к следующему уроку.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -30,6 +30,7 @@ import {
   TEXTBOOK_PROGRESS_EVENT,
   fetchPracticeLessons,
   getQuizBest,
+  getUnitStatuses,
   getTextbook,
   isTheoryRead,
   markTheoryRead,
@@ -85,6 +86,12 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
   const [lessonStats, setLessonStats] = useState<TextbookLessonStats | null>(null);
   const [myVote, setMyVote] = useState<LessonVoteType | null>(null);
   const [voteBusy, setVoteBusy] = useState(false);
+  const materialRef = useRef<HTMLDivElement>(null);
+  const practiceRef = useRef<HTMLDivElement>(null);
+  const moveTo = (element: HTMLDivElement | null) => {
+    element?.focus({ preventScroll: true });
+    element?.scrollIntoView?.({ block: 'start', behavior: 'auto' });
+  };
   const learned = new Set(store.state.stats.learnedWords.map((w: string) => w.toUpperCase()));
 
   useEffect(() => {
@@ -141,7 +148,9 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
   };
 
   useEffect(() => {
-    void fetchPracticeLessons().then(setLessons);
+    let active = true;
+    void fetchPracticeLessons().then(value => { if (active) setLessons(value); }).catch(() => {});
+    return () => { active = false; };
   }, []);
 
   // при переходе «следующий урок» экран остаётся смонтированным — синхронизируем
@@ -173,6 +182,7 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
   const units = getTextbook().units;
   const unitIdx = units.findIndex((u) => u.slug === unit.slug);
   const nextUnit = units[unitIdx + 1];
+  const status = getUnitStatuses(Object.fromEntries(Object.entries(lessons).map(([key, lesson]) => [key, lesson.stars]))).find(s => s.unit.slug === unit.slug);
   const quizPassed = !!quizBest && quizBest.correct / quizBest.total >= 0.75;
 
   const card = cn(
@@ -261,6 +271,20 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
       </header>
 
       <main className="flex-1 p-4 space-y-3.5 pb-10">
+        <section aria-label="Навигация по уроку" className={card}>
+          <h2 className={cn('text-sm font-bold', theme.text.primary)}>В этом уроке</h2>
+          <p className={cn('text-xs mt-1 mb-3 leading-relaxed', theme.text.secondary)}>Изучи материал, закрепи его в игре и проверь себя. К любому шагу можно вернуться.</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { title: 'Материал', done: theoryRead, run: () => moveTo(materialRef.current) },
+              ...(unit.practiceSlugs.length ? [{ title: 'Филворд', done: Boolean(status?.practiceDone), run: () => moveTo(practiceRef.current) }] : []),
+              { title: 'Проверка', done: Boolean(status?.quizPassed), run: () => setQuizOpen(true) },
+            ].map((step, i) => <button key={step.title} type="button" onClick={step.run} aria-label={`${step.title}${step.done ? ' — выполнено' : ''}`} className={cn('flex-1 min-h-11 min-w-24 px-3 py-2 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500', step.done ? (isDark ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10' : 'border-emerald-300 text-emerald-800 bg-emerald-50') : cn(theme.borders.subtle, theme.text.primary))}>
+              {step.done ? <CheckCircle2 size={14} aria-hidden /> : <span aria-hidden>{i + 1}.</span>}{step.title}
+            </button>)}
+          </div>
+        </section>
+        <div ref={materialRef} tabIndex={-1} aria-label="Материал урока" className="space-y-3.5 scroll-mt-4 focus:outline-none">
         {unit.intro && (
           <motion.p {...fade(0)} className={cn('text-sm leading-relaxed px-1', theme.text.secondary)}>
             {unit.intro}
@@ -380,6 +404,8 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
           </motion.div>
         )}
 
+        </div>
+
         {/* Действия: карточки + квиз */}
         <motion.div {...fade(6)} className="grid grid-cols-2 gap-2.5">
           <button
@@ -423,7 +449,7 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
 
         {/* Практика */}
         {unit.practiceSlugs.length > 0 && (
-          <motion.div {...fade(8)} className={card}>
+          <motion.div {...fade(8)} ref={practiceRef} tabIndex={-1} aria-label="Практика урока" className={cn(card, 'scroll-mt-4 focus:outline-none')}>
             <SectionTitle icon={<Play size={14} />} label="Практика · найди слова в филлворде" isDark={isDark} muted={theme.text.dimmed} />
             <div className="space-y-2">
               {unit.practiceSlugs.map((ps, i) => {
@@ -477,6 +503,7 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
           />
         </motion.div>}
 
+        <button type="button" onClick={() => store.navigate('textbook')} className={cn('min-h-11 w-full rounded-xl text-sm font-semibold underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500', theme.text.secondary)}>К списку уроков</button>
         {/* Следующий урок */}
         {nextUnit && (
           <motion.button

@@ -187,3 +187,37 @@ html {
     padding-top: env(safe-area-inset-top);
   }
 }
+
+
+/* Main learning shell: preserve theme tokens and the original screen flow. */
+.learning-home .learning-card {
+  box-shadow: 0 2px 4px rgb(0 0 0 / 3%), 0 8px 24px rgb(0 0 0 / 3%);
+}
+.lesson-hero {
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+.learning-nav {
+  box-shadow: 0 -4px 24px rgb(0 0 0 / 6%);
+}
+.course-choice, .learning-action, .lesson-hero, .menu-link {
+  transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) {
+  .learning-action:hover, .lesson-hero:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 12%);
+  }
+  .course-choice:hover { box-shadow: inset 0 0 0 1px currentColor; }
+}
+.course-choice:active, .learning-action:active, .lesson-hero:active {
+  transform: scale(.99);
+}
+.learning-home summary::-webkit-details-marker { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .course-choice, .learning-action, .lesson-hero, .menu-link {
+    transition: none;
+    transform: none !important;
+  }
+}

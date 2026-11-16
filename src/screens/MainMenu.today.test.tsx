@@ -62,7 +62,30 @@ describe('Today home', () => {
     expect(screen.getByRole('button', { name: 'Закрыть' })).toBeInTheDocument();
     vi.mocked(textbook.getMistakeWords).mockReturnValue([]);
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
-    expect(screen.getByRole('button', { name: /Новые слова/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Повторить трудные слова/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Здесь появятся слова для повторения после проверки знаний.')).toBeInTheDocument();
+  });
+  it('keeps a saved game ahead of the first-time tutorial', async () => {
+    const store = makeStore(); store.state.settings.hasSeenHowTo = false; store.state.campaignResumeSlug = 'saved-level';
+    await show(store);
+    fireEvent.click(screen.getByRole('button', { name: /Продолжить игру/ }));
+    expect(store.selectCategory).toHaveBeenCalledWith('saved-level');
+    expect(store.navigate).not.toHaveBeenCalledWith('howto');
+  });
+  it('offers visible play and daily actions without opening More', async () => {
+    const store = await show();
+    fireEvent.click(screen.getByRole('button', { name: 'Все игровые режимы' }));
+    expect(store.navigate).toHaveBeenCalledWith('gameMode');
+    fireEvent.click(screen.getByRole('button', { name: /Филворд дня/ }));
+    expect(store.startDailyGame).toHaveBeenCalledOnce();
+  });
+  it('lets a failed progress load be retried without leaving Today', async () => {
+    vi.mocked(textbook.fetchPracticeLessons).mockRejectedValueOnce(new Error('offline')).mockResolvedValue({});
+    await show();
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    await act(async () => {});
+    expect(textbook.fetchPracticeLessons).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: 'Повторить загрузку' })).not.toBeInTheDocument();
   });
   it('recognizes an ISO local day even with single-digit day or month', async () => {
     const now = new Date();

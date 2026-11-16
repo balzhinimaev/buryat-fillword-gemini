@@ -1,3 +1,4 @@
+import { nextLearningUnit, nextLearningStep } from '../utils/learningNavigation';
 import { courseTextbookTitle, isAdditionalCourse } from '../courses/activeCourse';
 // Учебный план — «путь обучения»: вертикальный таймлайн уроков с узлами-статусами,
 // прогресс-кольцо курса в шапке, работа над ошибками и выпускной экзамен.
@@ -139,7 +140,8 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
   );
   const statuses = useMemo(() => { void progressRevision; return getUnitStatuses(starsBySlug); }, [starsBySlug, progressRevision]);
   const progress = courseProgress(statuses);
-  const nextIdx = statuses.findIndex((s) => !s.completed);
+  const nextUnit = nextLearningUnit(statuses);
+  const nextIdx = nextUnit ? statuses.indexOf(nextUnit) : -1;
   const allDone = progress.done === progress.total;
   const examPassed = isExamPassed();
 
@@ -232,8 +234,8 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
           <div className="flex-1 min-w-0">
             <h1 className="text-[22px] font-extrabold leading-tight">{courseTextbookTitle()}</h1>
             <p className="text-xs opacity-70 mt-1.5 leading-relaxed">
-              {progress.total} уроков: от алфавита до свободных фраз.
-              {allDone ? ' Курс пройден — остался экзамен!' : ' Двигайтесь по пути сверху вниз.'}
+              {progress.total} уроков: материал, практика и проверка знаний.
+              {allDone ? (examPassed ? ' Курс и экзамен пройдены.' : ' Курс пройден — остался экзамен!') : ' Продолжи начатое или выбери любую тему.'}
             </p>
           </div>
           <ProgressRing done={progress.done} total={progress.total} />
@@ -241,6 +243,11 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
       </header>
 
       <main className="flex-1 px-4 pt-5 pb-10">
+        {nextUnit && <button type="button" onClick={() => store.navigateToTextbookUnit(nextUnit.unit.slug)} className={cn('w-full mb-5 p-4 rounded-2xl border text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500', isDark ? 'border-amber-500/40 bg-amber-500/10' : 'border-amber-200 bg-amber-50')}>
+          <span className={cn('block text-xs font-semibold', theme.text.secondary)}>Продолжить занятие</span>
+          <span className={cn('block mt-1 font-bold', theme.text.primary)}>{nextUnit.unit.title.replace(/^Урок \d+\. /, '')}</span>
+          <span className={cn('block mt-1 text-sm', theme.text.secondary)}>{nextLearningStep(nextUnit)}</span>
+        </button>}
         {/* Работа над ошибками */}
         {mistakeCount >= 3 && (
           <motion.button
