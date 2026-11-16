@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, cleanup, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, cleanup, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import CourseMenu from './CourseMenu';
 import { chooseCourse, completedLessons } from './progress';
@@ -43,7 +43,15 @@ it('keeps the original Buryat Today, modes, textbook and dictionary as the prima
   expect(screen.getByRole('button', { name: 'Учиться' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Профиль' })).toBeInTheDocument();
   expect(screen.queryByText('Классический бурятский режим')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Английский' }));
+  fireEvent.click(screen.getByRole('button', { name: /Мои курсы. Сейчас/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Каталог курсов' }));
+  const english = screen.getByRole('heading', { name: 'Английский' }).closest('article')!;
+  fireEvent.click(within(english).getByRole('button', { name: 'Посмотреть курс' }));
+  expect(activeCourseId()).toBe('bua-ru');
+  expect(restartCourseApp).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText('Зачем изучаю язык'), { target: { value: 'travel' } });
+  fireEvent.click(screen.getByRole('radio', { name: '10 мин.' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Добавить курс и начать' }));
   expect(activeCourseId()).toBe('en-ru'); expect(restartCourseApp).toHaveBeenCalledOnce();
 });
 it.each(['en-ru', 'cs-ru'] as const)('uses the original Today → textbook → cards/quiz/practice flow for %s', async id => {

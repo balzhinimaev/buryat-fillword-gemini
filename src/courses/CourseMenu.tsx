@@ -1,37 +1,46 @@
-import { lazy, Suspense, useState } from 'react';
-import { Check, Globe2 } from 'lucide-react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { ChevronRight, Globe2 } from 'lucide-react';
 import type { GameStore } from '../store/gameStore';
 import { chooseCourse } from './progress';
 import { activeCourseId, restartCourseApp } from './activeCourse';
+import { learningProfile, PROFILE_EVENT, syncLearningProfile } from './enrollments';
+import { progressOwner } from '../services/progressStorage';
+import { COURSE_CATALOG } from './catalog';
 import { useTheme } from '../theme/ThemeContext';
 import { getMenuStyles } from '../theme/menuStyles';
 import { cn } from '../utils/cn';
 const MainMenu = lazy(() => import('../screens/MainMenu'));
-const button = 'course-choice min-h-12 flex items-center justify-center gap-1.5 rounded-xl px-2 py-3 text-xs sm:text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500';
-
+const CourseHub = lazy(() => import('./CourseHub'));
 export default function CourseMenu({ store }: { store: GameStore }) {
-  const { themeId } = useTheme();
-  const styles = getMenuStyles(themeId);
-  const [course] = useState(activeCourseId);
+  const { themeId } = useTheme(), styles = getMenuStyles(themeId);
+  const [course] = useState(activeCourseId), [hub, setHub] = useState(false);
+  const [owner] = useState(progressOwner);
+  const [plan, setPlan] = useState(() => learningProfile(owner).courses[course]);
+  useEffect(() => {
+    const update = () => { if (owner === progressOwner()) setPlan(learningProfile(owner).courses[course]); };
+    const sync = () => { if (owner === progressOwner()) void syncLearningProfile().catch(() => {}); };
+    window.addEventListener(PROFILE_EVENT, update); window.addEventListener('online', sync); sync();
+    return () => { window.removeEventListener(PROFILE_EVENT, update); window.removeEventListener('online', sync); };
+  }, [owner, course]);
   const [error, setError] = useState('');
+  const descriptor = COURSE_CATALOG[course];
+  const loading = <p role="status" className={cn('p-8 text-center', styles.pageBackground, styles.buttons.text.secondary)}>Загружаем…</p>;
+  if (hub) return <Suspense fallback={loading}><CourseHub activeId={course} onClose={() => setHub(false)} onEnter={id => {
+    try { if (id === course) { setHub(false); return; } chooseCourse(id); restartCourseApp(); }
+    catch { setError('Не удалось открыть курс. Проверь свободное место.'); setHub(false); }
+  }} /></Suspense>;
   return <>
-    <section aria-label="Выбор изучаемого языка" className={cn('course-switcher', styles.pageBackground, styles.buttons.text.primary)} style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+    <section aria-label="Текущий курс" className={cn('course-switcher', styles.pageBackground, styles.buttons.text.primary)} style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
       <div className="mx-auto max-w-2xl px-4 sm:px-6">
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <p className="flex items-center gap-2 text-sm font-semibold"><Globe2 size={17} aria-hidden />Мои языки</p>
-          <span className={cn('text-xs', styles.buttons.text.muted)}>Burlive</span>
-        </div>
-        <div className={cn('grid grid-cols-3 gap-1.5 rounded-2xl border p-1.5', styles.buttons.card.background, styles.buttons.card.border)}>
-          {([['bua-ru', 'Бурятский'], ['cs-ru', 'Чешский'], ['en-ru', 'Английский']] as const).map(([id, title]) => <button key={id} type="button" aria-pressed={course === id} className={cn(button, course === id ? ['bg-gradient-to-br text-white shadow-sm', styles.buttons.play.gradient] : styles.buttons.text.secondary)} onClick={() => { try { if (id === course) return; chooseCourse(id); restartCourseApp(); } catch { setError('Не удалось сохранить выбор языка. Проверьте свободное место.'); } }}>
-            {course === id && <Check size={14} className="shrink-0" aria-hidden />}<span className="min-w-0 break-words">{title}</span>
-          </button>)}
-        </div>
-        <p className={cn('mt-2 text-xs', styles.buttons.text.muted)}>Объяснения на русском · у каждого языка свой прогресс</p>
-        {error && <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
+        <button type="button" onClick={() => setHub(true)} aria-label={`Мои курсы. Сейчас: ${descriptor.title}`} className={cn('w-full min-h-16 rounded-2xl border p-3 flex items-center gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500', styles.buttons.card.background, styles.buttons.card.border)}>
+          <Globe2 size={23} className={styles.title.secondary} aria-hidden />
+          <span className="flex-1 min-w-0"><span className="block font-bold">{descriptor.title}</span><span className={cn('block text-xs mt-1', styles.buttons.text.secondary)}>Курс с объяснениями на русском</span></span>
+          <span className="text-sm font-semibold">Мои курсы</span><ChevronRight size={18} aria-hidden />
+        </button>
+        {plan && <p className={cn('text-xs mt-2', styles.buttons.text.muted)}>Твой ориентир: {plan.minutes} мин. за занятие · настройки в «Мои курсы»</p>}
+        {error && <p role="alert" className="mt-2 text-sm text-red-500">{error}</p>}
       </div>
     </section>
-    <Suspense fallback={<p role="status" className={cn("p-8 text-center text-sm", styles.pageBackground, styles.buttons.text.secondary)}>Загружаем курс…</p>}>
-      <MainMenu store={store} />
-    </Suspense>
+    <Suspense fallback={loading}><MainMenu store={store} /></Suspense>
   </>;
 }

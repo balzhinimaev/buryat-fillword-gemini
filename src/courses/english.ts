@@ -1,4 +1,4 @@
-import type { LearningCourse, CourseLesson } from './czech';
+import type { LearningCourse, CourseLesson } from './model';
 const lesson = (id: string, title: string, note: string, rows: [string, string][]): CourseLesson => ({ id, title, note, words: rows.map(([text, ru], i) => ({ id: `${id}-${i + 1}`, text, ru })) });
 export const englishCourse: LearningCourse = {
   id: 'en-ru', language: 'en', instructionLanguage: 'ru', title: 'Английский', nativeTitle: 'English', alphabet: [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'],

@@ -1,6 +1,6 @@
-export interface CourseWord { id: string; text: string; ru: string }
-export interface CourseLesson { id: string; title: string; note: string; words: CourseWord[] }
-export interface LearningCourse { id: string; language: string; instructionLanguage: 'ru'; title: string; nativeTitle: string; alphabet: string[]; lessons: CourseLesson[] }
+import type { LearningCourse, CourseLesson } from './model';
+export type { CourseWord, CourseLesson, LearningCourse, CourseId } from './model';
+export { COURSE_IDS } from './model';
 const lesson = (id: string, title: string, note: string, rows: [string, string][]): CourseLesson => ({
   id, title, note, words: rows.map(([text, ru], index) => ({ id: `${id}-${index + 1}`, text, ru })),
 });
@@ -18,5 +18,3 @@ export const czechCourse: LearningCourse = {
     lesson('time', 'Время', 'Dnes — «сегодня», zítra — «завтра». Č в слове večer и долгие á, í в ráno и zítra — часть правильного написания, а не украшение.', [['den','день'],['noc','ночь'],['ráno','утро'],['večer','вечер'],['dnes','сегодня'],['zítra','завтра']]),
   ],
 };
-export const COURSE_IDS = ['bua-ru', 'cs-ru', 'en-ru'] as const;
-export type CourseId = typeof COURSE_IDS[number];

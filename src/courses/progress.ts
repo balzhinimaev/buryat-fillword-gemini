@@ -1,3 +1,4 @@
+import { isCourseId } from './model';
 import { setRuntimeCourse } from './activeCourse';
 import { progressOwner, readProgress, writeProgress } from '../services/progressStorage';
 import { apiRequest } from '../services/api';
@@ -40,9 +41,10 @@ export function syncCourseProgress(course = czechCourse): Promise<boolean> {
   running = { owner, courseId: course.id, promise }; return promise;
 }
 export function chosenCourse(): CourseId {
-  try { const id = readProgress('learning-course:selected'); return id === 'cs-ru' || id === 'en-ru' ? id : 'bua-ru'; } catch { return 'bua-ru'; }
+  try { const id = readProgress('learning-course:selected'); return isCourseId(id) ? id : 'bua-ru'; } catch { return 'bua-ru'; }
 }
 export function chooseCourse(course: CourseId): void {
+  if (!isCourseId(course)) throw new Error('Unknown course');
   writeProgress('learning-course:selected', course);
   setRuntimeCourse(course);
 }
