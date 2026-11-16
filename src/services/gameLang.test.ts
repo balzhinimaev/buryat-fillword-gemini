@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { chooseCourse } from '../courses/progress';
 import { getGameLang, setGameLang, hintOf } from './gameLang';
 
 describe('gameLang / hintOf', () => {
   beforeEach(() => {
-    localStorage.clear();
+    localStorage.clear(); chooseCourse('bua-ru');
     setGameLang('ru');
   });
 
@@ -22,6 +23,13 @@ describe('gameLang / hintOf', () => {
     setGameLang('en');
     expect(hintOf({ ru: 'Книга' })).toBe('Книга');
     expect(hintOf({ ru: 'Книга', translations: {} })).toBe('Книга');
+  });
+
+  it('keeps starter-course explanations Russian without erasing the original Buryat hint preference', () => {
+    setGameLang('en'); chooseCourse('en-ru');
+    expect(getGameLang()).toBe('ru');
+    expect(hintOf({ ru: 'Книга', translations: { en: 'Book' } })).toBe('Книга');
+    chooseCourse('bua-ru'); expect(getGameLang()).toBe('en');
   });
 
   it('мусор в хранилище не влияет на текущее значение', () => {

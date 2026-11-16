@@ -1944,7 +1944,7 @@ ${levelInfo}
             Найди слова:
           </h3>
           <div className="flex items-center gap-1.5">
-            <button
+            {!isAdditionalCourse() && <button
               onClick={() => toggleGameLang()}
               aria-label="Язык подсказок"
               className={cn(
@@ -1956,7 +1956,7 @@ ${levelInfo}
             >
               <Globe size={10} />
               <span>{gameLang === 'en' ? 'EN' : 'РУС'}</span>
-            </button>
+            </button>}
             <div className={cn(
               "text-[10px] flex items-center gap-1 px-2 py-1 rounded-full",
               isDark ? "bg-white/10 text-white/60" : "bg-black/5 text-black/50"

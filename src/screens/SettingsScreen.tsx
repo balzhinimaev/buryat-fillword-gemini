@@ -1,3 +1,4 @@
+import { courseTitle, isAdditionalCourse } from '../courses/activeCourse';
 // src/screens/SettingsScreen.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -458,8 +459,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
           </div>
         </motion.div>
 
-        {/* Hint language */}
-        <motion.div
+        {/* Optional original Buryat word translations, not course/UI language. */}
+        {!isAdditionalCourse() && <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.34 }}
@@ -473,7 +474,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
           <div className="mb-3">
             <span className={cn("font-semibold", theme.text.primary)}>Язык подсказок</span>
             <p className={cn("text-xs mt-0.5", theme.text.muted)}>
-              На каком языке показывать перевод бурятских слов в игре
+              Дополнительный перевод слов, не язык курса. English доступен для части слов; для остальных показывается русский.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -499,8 +500,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
               );
             })}
           </div>
-        </motion.div>
+        </motion.div>}
 
+        {isAdditionalCourse() && <div className={cn('rounded-2xl p-4 border', theme.backgrounds.card, theme.borders.subtle)}>
+          <h2 className={cn('font-semibold', theme.text.primary)}>Курс: {courseTitle()}</h2>
+          <p className={cn('mt-2 text-sm', theme.text.muted)}>Объяснения и переводы на русском. Учебный план и другие языки — в разделе «Мои курсы» на главном экране.</p>
+        </div>}
         {/* Диалект контента */}
         {!OFFLINE && dialects.length > 0 && (
           <motion.div

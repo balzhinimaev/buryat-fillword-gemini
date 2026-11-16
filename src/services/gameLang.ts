@@ -2,6 +2,7 @@
 // Реактивный модуль: setGameLang уведомляет подписчиков, useGameLang() перерисовывает
 // компоненты на лету (переключатель прямо в игре). ru всегда fallback.
 import { useSyncExternalStore } from 'react';
+import { isAdditionalCourse } from '../courses/activeCourse';
 
 export type GameLang = 'ru' | 'en';
 
@@ -24,7 +25,7 @@ let current: GameLang = readStored();
 const listeners = new Set<() => void>();
 
 export function getGameLang(): GameLang {
-  return current;
+  return isAdditionalCourse() ? 'ru' : current;
 }
 
 export function setGameLang(lang: GameLang): void {
@@ -61,6 +62,7 @@ export interface Translatable {
 
 /** подсказка на выбранном языке с fallback на русский */
 export function hintOf(word: Translatable): string {
-  if (current === 'ru') return word.ru;
-  return word.translations?.[current] || word.ru;
+  const language = getGameLang();
+  if (language === 'ru') return word.ru;
+  return word.translations?.[language] || word.ru;
 }

@@ -56,9 +56,9 @@ export default function CourseHub({ activeId, onClose, onEnter }: Props) {
           <h2 className="font-semibold">Как ты учишься</h2>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
             <div><dt className={styles.buttons.text.muted}>Интерфейс</dt><dd className="font-semibold mt-1">Русский</dd></div>
-            <div><dt className={styles.buttons.text.muted}>Объяснения и переводы</dt><dd className="font-semibold mt-1">Русский</dd></div>
+            <div><dt className={styles.buttons.text.muted}>Язык объяснений</dt><dd className="font-semibold mt-1">Русский</dd></div>
           </dl>
-          <p className={cn('mt-3 text-xs leading-relaxed', styles.buttons.text.secondary)}>Изучаемый язык выбирается в курсе. Другие языки объяснений появятся вместе с подготовленными программами.</p>
+          <p className={cn('mt-3 text-xs leading-relaxed', styles.buttons.text.secondary)}>Изучаемый язык выбирается в курсе. Другие языки объяснений появятся вместе с подготовленными программами. Дополнительные переводы бурятских слов на английский — отдельная настройка, не другой курс.</p>
         </section>
         <div className="flex gap-2" role="group" aria-label="Разделы курсов">
           <button type="button" aria-pressed={view === 'mine'} onClick={() => setView('mine')} className={cn('min-h-11 flex-1 rounded-xl px-3 font-semibold border', focus, view === 'mine' ? styles.title.secondary : styles.buttons.text.secondary, styles.buttons.card.border)}>Мои курсы</button>
