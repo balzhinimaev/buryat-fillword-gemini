@@ -1,3 +1,4 @@
+import { QueueRecovery, ContributionQueueDetails } from '../components/contribution/QueueRecovery';
 // src/screens/WordContributionScreen.tsx
 // «Үгын Дархан» — словарная мастерская: добавление слов (с озвучкой),
 // проверка слов и озвучек сообществом, «моё» (вклад со статусами), рейтинг.
@@ -93,21 +94,14 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
   const [syncingQ, setSyncingQ] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const handleSyncQueue = async () => {
-    // Одноразовое пояснение: синхронизация создаёт анонимный аккаунт устройства.
-    if (!localStorage.getItem('burlive_sync_consent')) {
-      const ok = window.confirm(
-        'Синхронизация создаст анонимный аккаунт устройства и отправит добавленные слова на сервер (на модерацию). Слова появятся в общем словаре после проверки. Продолжить?'
-      );
-      if (!ok) return;
-      localStorage.setItem('burlive_sync_consent', '1');
-    }
+    if (!getStoredTokens()?.refresh_token) { setShowServerLogin(true); return; }
     setSyncingQ(true);
     setSyncMsg('');
     try {
       const r = await syncQueue();
       const d = await syncDictionary();
       setQstats(queueStats());
-      if (!r.ok) setSyncMsg(r.reason === 'offline' ? 'нет сети' : 'не удалось войти');
+      if (!r.ok) setSyncMsg(r.reason === 'offline' ? 'нет сети' : r.reason === 'course' ? 'выберите бурятский курс' : 'нужен вход в аккаунт');
       else setSyncMsg(`отправлено +${r.pushed}, обновлено ${r.pulled}${d.added ? `, словарь +${d.added}` : ''}${r.failed ? `, ошибок ${r.failed}` : ''}`);
     } finally {
       setSyncingQ(false);
@@ -236,12 +230,12 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
       {/* Hero-шапка */}
       <header className={cn(
         'relative overflow-hidden p-4 pb-5',
-        isDark ? '' : 'rounded-b-3xl shadow-lg',
+        isDark ? '' : 'border-b',
         theme.header.bg,
         theme.header.text
       )}>
-        <div className="absolute -top-12 -right-8 w-44 h-44 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
-        <div className="absolute bottom-0 -left-10 w-36 h-36 rounded-full bg-orange-500/10 blur-2xl pointer-events-none" />
+
+
 
         <div className="relative z-10">
           <div className="flex items-center gap-2">
@@ -262,7 +256,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
             </div>
 
             {isLanguageKeeper && (
-              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 p-0.5 flex-shrink-0">
+              <div className="w-11 h-11 rounded-full ui-accent-fill p-0.5 flex-shrink-0">
                 {contributorPhoto ? (
                   <img
                     src={contributorPhoto}
@@ -322,7 +316,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
                     "flex-1 py-2.5 px-1 rounded-xl font-medium transition-all relative",
                     "flex flex-col items-center justify-center gap-0.5",
                     activeTab === tab.id
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25'
+                      ? 'ui-accent-fill text-white shadow-lg shadow-black/5'
                       : cn(isDark ? "text-stone-400 hover:text-white hover:bg-stone-700/30" : "text-stone-500 hover:text-stone-800 hover:bg-stone-100")
                   )}
                 >
@@ -362,7 +356,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
                       <div>
                         <p className={cn("font-semibold mb-1", isDark ? "text-amber-200" : "text-amber-800")}>Как добавить слово?</p>
                         <p className={cn("text-sm", isDark ? "text-stone-400" : "text-amber-700/80")}>
-                          Введите бурятское слово, перевод и категорию — можно сразу записать
+                          Введите бурятское слово и перевод; категория необязательна — можно сразу записать
                           произношение. Слово появится в игре после проверки носителями языка.
                         </p>
                       </div>
@@ -382,12 +376,14 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
                         type="button"
                         onClick={handleSyncQueue}
                         disabled={syncingQ}
-                        className="px-3 py-2 rounded-lg bg-amber-500 text-white text-sm font-medium disabled:opacity-50 whitespace-nowrap"
+                        className="px-3 py-2 rounded-lg ui-primary text-sm font-medium disabled:opacity-50 whitespace-nowrap"
                       >
                         {syncingQ ? 'Синхронизация…' : 'Синхронизировать'}
                       </button>
                     </div>
                   )}
+                  {OFFLINE && <QueueRecovery kind="contributions" onUpdated={() => setQstats(queueStats())} />}
+                  {OFFLINE && <ContributionQueueDetails onUpdated={() => setQstats(queueStats())} />}
                   <AddWordForm
                     onSubmit={
                       OFFLINE
@@ -433,7 +429,7 @@ export const WordContributionScreen: React.FC<Props> = ({ store }) => {
                           className={cn(
                             'px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition',
                             verifyMode === m.id
-                              ? 'bg-amber-500 text-white shadow'
+                              ? 'ui-primary shadow'
                               : theme.text.muted,
                           )}
                         >

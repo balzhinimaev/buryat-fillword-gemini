@@ -54,6 +54,8 @@ export function useTelegram(): UseTelegramResult {
     const tg = window.Telegram?.WebApp;
     
     if (tg) {
+      // Snapshot the external Telegram SDK after mount, before publishing readiness.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWebApp(tg);
       
       // Сообщаем Telegram, что приложение готово
@@ -254,7 +256,7 @@ export function useTelegram(): UseTelegramResult {
     user: webApp?.initDataUnsafe?.user || null,
     initData: webApp?.initData || null,
     isReady,
-    isTelegram: !!webApp,
+    isTelegram: !!webApp?.initData,
     colorScheme: webApp?.colorScheme || 'light',
     themeParams: webApp?.themeParams || {},
     

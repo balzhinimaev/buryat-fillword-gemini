@@ -1,3 +1,5 @@
+import { QueueRecovery } from '../components/contribution/QueueRecovery';
+import { importLegacyCleanWords } from '../services/adminDictStore';
 // src/screens/AdminDictionaryScreen.tsx
 // Офлайн-редактор словаря (админ): полная локальная копия слов в IndexedDB,
 // правки любых полей (включая диалект) без сети, push на сервер при подключении.
@@ -343,6 +345,7 @@ export const AdminDictionaryScreen: React.FC<AdminDictionaryScreenProps> = ({ st
 
   const reload = useCallback(async () => {
     try {
+      await importLegacyCleanWords();
       const [all, meta] = await Promise.all([getAllWords(), getMeta()]);
       all.sort((a, b) => a.word.bur.localeCompare(b.word.bur, 'ru'));
       setRecords(all);
@@ -386,7 +389,7 @@ export const AdminDictionaryScreen: React.FC<AdminDictionaryScreenProps> = ({ st
       setSyncMessage(
         res.ok
           ? `Скачано ${res.pulled} слов${res.skippedDirty ? `, ${res.skippedDirty} локальных правок сохранено` : ''}`
-          : res.reason === 'auth' ? 'Нужен вход с правами админа' : 'Нет сети',
+          : res.reason === 'auth' ? 'Нужен вход с правами редактора' : res.reason === 'course' ? 'Выберите бурятский курс' : res.reason === 'account-change' ? 'Аккаунт изменился. Правки сохранены.' : 'Нет сети',
       );
     } catch (e) {
       console.error('pull failed', e);
@@ -405,7 +408,7 @@ export const AdminDictionaryScreen: React.FC<AdminDictionaryScreenProps> = ({ st
       setSyncMessage(
         res.ok
           ? `Отправлено: ${res.pushed}${res.failed ? `, ошибок: ${res.failed}` : ''}${res.remaining ? `, осталось: ${res.remaining}` : ''}`
-          : res.reason === 'auth' ? 'Нужен вход с правами админа' : 'Нет сети',
+          : res.reason === 'auth' ? 'Нужен вход с правами редактора' : res.reason === 'course' ? 'Выберите бурятский курс' : res.reason === 'account-change' ? 'Аккаунт изменился. Правки сохранены.' : 'Нет сети',
       );
     } catch (e) {
       console.error('push failed', e);
@@ -494,6 +497,7 @@ export const AdminDictionaryScreen: React.FC<AdminDictionaryScreenProps> = ({ st
           )}
         </section>
 
+        <QueueRecovery kind="dictionary" onUpdated={() => void reload()} />
         {/* ═══ Поиск и фильтры ═══ */}
         <section className="space-y-2">
           <div className="relative">

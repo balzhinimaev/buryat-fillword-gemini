@@ -1,3 +1,4 @@
+import { isAdditionalCourse } from '../courses/activeCourse';
 // Офлайн-кэш «народного учебника»: одобренные истории/факты/пословицы.
 // При наличии сети APK докачивает весь одобренный контент бандлом и складывает
 // в localStorage; в офлайне секция «Из сообщества» читает из кэша.
@@ -41,6 +42,7 @@ export function offlineLoreItem(id: string): LoreItem | null {
 
 /** Докачать весь одобренный lore-контент в кэш (тихо падает офлайн/при ошибке) */
 export async function syncLore(): Promise<{ ok: boolean; count: number }> {
+  if (isAdditionalCourse()) return { ok: true, count: 0 };
   try {
     const r = await fetch(`${API_BASE}/lore/content`, { method: 'GET' });
     if (!r.ok) return { ok: false, count: readCache().length };

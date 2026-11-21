@@ -1,3 +1,4 @@
+import { isServerWordId } from '../courses/access';
 import { activeCourseId, isAdditionalCourse } from '../courses/activeCourse';
 import { prepareOwnerChange, notifyOwnerChange, progressOwner } from './progressStorage';
 // API сервис для работы с бэкендом.
@@ -316,7 +317,7 @@ export interface CreateWordRequest {
   bur: string;
   ru: string;
   translations?: Record<string, string>;
-  categoryId: string;
+  categoryId?: string;
   dialectId?: string;
   partOfSpeechId?: string;
   exampleBur?: string;
@@ -505,7 +506,7 @@ export interface CreateWordResponse {
   _id: string;
   bur: string;
   ru: string;
-  categoryId: string;
+  categoryId?: string;
   dialectId?: string;
   partOfSpeechId?: string;
   exampleBur?: string;
@@ -732,7 +733,11 @@ export async function apiRequest<T>(
   options: RequestInit = {},
   isRetry = false
 ): Promise<T> {
-  if (isAdditionalCourse() && !/^\/(auth|courses|settings|users\/me\/settings)(\/|\?|$)/.test(endpoint)) {
+  // Account identity and device registration belong to the whole app, not the
+  // Buryat curriculum. Keep this allowlist narrow: progress/content endpoints
+  // must still use the selected course's own provider.
+  const sharedAccountEndpoint = /^\/(users\/me\/(name|onboarding)|push\/devices\/(register|unregister)|referrals\/reminder-consent)(\?|$)/.test(endpoint);
+  if (isAdditionalCourse() && !sharedAccountEndpoint && !/^\/(auth|courses|settings|users\/me\/settings)(\/|\?|$)/.test(endpoint)) {
     throw new Error('Этот сетевой раздел доступен в бурятском курсе');
   }
   // Runtime-проверка: если сети реально нет — мгновенно отдаём офлайн-ошибку
@@ -742,11 +747,15 @@ export async function apiRequest<T>(
     throw { statusCode: 0, message: 'Нет подключения к интернету', error: 'offline' } as ApiError;
   }
 
-  const owner = progressOwner();
+  const owner = progressOwner(), course = activeCourseId();
+  const checkContext = () => {
+    if (owner !== progressOwner()) throw { statusCode: 409, message: 'Аккаунт изменился' };
+    if (!sharedAccountEndpoint && !/^\/(auth|courses|settings|users\/me\/settings)(\/|\?|$)/.test(endpoint) && course !== activeCourseId()) throw { statusCode: 409, message: 'Курс изменился' };
+  };
   const tokens = getStoredTokens();
   
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   };
 
@@ -759,7 +768,7 @@ export async function apiRequest<T>(
     headers,
   });
 
-  if (owner !== progressOwner()) throw { statusCode: 409, message: 'Аккаунт изменился' };
+  checkContext();
 
   if (!response.ok) {
     const error: ApiError = await response.json().catch(() => ({
@@ -768,7 +777,7 @@ export async function apiRequest<T>(
     }));
 
     error.statusCode = response.status;
-    if (owner !== progressOwner()) throw { statusCode: 409, message: 'Аккаунт изменился' };
+    checkContext();
 
     // Если 401 и это не retry - пробуем обновить токен
     // НЕ пытаемся обновить токен если сам запрос /auth/refresh вернул 401
@@ -780,7 +789,7 @@ export async function apiRequest<T>(
       // single-flight: параллельные 401 ждут ОДИН общий refresh
       // (refresh_token одноразовый — гонка сжигала сессию, см. refreshTokensOnce)
       const nextTokens = await refreshTokensOnce();
-      if (owner !== progressOwner()) throw { statusCode: 409, message: 'Аккаунт изменился' };
+      checkContext();
       if (nextTokens) {
         // если access сменился — повторяем запрос; иначе (временная ошибка
         // refresh) отдаём исходную ошибку без сноса сессии
@@ -820,7 +829,7 @@ export async function apiRequest<T>(
   }
 
   const result = await response.json();
-  if (owner !== progressOwner()) throw { statusCode: 409, message: 'Аккаунт изменился' };
+  checkContext();
   return result;
 }
 
@@ -980,8 +989,16 @@ export async function logout(): Promise<void> {
 
 // Получение категорий
 export async function getCategories(): Promise<ApiCategory[]> {
-  if (OFFLINE || isAdditionalCourse()) return courseLocal(import('./offlineDict'), provider => provider.offlineGetCategories());
-  return apiRequest<ApiCategory[]>('/categories', { method: 'GET' });
+  if (isAdditionalCourse()) return [];
+  const cacheKey = 'burlive_categories_cache_v1';
+  const cached = (): ApiCategory[] => { try { const value = JSON.parse(localStorage.getItem(cacheKey) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } };
+  if (!isNetOnline()) return cached();
+  try {
+    const categories = await apiRequest<ApiCategory[]>('/categories', { method: 'GET' });
+    if (!Array.isArray(categories)) throw new Error('Не удалось загрузить категории');
+    try { localStorage.setItem(cacheKey, JSON.stringify(categories)); } catch { /* optional cache */ }
+    return categories;
+  } catch (error) { if (OFFLINE) return cached(); throw error; }
 }
 
 // Получение диалектов
@@ -1108,8 +1125,13 @@ export async function getWordDetail(id: string): Promise<ApiWordDetailResponse> 
   if (OFFLINE || isAdditionalCourse()) {
     const local = await courseLocal(import('./offlineDict'), provider => provider.offlineFindWordDetail(id));
     if (local) return local;
-    if (!isNetOnline()) return courseLocal(import('./offlineDict'), provider => provider.offlineGetWordDetail(id));
+    if (isAdditionalCourse() || !isServerWordId(id)) throw new Error('Слово не найдено в этом курсе. Вернитесь в словарь.');
+    if (!isNetOnline()) throw new Error('Это слово ещё не сохранено на устройстве. Подключитесь к интернету.');
   }
+  return apiRequest<ApiWordDetailResponse>(`/words/${encodeURIComponent(id)}`, { method: 'GET' });
+}
+
+export function getServerWordDetail(id: string): Promise<ApiWordDetailResponse> {
   return apiRequest<ApiWordDetailResponse>(`/words/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
@@ -2055,10 +2077,15 @@ export interface UserProfileResponse {
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfileResponse> {
-  if (isAdditionalCourse()) {
-    if (userId !== progressOwner()) throw new Error('Профили других игроков доступны в бурятском курсе');
-    const me = await getMe();
-    const local = (await import('./offlineStubs')).offlineMe();
+  const localSelf = !hasServerSession() && (userId === 'offline_user' || userId === 'guest');
+  if (isAdditionalCourse() || localSelf) {
+    if (!localSelf && userId !== progressOwner()) throw new Error('Профили других игроков доступны в бурятском курсе');
+    const owner = progressOwner(), course = activeCourseId();
+    const me = localSelf ? (await import('./offlineStubs')).offlineMe() : await getMe();
+    if (owner !== progressOwner() || course !== activeCourseId()) throw new Error('Аккаунт или курс изменился');
+    const stubs = await import('./offlineStubs');
+    if (owner !== progressOwner() || course !== activeCourseId()) throw new Error('Аккаунт или курс изменился');
+    const local = stubs.offlineMe();
     const xp = local.xp!; const campaign = local.campaignStats!; const streak = local.streak!;
     return { user: { id: userId, name: me.name, isLanguageKeeper: false, registeredAt: me.createdAt ?? '' },
       xp: { totalXp: xp.total, level: xp.level, xpInCurrentLevel: xp.xpInCurrentLevel,
@@ -2655,20 +2682,11 @@ export async function uploadWordAudio(
   target: 'word' | 'example',
   fileName = 'audio.webm',
 ): Promise<ApiWord> {
-  const tokens = getStoredTokens();
+  requireAuthedNetwork();
   const fd = new FormData();
   fd.append('file', file, fileName);
-  const r = await fetch(`${API_URL}/words/${wordId}/audio?target=${target}`, {
-    method: 'POST',
-    headers: tokens?.access_token
-      ? { Authorization: `Bearer ${tokens.access_token}` }
-      : undefined,
-    body: fd,
-  });
-  if (!r.ok) {
-    throw await r.json().catch(() => ({ statusCode: r.status, message: r.statusText }));
-  }
-  return r.json();
+  if (!isServerWordId(wordId)) throw new Error('Озвучка доступна для слов онлайн-словаря.');
+  return apiRequest<ApiWord>(`/words/${encodeURIComponent(wordId)}/audio?target=${target}`, { method: 'POST', body: fd });
 }
 
 // ---------------------------------------------------------------------------
@@ -2695,22 +2713,13 @@ export async function submitAudioSuggestion(
   target: 'word' | 'example' = 'word',
   opts?: { dialectId?: string; fileName?: string },
 ): Promise<AudioSuggestion> {
-  const tokens = getStoredTokens();
+  requireAuthedNetwork();
   const fd = new FormData();
   fd.append('file', file, opts?.fileName ?? 'audio.webm');
   const qs = new URLSearchParams({ target });
   if (opts?.dialectId) qs.set('dialectId', opts.dialectId);
-  const r = await fetch(`${API_URL}/audio-suggestions/word/${wordId}?${qs}`, {
-    method: 'POST',
-    headers: tokens?.access_token
-      ? { Authorization: `Bearer ${tokens.access_token}` }
-      : undefined,
-    body: fd,
-  });
-  if (!r.ok) {
-    throw await r.json().catch(() => ({ statusCode: r.status, message: r.statusText }));
-  }
-  return r.json();
+  if (!isServerWordId(wordId)) throw new Error('Сначала отправьте слово в онлайн-словарь, затем добавьте озвучку.');
+  return apiRequest<AudioSuggestion>(`/audio-suggestions/word/${encodeURIComponent(wordId)}?${qs}`, { method: 'POST', body: fd });
 }
 
 export async function getMyAudioSuggestions(): Promise<AudioSuggestion[]> {
@@ -2898,18 +2907,12 @@ export async function createLoreItem(data: {
   });
 }
 
-/** Голосовая история/произношение к записи (FormData мимо apiRequest) */
+/** Голосовая история/произношение к записи (единый авторизованный FormData-запрос) */
 export async function uploadLoreAudio(id: string, file: Blob, fileName = 'lore.webm'): Promise<LoreItem> {
-  const tokens = getStoredTokens();
+  requireAuthedNetwork();
   const fd = new FormData();
   fd.append('file', file, fileName);
-  const r = await fetch(`${API_URL}/lore/${id}/audio`, {
-    method: 'POST',
-    headers: tokens?.access_token ? { Authorization: `Bearer ${tokens.access_token}` } : undefined,
-    body: fd,
-  });
-  if (!r.ok) throw await r.json().catch(() => ({ statusCode: r.status, message: r.statusText }));
-  return r.json();
+  return apiRequest<LoreItem>(`/lore/${encodeURIComponent(id)}/audio`, { method: 'POST', body: fd });
 }
 
 /** Голос 👍 сообщества (toggle) */
@@ -3001,6 +3004,16 @@ export function claimReferral(code: string): Promise<{ ok: boolean; alreadyClaim
     method: 'POST',
     body: JSON.stringify({ code }),
   });
+}
+
+export function activateReferral(): Promise<{ ok: boolean; xpGained: number }> {
+  return apiRequest('/referrals/activate', { method: 'POST', body: '{}' });
+}
+export function getReminderConsent(): Promise<{ enabled: boolean }> {
+  return apiRequest('/referrals/reminder-consent');
+}
+export function setReminderConsent(enabled: boolean): Promise<{ enabled: boolean }> {
+  return apiRequest('/referrals/reminder-consent', { method: 'POST', body: JSON.stringify({ enabled }) });
 }
 
 export function deleteWordAudio(wordId: string, target: 'word' | 'example'): Promise<ApiWord> {
@@ -3137,4 +3150,3 @@ export const api = {
     apiRequest<T>(endpoint, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: <T>(endpoint: string) => apiRequest<T>(endpoint, { method: 'DELETE' }),
 };
-

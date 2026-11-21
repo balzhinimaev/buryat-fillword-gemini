@@ -96,7 +96,7 @@ export interface MenuThemeStyles {
  */
 const steppeMenuStyles: MenuThemeStyles = {
   pageBackground: 'bg-stone-900',
-  pageGradient: 'bg-gradient-to-b from-stone-900 via-stone-900 to-stone-950',
+  pageGradient: 'bg-[#191c1a]',
   
   decorativeOrbs: {
     primary: 'bg-emerald-500/5',
@@ -114,18 +114,18 @@ const steppeMenuStyles: MenuThemeStyles = {
   
   title: {
     primary: 'text-white',
-    secondary: 'bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent',
+    secondary: 'text-emerald-300',
     ornament: 'text-amber-500/60',
   },
   
   statsCard: {
-    background: 'bg-gradient-to-br from-stone-800/80 to-stone-900/80 backdrop-blur-sm',
+    background: 'bg-[#232825]',
     border: 'border-stone-700/50',
     accent: 'bg-gradient-to-bl from-amber-500/10 to-transparent',
     streakIcon: 'bg-gradient-to-br from-orange-500 to-terra-500 shadow-lg shadow-orange-500/20',
     levelBadge: 'bg-gradient-to-br from-steppe-500 to-steppe-700 shadow-lg shadow-steppe-500/20',
     progressTrack: 'bg-stone-700/50',
-    progressFill: 'bg-gradient-to-r from-steppe-500 via-amber-500 to-steppe-400',
+    progressFill: 'bg-emerald-400',
     text: {
       primary: 'text-white',
       secondary: 'text-stone-400',
@@ -135,12 +135,12 @@ const steppeMenuStyles: MenuThemeStyles = {
   
   buttons: {
     play: {
-      gradient: 'bg-gradient-to-r from-amber-500 via-orange-500 to-terra-500',
-      gradientHover: 'bg-gradient-to-r from-amber-400 via-orange-400 to-terra-400',
+      gradient: 'bg-[#285747]',
+      gradientHover: 'bg-[#326a57]',
       iconBg: 'bg-white/20',
     },
     card: {
-      background: 'bg-stone-800/60 backdrop-blur-sm',
+      background: 'bg-[#232825]',
       border: 'border-stone-700/50',
       borderHover: 'hover:border-stone-600/50',
     },
@@ -172,7 +172,7 @@ const steppeMenuStyles: MenuThemeStyles = {
  */
 const lightMenuStyles: MenuThemeStyles = {
   pageBackground: 'bg-stone-50',
-  pageGradient: 'bg-gradient-to-b from-amber-50 via-white to-orange-50/30',
+  pageGradient: 'bg-[#f6f7f4]',
   
   decorativeOrbs: {
     primary: 'bg-amber-200/40',
@@ -190,18 +190,18 @@ const lightMenuStyles: MenuThemeStyles = {
   
   title: {
     primary: 'text-stone-800',
-    secondary: 'bg-gradient-to-r from-amber-600 via-orange-500 to-amber-600 bg-clip-text text-transparent',
+    secondary: 'text-emerald-800',
     ornament: 'text-amber-500',
   },
   
   statsCard: {
-    background: 'bg-white shadow-lg shadow-amber-100/50',
-    border: 'border-amber-100',
+    background: 'bg-white',
+    border: 'border-stone-200',
     accent: 'bg-gradient-to-bl from-amber-100/80 to-transparent',
     streakIcon: 'bg-gradient-to-br from-orange-500 to-red-500 shadow-lg shadow-orange-500/30',
     levelBadge: 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30',
     progressTrack: 'bg-stone-200',
-    progressFill: 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-400',
+    progressFill: 'bg-emerald-700',
     text: {
       primary: 'text-stone-800',
       secondary: 'text-stone-500',
@@ -211,14 +211,14 @@ const lightMenuStyles: MenuThemeStyles = {
   
   buttons: {
     play: {
-      gradient: 'bg-gradient-to-r from-amber-500 via-orange-500 to-red-500',
-      gradientHover: 'bg-gradient-to-r from-amber-400 via-orange-400 to-red-400',
+      gradient: 'bg-[#285747]',
+      gradientHover: 'bg-[#326a57]',
       iconBg: 'bg-white/30',
     },
     card: {
-      background: 'bg-white shadow-md shadow-stone-200/50',
-      border: 'border-stone-100',
-      borderHover: 'hover:border-amber-200 hover:shadow-lg hover:shadow-amber-100/50',
+      background: 'bg-white',
+      border: 'border-stone-200',
+      borderHover: 'hover:border-emerald-700/40',
     },
     iconColors: {
       stats: { bg: 'bg-emerald-100', icon: 'text-emerald-600' },
@@ -248,7 +248,7 @@ const lightMenuStyles: MenuThemeStyles = {
  */
 const darkMenuStyles: MenuThemeStyles = {
   pageBackground: 'bg-slate-900',
-  pageGradient: 'bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950',
+  pageGradient: 'bg-[#141b26]',
   
   decorativeOrbs: {
     primary: 'bg-cyan-500/5',
@@ -266,18 +266,18 @@ const darkMenuStyles: MenuThemeStyles = {
   
   title: {
     primary: 'text-white',
-    secondary: 'bg-gradient-to-r from-cyan-300 via-blue-400 to-cyan-300 bg-clip-text text-transparent',
+    secondary: 'text-sky-300',
     ornament: 'text-cyan-500/60',
   },
   
   statsCard: {
-    background: 'bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm',
+    background: 'bg-[#1e2937]',
     border: 'border-slate-700/50',
     accent: 'bg-gradient-to-bl from-cyan-500/10 to-transparent',
     streakIcon: 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/20',
     levelBadge: 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/20',
     progressTrack: 'bg-slate-700/50',
-    progressFill: 'bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400',
+    progressFill: 'bg-sky-400',
     text: {
       primary: 'text-white',
       secondary: 'text-slate-400',
@@ -287,12 +287,12 @@ const darkMenuStyles: MenuThemeStyles = {
   
   buttons: {
     play: {
-      gradient: 'bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500',
-      gradientHover: 'bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400',
+      gradient: 'bg-[#285371]',
+      gradientHover: 'bg-[#326789]',
       iconBg: 'bg-white/20',
     },
     card: {
-      background: 'bg-slate-800/60 backdrop-blur-sm',
+      background: 'bg-[#1e2937]',
       border: 'border-slate-700/50',
       borderHover: 'hover:border-slate-600/50',
     },

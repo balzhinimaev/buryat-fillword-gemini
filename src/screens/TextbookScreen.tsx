@@ -163,7 +163,7 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
             s.completed
               ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white'
               : isNext
-                ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-[0_0_14px_rgba(245,158,11,0.5)]'
+                ? 'ui-accent-fill text-white shadow-sm'
                 : isDark ? 'bg-stone-800 text-stone-400 border border-white/10' : 'bg-white text-stone-400 border border-stone-200',
           )}
         >
@@ -186,7 +186,7 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
                   {s.unit.title.replace(/^Урок \d+\. /, '')}
                 </span>
                 {isNext && (
-                  <span className="text-[9px] font-extrabold uppercase tracking-widest px-1.5 py-0.5 rounded bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+                  <span className="text-[9px] font-extrabold uppercase tracking-widest px-1.5 py-0.5 rounded ui-accent-fill text-white">
                     дальше
                   </span>
                 )}
@@ -222,8 +222,8 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
   return (
     <div className={cn('min-h-screen flex flex-col', theme.backgrounds.primaryGradient)}>
       {/* Hero-шапка */}
-      <header className={cn('relative overflow-hidden p-4 pb-6', isDark ? '' : 'rounded-b-3xl shadow-lg', theme.header.bg, theme.header.text)}>
-        <div className="absolute -top-10 -right-10 w-44 h-44 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
+      <header className={cn('relative overflow-hidden p-4 pb-6', isDark ? '' : 'border-b', theme.header.bg, theme.header.text)}>
+
         <div className="flex items-center gap-2">
           <button onClick={store.goBack} aria-label="Назад" className="p-2 -ml-2 rounded-xl active:bg-white/10">
             <ArrowLeft size={22} />
@@ -232,7 +232,7 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
         </div>
         <div className="flex items-center gap-4 mt-2 px-1">
           <div className="flex-1 min-w-0">
-            <h1 className="text-[22px] font-extrabold leading-tight">{courseTextbookTitle()}</h1>
+            <h1 className="text-[24px] font-semibold leading-tight">{courseTextbookTitle()}</h1>
             <p className="text-xs opacity-70 mt-1.5 leading-relaxed">
               {progress.total} уроков: материал, практика и проверка знаний.
               {allDone ? (examPassed ? ' Курс и экзамен пройдены.' : ' Курс пройден — остался экзамен!') : ' Продолжи начатое или выбери любую тему.'}
@@ -243,7 +243,7 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
       </header>
 
       <main className="flex-1 px-4 pt-5 pb-10">
-        {nextUnit && <button type="button" onClick={() => store.navigateToTextbookUnit(nextUnit.unit.slug)} className={cn('w-full mb-5 p-4 rounded-2xl border text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500', isDark ? 'border-amber-500/40 bg-amber-500/10' : 'border-amber-200 bg-amber-50')}>
+        {nextUnit && <button type="button" onClick={() => store.navigateToTextbookUnit(nextUnit.unit.slug)} className={cn('w-full mb-5 p-4 rounded-2xl border text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500', isDark ? 'ui-soft ui-border' : 'ui-soft ui-border')}>
           <span className={cn('block text-xs font-semibold', theme.text.secondary)}>Продолжить занятие</span>
           <span className={cn('block mt-1 font-bold', theme.text.primary)}>{nextUnit.unit.title.replace(/^Урок \d+\. /, '')}</span>
           <span className={cn('block mt-1 text-sm', theme.text.secondary)}>{nextLearningStep(nextUnit)}</span>
@@ -262,7 +262,7 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
                 : 'from-amber-50 to-orange-50 border-amber-300',
             )}
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-md">
+            <div className="w-9 h-9 rounded-xl ui-accent-fill text-white flex items-center justify-center flex-shrink-0 shadow-md">
               <RotateCcw size={16} />
             </div>
             <div className="flex-1 min-w-0">
@@ -328,7 +328,7 @@ export const TextbookScreen: React.FC<Props> = ({ store }) => {
                   examPassed
                     ? 'bg-gradient-to-br from-emerald-400 to-emerald-600'
                     : allDone
-                      ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-[0_0_14px_rgba(245,158,11,0.5)]'
+                      ? 'ui-accent-fill shadow-sm'
                       : isDark ? 'bg-stone-800 text-stone-500 border border-white/10' : 'bg-white text-stone-400 border border-stone-200',
                 )}
               >

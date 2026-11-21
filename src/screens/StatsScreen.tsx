@@ -281,7 +281,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
   const displayMaxStars = campaignStats?.maxPossibleStars ?? 36;
   const displayPlayTime = campaignStats?.totalPlayTimeSeconds ?? stats.totalTimePlayed;
   const displayTotalAttempts = campaignStats?.totalAttempts ?? stats.totalGamesPlayed;
-  
+
   useBackButton(() => {
     if (selectedAchievement) {
       setSelectedAchievement(null);
@@ -538,21 +538,21 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
         title="Статистика" 
         onBack={() => goBack()} 
       />
-      
+
       {/* Декоративный фон */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-meadow-500/10 via-steppe-500/5 to-transparent rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl" />
+
+
       </div>
 
       {/* Hero-шапка */}
       <header className={cn(
         'relative overflow-hidden p-4 pb-5 z-10',
-        isDark ? '' : 'rounded-b-3xl shadow-lg',
+        isDark ? '' : 'border-b',
         theme.header.bg,
         theme.header.text
       )}>
-        <div className="absolute -top-12 -right-8 w-44 h-44 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
+
 
         <div className="relative z-10">
           <div className="flex items-center gap-2">
@@ -571,7 +571,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-4 rounded-2xl bg-white/10 backdrop-blur-sm p-3.5"
           >
-            <div className="w-13 h-13 min-w-[52px] min-h-[52px] rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/25">
+            <div className="w-13 h-13 min-w-[52px] min-h-[52px] rounded-xl ui-accent-fill flex items-center justify-center shadow-lg shadow-black/5">
               <span className="text-white font-extrabold text-xl drop-shadow">{displayLevel}</span>
             </div>
             <div className="flex-1 min-w-0">
@@ -806,7 +806,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
                         "w-full rounded-md",
                         day.xp > 0
                           ? (isSelected
-                              ? 'bg-gradient-to-t from-amber-400 to-orange-400 shadow-lg shadow-amber-500/30'
+                              ? 'bg-gradient-to-t from-amber-400 to-orange-400 shadow-lg shadow-black/5'
                               : 'bg-gradient-to-t from-amber-500 to-orange-500')
                           : 'bg-transparent'
                       )}
@@ -864,7 +864,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
             <TrendingUp size={18} className="text-steppe-400" />
             Прогресс обучения
           </h3>
-          
+
           <div className="space-y-4">
             {/* Words learned */}
             <div>
@@ -974,7 +974,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
                   className={cn(
                     "aspect-square rounded-xl flex flex-col items-center justify-center transition-all relative overflow-hidden border",
                     achievement.isUnlocked
-                      ? 'bg-gradient-to-br from-amber-500/30 to-orange-500/20 shadow-lg shadow-amber-500/10 border-amber-400/20'
+                      ? 'bg-gradient-to-br from-amber-500/30 to-orange-500/20 shadow-lg shadow-black/5 border-amber-400/20'
                       : isDark
                         ? 'bg-stone-800/50 border-white/5'
                         : 'bg-stone-100 border-stone-200',
@@ -1032,7 +1032,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
             <BookOpen size={18} className="text-terra-400" />
             По категориям
           </h3>
-          
+
           <div className="space-y-2 max-h-48 overflow-auto pr-1">
             {categories.map((category) => {
               const progress = levelProgress[category.id];
@@ -1107,7 +1107,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({ store }) => {
                   "w-14 h-14 rounded-2xl flex items-center justify-center border",
                   selectedAchievement.isUnlocked
                     ? 'bg-gradient-to-br from-amber-500/30 to-orange-500/20 border-amber-400/20'
-                    : isDark ? 'bg-stone-800/60 border-white/10' : 'bg-stone-100 border-stone-200'
+                    : isDark ? 'ui-card border-white/10' : 'bg-stone-100 border-stone-200'
                 )}>
                   <AchievementIcon
                     achievement={selectedAchievement}

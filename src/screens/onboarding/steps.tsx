@@ -27,7 +27,7 @@ export const NameStep: React.FC<{ name: string; onChange: (name: string) => void
             "w-full px-5 py-4 text-lg rounded-2xl border-2 transition-all duration-200",
             "focus:outline-none focus:ring-0",
             isDark
-              ? "bg-stone-800/60 border-stone-700 text-white placeholder-stone-500 focus:border-amber-500"
+              ? "ui-card border-stone-700 text-white placeholder-stone-500 focus:border-amber-500"
               : "bg-white border-stone-200 text-stone-800 placeholder-stone-400 focus:border-amber-500"
           )}
           autoFocus
@@ -193,7 +193,7 @@ export const RemindersStep: React.FC<{
                           ? "bg-amber-500/20 border-amber-500"
                           : "bg-amber-50 border-amber-500"
                         : isDark
-                          ? "bg-stone-800/60 border-stone-700 hover:border-stone-600"
+                          ? "ui-card border-stone-700 hover:border-stone-600"
                           : "bg-white border-stone-200 hover:border-stone-300"
                     )}
                   >

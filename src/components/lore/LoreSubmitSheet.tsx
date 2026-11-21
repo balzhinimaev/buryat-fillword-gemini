@@ -176,7 +176,7 @@ export const LoreSubmitSheet: React.FC<Props> = ({ lessonSlug, lessonTitle, prom
                 </p>
                 <span className={cn(
                   'inline-flex items-center gap-1.5 mt-4 px-3 py-1.5 rounded-full text-xs font-bold',
-                  'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-md',
+                  'ui-accent-fill text-white shadow-md',
                 )}>
                   <Sparkles size={12} /> +25 XP за одобренную запись
                 </span>
@@ -185,7 +185,7 @@ export const LoreSubmitSheet: React.FC<Props> = ({ lessonSlug, lessonTitle, prom
               <>
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-md flex-shrink-0">
+                    <span className="w-10 h-10 rounded-xl ui-accent-fill text-white flex items-center justify-center shadow-md flex-shrink-0">
                       <ScrollText size={18} />
                     </span>
                     <div>
@@ -339,7 +339,7 @@ export const LoreSubmitSheet: React.FC<Props> = ({ lessonSlug, lessonTitle, prom
                   type="button"
                   disabled={busy}
                   onClick={() => void send()}
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99] transition shadow-lg shadow-amber-500/20"
+                  className="w-full py-3.5 rounded-2xl ui-accent-fill text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99] transition shadow-lg shadow-black/5"
                 >
                   {busy ? <Loader2 size={17} className="animate-spin" /> : <Send size={15} />}
                   Отправить на проверку

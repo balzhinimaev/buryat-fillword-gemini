@@ -129,7 +129,9 @@ export function offlineFindWordDetail(id: string): ApiWordDetailResponse | null 
 }
 
 export function offlineGetWordDetail(id: string): ApiWordDetailResponse {
-  return offlineFindWordDetail(id) ?? offlineFindWordDetail(getAllWords()[0].id)!;
+  const word = offlineFindWordDetail(id);
+  if (!word) throw new Error('Слово не найдено в этом курсе. Вернитесь в словарь.');
+  return word;
 }
 
 export function offlineGetCategories(): ApiCategory[] {

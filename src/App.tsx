@@ -1,3 +1,9 @@
+import { canOpenCourseScreen } from './courses/access';
+import { isAdditionalCourse } from './courses/activeCourse';
+import { activeCourseId } from './courses/activeCourse';
+import TelegramReminders from './components/TelegramReminders';
+import { activateReferral } from './services/api';
+import { TELEGRAM_MODE } from './config/accessMode';
 // src/App.tsx
 import { AnimatePresence, LazyMotion, domAnimation, m } from 'framer-motion';
 import { useGameStore } from './store/gameStore';
@@ -41,6 +47,7 @@ import { parseVkReturn, consumeWebVkReturn } from './services/vkAuth';
 
 // Screens (lazy-loaded для code splitting)
 const MainMenu = lazy(() => import('./courses/CourseMenu'));
+const GameCatalogScreen = lazy(() => import('./screens/GameCatalogScreen'));
 const GameModeSelectScreen = lazy(() => import('./screens/GameModeSelectScreen'));
 const LevelsScreen = lazy(() => import('./screens/LevelsScreen'));
 const LevelPackScreen = lazy(() => import('./screens/LevelPackScreen'));
@@ -50,6 +57,7 @@ const ProfileScreen = lazy(() => import('./screens/ProfileScreen'));
 const StatsScreen = lazy(() => import('./screens/StatsScreen'));
 const LeaderboardScreen = lazy(() => import('./screens/LeaderboardScreen'));
 const DictionaryScreen = lazy(() => import('./screens/DictionaryScreen'));
+const EnglishBookScreen = lazy(() => import('./learning/book/EnglishBookScreen'));
 const TextbookScreen = lazy(() => import('./screens/TextbookScreen').then(m => ({ default: m.TextbookScreen })));
 const TextbookLessonScreen = lazy(() => import('./screens/TextbookLessonScreen').then(m => ({ default: m.TextbookLessonScreen })));
 const CommunityLoreScreen = lazy(() => import('./screens/CommunityLoreScreen'));
@@ -97,7 +105,7 @@ export default function App() {
     navigate,
   } = store;
   const currentTheme = getTheme(settings.theme);
-  const { state: authState, refreshUser, vkLogin } = useAuth();
+  const { state: authState, refreshUser, vkLogin, login } = useAuth();
   const { isTelegram } = useTelegram();
   const startupFlowCheckedRef = useRef(false);
   const [apkUpdate, setApkUpdate] = useState<ApkUpdateInfo | null>(null);
@@ -254,14 +262,14 @@ export default function App() {
   useEffect(() => { captureReferralCode(); }, []);
   useEffect(() => {
     if (authState.isAuthenticated && !authState.isLoading) {
-      void claimPendingReferral().then((xp) => {
+      void claimPendingReferral(authState.user?._id).then((xp) => {
         if (xp > 0) {
           setRefBonusXp(xp);
           setTimeout(() => setRefBonusXp(null), 7000);
         }
-      });
+      }).then(() => isAdditionalCourse() ? undefined : activateReferral()).catch(() => {});
     }
-  }, [authState.isAuthenticated, authState.isLoading]);
+  }, [authState.isAuthenticated, authState.isLoading, authState.user?._id]);
 
   // Базовый heartbeat активности при входе в приложение
   useEffect(() => {
@@ -452,6 +460,7 @@ export default function App() {
   const isWebNarrow = !isTelegram && webNarrowScreens.has(effectiveScreen);
 
   const renderScreen = () => {
+    if (!canOpenCourseScreen(effectiveScreen)) return <div className="p-6 space-y-4"><p>Этот раздел относится к бурятскому курсу. Выберите его в «Мои курсы».</p><button className="ui-primary px-4 py-3 rounded-xl" onClick={() => store.navigate('menu')}>К моим курсам</button></div>;
     switch (effectiveScreen) {
       case 'authLoading':
         return (
@@ -460,6 +469,13 @@ export default function App() {
           </div>
         );
       case 'auth':
+        if (TELEGRAM_MODE) return (
+          <div className={`min-h-[100dvh] flex flex-col items-center justify-center gap-4 p-6 text-center ${currentTheme.text.primary}`}>
+            <h1 className="text-xl font-semibold">Вход через Telegram</h1>
+            <p>{authState.error ? 'Не удалось войти через Telegram. Попробуйте ещё раз или заново откройте игру из бота.' : 'Откройте игру кнопкой мини-приложения в Telegram-боте — вход произойдёт автоматически.'}</p>
+            {isTelegram && <button className="rounded-xl bg-amber-500 px-5 py-3 text-stone-950" disabled={authState.isLoading} onClick={() => void login()}>{authState.isLoading ? 'Входим…' : 'Повторить вход'}</button>}
+          </div>
+        );
         return <AuthScreen onTrialComplete={() => store.updateSettings({ hasSeenHowTo: true }, { localOnly: true })} />;
       case 'onboarding':
         return <OnboardingScreen store={store} />;
@@ -467,6 +483,8 @@ export default function App() {
         return <HowToPlayScreen store={store} />;
       case 'menu':
         return <MainMenu store={store} />;
+      case 'gameCatalog':
+        return <GameCatalogScreen store={store} />;
       case 'gameMode':
         return <GameModeSelectScreen store={store} />;
       case 'levels':
@@ -484,7 +502,9 @@ export default function App() {
       case 'leaderboard':
         return <LeaderboardScreen store={store} />;
       case 'textbook':
-        return <TextbookScreen store={store} />;
+        return activeCourseId() === 'en-ru' ? <EnglishBookScreen store={store} /> : <TextbookScreen store={store} />;
+      case 'bookChapter':
+        return <EnglishBookScreen store={store} />;
       case 'textbookLesson':
         return <TextbookLessonScreen store={store} />;
       case 'community':
@@ -621,6 +641,7 @@ export default function App() {
           </m.div>
         </AnimatePresence></LazyMotion>
       </div>
+      <TelegramReminders hidden={effectiveScreen !== 'menu'} />
     </ThemeProvider>
   );
 }

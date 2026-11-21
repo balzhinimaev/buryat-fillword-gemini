@@ -221,3 +221,100 @@ html {
     transform: none !important;
   }
 }
+
+/* Refined learning UI: neutral surfaces, one accent, consistent rhythm. */
+.learning-home { --ui-surface: #232825; --ui-line: #ffffff14; --ui-accent: #a7d8be; --ui-soft: #a7d8be14; }
+.learning-home[data-appearance="light"] { --ui-surface: #fff; --ui-line: #182d2420; --ui-accent: #285747; --ui-soft: #2857470d; }
+.learning-home[data-appearance="dark"] { --ui-surface: #1e2937; --ui-line: #ffffff14; --ui-accent: #9dcbe9; --ui-soft: #9dcbe914; }
+.learning-home .learning-card { border-color: var(--ui-line); box-shadow: none; }
+.learning-home .lesson-hero { box-shadow: 0 8px 24px #00000014; border: 1px solid #ffffff12; }
+.learning-home .learning-action { display: flex; flex-direction: column; align-items: flex-start; }
+.learning-home .learning-action [role="progressbar"] { width: 100%; }
+.learning-home .learning-action > span { line-height: 1.5; }
+.learning-home .learning-action > span.text-sm { font-size: 13px; }
+.learning-icon { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 13px; background: var(--ui-soft); }
+.learning-home .learning-nav { background: var(--ui-surface); border-color: var(--ui-line); box-shadow: 0 -4px 24px #00000008; }
+.learning-nav .menu-link { border: 0; border-radius: 14px; font-size: 11px; min-height: 60px; }
+.learning-nav .menu-link[aria-current="page"] { background: var(--ui-soft); color: var(--ui-accent); }
+.learning-home button:focus-visible, .learning-home summary:focus-visible { outline-color: var(--ui-accent); }
+@media (max-width: 359px) {
+  .learning-home header { gap: 8px; }
+  .learning-home .learning-action { padding: 12px; }
+  .learning-home .lesson-hero { padding: 20px; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .learning-home .learning-action:hover { border-color: var(--ui-accent); box-shadow: none; transform: translateY(-1px); }
+}
+
+/* Game selector: accessible controls and consistent card rhythm. */
+.mode-screen button:focus-visible { outline: 2px solid #6fbf9d; outline-offset: 4px; }
+.mode-screen main > div { scroll-margin-top: 80px; }
+.mode-screen h2, .mode-screen h3 { letter-spacing: -.015em; }
+.mode-screen p { line-height: 1.55; }
+.mode-screen main > div > button, .mode-screen main > div > div.rounded-2xl { border-radius: 20px; }
+.mode-screen button:disabled { cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .mode-screen *, .mode-screen *::before { animation: none !important; transition: none !important; }
+}
+
+/* Shared visual language for every application screen, including dialogs. */
+:root, :root[data-fillword-theme="steppe"] {
+  --app-bg: #191c1a; --app-card: #232825; --app-raised: #303a34;
+  --app-text: #f5f7f5; --app-secondary: #c2ccc5; --app-muted: #a3b0a7;
+  --app-accent: #a7d8be; --app-action: #285747; --app-action-hover: #326a57;
+  --app-soft: #a7d8be14; --app-border: #ffffff1c; color-scheme: dark;
+}
+:root[data-fillword-theme="light"] {
+  --app-bg: #f6f7f4; --app-card: #fff; --app-raised: #edf1ed;
+  --app-text: #202923; --app-secondary: #4a5a50; --app-muted: #647469;
+  --app-accent: #285747; --app-action: #285747; --app-action-hover: #204637;
+  --app-soft: #2857470d; --app-border: #182d2420; color-scheme: light;
+}
+:root[data-fillword-theme="dark"] {
+  --app-bg: #141b26; --app-card: #1e2937; --app-raised: #29384a;
+  --app-text: #f2f6fa; --app-secondary: #c5d1df; --app-muted: #a4b3c6;
+  --app-accent: #9dcbe9; --app-action: #285371; --app-action-hover: #326789;
+  --app-soft: #9dcbe914; --app-border: #ffffff1c; color-scheme: dark;
+}
+body { background: var(--app-bg); }
+.ui-page { background: var(--app-bg); color: var(--app-text); }
+.ui-card { background: var(--app-card); border-color: var(--app-border); box-shadow: 0 1px 2px #00000004; }
+.ui-header { background: var(--app-card); color: var(--app-text); border-color: var(--app-border); }
+.ui-card-hover:hover { background: var(--app-raised); }
+.ui-soft { background: var(--app-soft); }
+.ui-muted { background: var(--app-raised); }
+.ui-text { color: var(--app-text); }
+.ui-dimmed { color: var(--app-muted); }
+.ui-accent-text { color: var(--app-accent); }
+.ui-accent-fill { background: var(--app-action); }
+.ui-primary { background: var(--app-action); color: #fff; border-color: transparent; box-shadow: 0 2px 4px #0000000a; }
+.ui-primary:hover:not(:disabled) { background: var(--app-action-hover); }
+.ui-secondary { background: var(--app-card); color: var(--app-text); border-color: var(--app-border); }
+.ui-secondary:hover:not(:disabled), .ui-ghost:hover:not(:disabled) { background: var(--app-raised); }
+.ui-outline { color: var(--app-secondary); border-color: var(--app-border); }
+.ui-outline:hover:not(:disabled) { color: var(--app-accent); border-color: var(--app-accent); }
+.ui-ghost { color: var(--app-muted); }
+[data-fillword-theme] :is(h1, h2, h3) { letter-spacing: -.02em; }
+[data-fillword-theme] :is(button, a, input, select, textarea, summary):focus-visible { outline: 2px solid var(--app-accent); outline-offset: 3px; }
+[data-fillword-theme] :is(input, textarea, select) { accent-color: var(--app-action); }
+@media (prefers-reduced-motion: reduce) {
+  [data-fillword-theme] *, [data-fillword-theme] *::before, [data-fillword-theme] *::after { scroll-behavior: auto !important; }
+}
+
+.ui-border { border-color: var(--app-border); }
+/* Headers now use neutral surfaces; controls must not retain white-on-white text. */
+.ui-header :is([class~="text-white"], [class~="text-white/70"], [class~="text-white/80"], [class~="text-white/90"]) { color: var(--app-text); }
+.ui-header :is([class~="text-white/40"], [class~="text-white/50"], [class~="text-white/60"]) { color: var(--app-muted); }
+.ui-header :is([class~="bg-white/10"], [class~="bg-white/20"], [class~="bg-white/30"], [class~="bg-white/90"]) { background: var(--app-raised); }
+.ui-header input { background: var(--app-raised); color: var(--app-text); border: 1px solid var(--app-border); }
+.ui-header input::placeholder { color: var(--app-muted); opacity: 1; }
+.ui-header :is(.ui-primary, .ui-accent-fill), .ui-header :is(.ui-primary, .ui-accent-fill) * { color: #fff; }
+
+.ui-progress { background: var(--app-accent); }
+
+/* Flat study plan: spacing and one quiet selection accent, without frames. */
+.course-plan-time { color: var(--app-secondary); }
+.course-plan-radio:checked + .course-plan-time { background: var(--app-soft); color: var(--app-accent); }
+.course-plan-radio:focus-visible + .course-plan-time { outline: 2px solid var(--app-accent); outline-offset: 3px; }
+.course-plan-start { background: var(--app-action); }
+.course-plan-start:hover { background: var(--app-action-hover); }

@@ -30,14 +30,13 @@ export default function CourseMenu({ store }: { store: GameStore }) {
     catch { setError('Не удалось открыть курс. Проверь свободное место.'); setHub(false); }
   }} /></Suspense>;
   return <>
-    <section aria-label="Текущий курс" className={cn('course-switcher', styles.pageBackground, styles.buttons.text.primary)} style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
+    <section aria-label="Текущий курс" className={cn('course-switcher', styles.pageGradient, styles.buttons.text.primary)} style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}>
       <div className="mx-auto max-w-2xl px-4 sm:px-6">
-        <button type="button" onClick={() => setHub(true)} aria-label={`Мои курсы. Сейчас: ${descriptor.title}`} className={cn('w-full min-h-16 rounded-2xl border p-3 flex items-center gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500', styles.buttons.card.background, styles.buttons.card.border)}>
+        <button type="button" onClick={() => setHub(true)} aria-label={`Мои курсы. Сейчас: ${descriptor.title}`} className={cn('w-full min-h-14 rounded-2xl border px-3 py-2 flex items-center gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500', styles.buttons.card.background, styles.buttons.card.border)}>
           <Globe2 size={23} className={styles.title.secondary} aria-hidden />
-          <span className="flex-1 min-w-0"><span className="block font-bold">{descriptor.title}</span><span className={cn('block text-xs mt-1', styles.buttons.text.secondary)}>Курс с объяснениями на русском</span></span>
-          <span className="text-sm font-semibold">Мои курсы</span><ChevronRight size={18} aria-hidden />
+          <span className="flex-1 min-w-0"><span className="block text-sm font-semibold">{descriptor.title}</span><span className={cn('block text-xs mt-1', styles.buttons.text.secondary)}>{plan ? `${plan.minutes} мин. за занятие` : 'Объяснения на русском'}</span></span>
+          <span className="text-sm font-semibold">Курсы</span><ChevronRight size={18} aria-hidden />
         </button>
-        {plan && <p className={cn('text-xs mt-2', styles.buttons.text.muted)}>Твой ориентир: {plan.minutes} мин. за занятие · настройки в «Мои курсы»</p>}
         {error && <p role="alert" className="mt-2 text-sm text-red-500">{error}</p>}
       </div>
     </section>

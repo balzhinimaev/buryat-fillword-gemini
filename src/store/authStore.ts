@@ -1,3 +1,4 @@
+import { TELEGRAM_MODE } from '../config/accessMode';
 // Хранилище состояния авторизации
 import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import {
@@ -261,10 +262,10 @@ export function useAuthStore(): AuthStore {
     const user = loadUser();
 
     return {
-      user,
-      isAuthenticated: !!tokens && !!user,
+      user: TELEGRAM_MODE ? null : user,
+      isAuthenticated: !TELEGRAM_MODE && !!tokens && !!user,
       isLoading: false,
-      isCheckingSession: false,
+      isCheckingSession: TELEGRAM_MODE || (OFFLINE && !(tokens && user)),
       error: null,
       isNewUser: false,
       onboardingCompleted: user?.onboardingCompleted ?? false,
@@ -546,6 +547,12 @@ export function useAuthStore(): AuthStore {
       if (!isReady) return;
       hasTriedAuthRef.current = true;
       setState(prev => ({ ...prev, isCheckingSession: true, error: null }));
+
+      // Telegram launch identity takes precedence over an old browser/local session.
+      if (TELEGRAM_MODE && initData) {
+        await login();
+        return;
+      }
 
       const tokens = getStoredTokens();
 

@@ -1,3 +1,4 @@
+import { isAdditionalCourse } from '../courses/activeCourse';
 // src/screens/LevelPackScreen.tsx
 import React, { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -21,8 +22,8 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
   const { state: authState } = useAuth();
-  const isAdmin = authState.user?.role === 'admin';
-  
+  const isAdmin = !isAdditionalCourse() && authState.user?.role === 'admin';
+
   useBackButton(() => goBack());
 
   // Admin: загружаем список ручных уровней
@@ -115,18 +116,18 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
 
     for (let i = currentPack.levelStart; i <= currentPack.levelEnd; i++) {
       const serverLvl = serverLevelMap.get(i);
-      
+
       // Используем серверные данные если есть, иначе fallback на локальные
       const stars = (serverLvl?.stars ?? state.endlessProgress.levelStars[i] ?? 0) as 0 | 1 | 2 | 3;
       const completed = stars >= 1;
-      
+
       // Разблокировка: серверный maxUnlockedLevel или fallback на локальную логику
       const unlocked = maxUnlocked !== null
         ? i <= maxUnlocked
         : (i === currentPack.levelStart || 
            state.endlessProgress.completedLevels.includes(i - 1) ||
            completed);
-      
+
       result.push({ level: i, stars, completed, unlocked });
     }
 
@@ -160,7 +161,7 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className={cn(
           "absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full blur-3xl opacity-30",
-          `bg-gradient-to-b ${currentPack.gradient}`
+          'ui-accent-fill'
         )} />
       </div>
 
@@ -177,7 +178,7 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
         >
           <ArrowLeft size={24} className={styles.buttons.text.primary} />
         </motion.button>
-        
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -186,11 +187,11 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
           {/* Иконка пакета */}
           <div className={cn(
             "w-20 h-20 rounded-2xl mx-auto mb-4 flex items-center justify-center text-4xl shadow-lg",
-            `bg-gradient-to-br ${currentPack.gradient}`
+            'ui-accent-fill'
           )}>
             {currentPack.emoji}
           </div>
-          
+
           <h1 className={cn("text-2xl font-bold mb-1", styles.buttons.text.primary)}>
             {currentPack.name}
           </h1>
@@ -211,7 +212,7 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
               isDark ? "bg-white/10" : "bg-black/5"
             )}>
               <motion.div 
-                className={cn("h-full rounded-full", `bg-gradient-to-r ${currentPack.gradient}`)}
+                className={cn("h-full rounded-full", 'ui-accent-fill')}
                 initial={{ width: 0 }}
                 animate={{ width: `${(packProgress.completed / packProgress.total) * 100}%` }}
                 transition={{ type: 'spring', stiffness: 50 }}
@@ -292,7 +293,7 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
             <div className="grid grid-cols-5 gap-2">
               {group.map((levelData, index) => {
                 const { level, stars, completed, unlocked } = levelData;
-                
+
                 return (
                   <motion.button
                     key={level}
@@ -322,7 +323,7 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
                             : "bg-stone-50 border border-dashed border-stone-300"
                           : unlocked
                             ? completed
-                              ? `bg-gradient-to-br ${currentPack.gradient} shadow-lg`
+                              ? 'ui-accent-fill'
                               : cn(styles.buttons.card.background, styles.buttons.card.border, "border")
                             : cn(
                                 isDark ? "bg-stone-800/30" : "bg-stone-100",
@@ -351,7 +352,7 @@ export const LevelPackScreen: React.FC<LevelPackScreenProps> = ({ store }) => {
                         )}>
                           {level}
                         </span>
-                        
+
                         {/* Звёзды (не показываем в режиме админа) */}
                         {!adminMode && (
                           <div className="flex gap-0.5 mt-0.5">

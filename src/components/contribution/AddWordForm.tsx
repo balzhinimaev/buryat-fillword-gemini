@@ -139,7 +139,7 @@ export const AddWordForm: React.FC<AddWordFormProps> = ({
     e.preventDefault();
     setError('');
 
-    if (!bur.trim() || !ru.trim() || !categoryId) {
+    if (!bur.trim() || !ru.trim()) {
       setError('Заполните все обязательные поля');
       return;
     }
@@ -152,7 +152,7 @@ export const AddWordForm: React.FC<AddWordFormProps> = ({
     const requestData: CreateWordRequest = {
       bur: bur.trim().toUpperCase(),
       ru: ru.trim(),
-      categoryId,
+      ...(categoryId ? { categoryId } : {}),
       ...(selectedDialect && { dialectId: selectedDialect._id }),
       ...(selectedPartOfSpeech && { partOfSpeechId: selectedPartOfSpeech._id }),
       ...(exampleBur.trim() && { exampleBur: exampleBur.trim() }),
@@ -170,8 +170,10 @@ export const AddWordForm: React.FC<AddWordFormProps> = ({
       console.log('✅ Слово успешно добавлено:', response);
 
       // Озвучка уходит отдельным предложением (на модерацию) — само слово уже создано
-      setAudioNote('');
-      if (audioDraft && response?._id) {
+      setAudioNote(response._id.startsWith('local-') ? 'Слово сохранено на устройстве и ждёт отправки из вашего аккаунта.' : '');
+      if (audioDraft && response._id.startsWith('local-')) {
+        setAudioNote('Слово сохранено на устройстве. Озвучка не отправлена — её можно добавить после синхронизации слова.');
+      } else if (audioDraft && response?._id) {
         try {
           await submitAudioSuggestion(response._id, audioDraft.blob, 'word', {
             dialectId: selectedDialect?._id,
@@ -307,7 +309,7 @@ export const AddWordForm: React.FC<AddWordFormProps> = ({
       {/* Категория */}
       <div>
         <label className={cn("block text-sm font-medium mb-2", theme.text.secondary)}>
-          Категория *
+          Категория (необязательно)
         </label>
         <button
           type="button"
@@ -338,7 +340,7 @@ export const AddWordForm: React.FC<AddWordFormProps> = ({
               <span className={theme.text.primary}>{selectedCategory.name}</span>
             </span>
           ) : (
-            <span className={theme.text.dimmed}>Выберите категорию</span>
+            <span className={theme.text.dimmed}>Без категории</span>
           )}
           {!categoriesLoading && (
             <ChevronDown className={cn("transition-transform", theme.text.dimmed, showCategories ? 'rotate-180' : '')} size={18} />

@@ -31,12 +31,12 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   // и переключение на него из-за campaignLandingView кидало «назад» на пустую главу.
   const showModulesChapter = true;
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  const [openedFromShelf, setOpenedFromShelf] = useState(state.campaignModuleEntry === 'shelf');
 
-  // Единая предсказуемая навигация «назад»:
-  //  • внутри модуля (открыт список его уровней) → возвращаемся к списку модулей;
-  //  • на списке модулей или в классическом виде → выходим на предыдущий экран (меню/выбор режима).
+  // Direct chapter entry returns to modes; nested entry returns to the shelf.
+  // Store the origin across unmounts while playing a level.
   const handleBack = useCallback(() => {
-    if (selectedModuleId) {
+    if (selectedModuleId && openedFromShelf) {
       setSelectedModuleId(null);
       setCampaignPreferredModuleId(null);
       return;
@@ -48,6 +48,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
   }, [
     goBack,
     selectedModuleId,
+    openedFromShelf,
     setCampaignLandingView,
     setCampaignPreferredModuleId,
   ]);
@@ -187,7 +188,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     if (resolvedId) {
       setSelectedModuleId(resolvedId);
       if (resolvedId !== preferredId) {
-        setCampaignPreferredModuleId(resolvedId);
+        setCampaignPreferredModuleId(resolvedId, state.campaignModuleEntry ?? 'direct');
       }
       return;
     }
@@ -200,6 +201,7 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
     setCampaignPreferredModuleId,
     showModulesChapter,
     state.campaignPreferredModuleId,
+    state.campaignModuleEntry,
   ]);
 
   const moduleHasProgress = useCallback((module: CampaignOverviewModule): boolean => {
@@ -288,18 +290,18 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
           </div>
         }
       />
-      
+
       {/* Декоративный фон */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-amber-500/10 via-steppe-500/5 to-transparent rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-terra-500/10 rounded-full blur-3xl" />
+
+
       </div>
 
       {/* Header */}
-      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-6 rounded-b-3xl shadow-lg overflow-hidden")}>
+      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-6 border-b overflow-hidden")}>
         {/* Декоративный элемент */}
-        <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />
-        
+
+
         <div className="relative z-10">
           <div className="flex items-center gap-4 mb-4">
             <motion.button
@@ -314,10 +316,10 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
             <h1 className="text-xl font-bold flex-1">{showModulesChapter ? (selectedModule ? 'Уровни модуля' : 'Модули') : 'Первая глава'}</h1>
             <Layers size={24} />
           </div>
-          
+
           {/* Stars progress */}
           <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl p-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center shadow-lg shadow-black/5">
               <Star size={20} className="text-white fill-white" />
             </div>
             <div className="flex-1">
@@ -426,8 +428,9 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                                 moduleId: module.id,
                               },
                             });
+                            setOpenedFromShelf(true);
                             setSelectedModuleId(module.id);
-                            setCampaignPreferredModuleId(module.id);
+                            setCampaignPreferredModuleId(module.id, 'shelf');
                           }}
                         />
 
@@ -494,8 +497,6 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                           isLocked={!unlocked}
                           difficulty={uiDifficulty}
                           onClick={() => {
-                            setCampaignLandingView(null);
-                            setCampaignPreferredModuleId(null);
                             selectCategory(lvl.slug);
                           }}
                         />
@@ -593,8 +594,6 @@ export const LevelsScreen: React.FC<LevelsScreenProps> = ({ store }) => {
                         isLocked={!unlocked}
                         difficulty={uiDifficulty}
                         onClick={() => {
-                          setCampaignLandingView(null);
-                          setCampaignPreferredModuleId(null);
                           selectCategory(lvl.slug);
                         }}
                       />

@@ -86,7 +86,7 @@ const PrizeBanner: React.FC = () => (
               className={cn(
                 'flex-1 flex flex-col items-center py-2.5 rounded-xl',
                 'bg-white/5 border border-white/10',
-                place === 1 && 'bg-amber-400/10 border-amber-400/25 shadow-lg shadow-amber-500/10',
+                place === 1 && 'bg-amber-400/10 border-amber-400/25 shadow-lg shadow-black/5',
               )}
             >
               <span className={cn("text-2xl mb-0.5", place === 1 && "text-3xl")}>
@@ -364,13 +364,13 @@ export const LeaderboardScreen: React.FC<LeaderboardScreenProps> = ({ store }) =
 
       {/* Декоративный фон */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-amber-500/10 via-steppe-500/5 to-transparent rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl" />
+
+
       </div>
 
       {/* Hero-шапка */}
-      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-4 overflow-hidden", !isDark && "rounded-b-3xl shadow-lg")}>
-        <div className="absolute -top-12 -right-8 w-44 h-44 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
+      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-4 overflow-hidden", !isDark && "border-b")}>
+
 
         <div className="flex items-center gap-2 relative z-10">
           <button onClick={() => goBack()} aria-label="Назад" className="p-2 -ml-2 rounded-xl active:bg-white/10">

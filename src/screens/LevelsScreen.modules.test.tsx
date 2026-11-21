@@ -5,7 +5,7 @@ import { api, type CampaignOverviewResponse } from '../services/api';
 import type { GameStore } from '../store/gameStore';
 
 const makeStore = (campaignLandingView: 'chapters' | 'modules' | null = null) => ({
-  state: { stats: { totalStars: 0 }, campaignLandingView, campaignPreferredModuleId: null },
+  state: { stats: { totalStars: 0 }, campaignLandingView, campaignPreferredModuleId: null as string | null },
   goBack: vi.fn(),
   selectCategory: vi.fn(),
   setCampaignLandingView: vi.fn(),
@@ -165,5 +165,29 @@ describe('LevelsScreen thematic modules shelf', () => {
     fireEvent.click(levelTitle);
 
     expect(store.selectCategory).toHaveBeenCalledWith('open-level');
+    fireEvent.click(screen.getByLabelText('Назад'));
+    expect(store.goBack).not.toHaveBeenCalled();
+    expect(await screen.findByText('Сагаан һара / Сагаалган')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Назад'));
+    expect(store.goBack).toHaveBeenCalledOnce();
+  });
+});
+
+
+describe('direct chapter back navigation', () => {
+  it.each(['chapter-2', '__chapter2__'])('returns directly to the previous screen for %s', async target => {
+    const store = makeStore('modules');
+    store.state.campaignPreferredModuleId = target;
+    vi.spyOn(api, 'getCampaignOverview').mockResolvedValue({
+      categories: [], modules: [{ id: 'chapter-2', title: 'Вторая глава', order: 2,
+        requiredStars: 0, isUnlocked: true, earnedStars: 0, totalStars: 3,
+        levels: [{ id: 'l2', slug: 'second-level', name: 'Уровень второй главы', difficulty: 'beginner', requiredStars: 0, isUnlocked: true, earnedStars: 0, maxStars: 3 }],
+      }], totalStars: 3, earnedStars: 0, progressPercent: 0,
+    });
+    render(<LevelsScreen store={store as unknown as GameStore} />);
+    await screen.findByText('Уровень второй главы');
+    fireEvent.click(screen.getByLabelText('Назад'));
+    expect(store.goBack).toHaveBeenCalledOnce();
+    expect(store.setCampaignPreferredModuleId).toHaveBeenCalledWith(null);
   });
 });

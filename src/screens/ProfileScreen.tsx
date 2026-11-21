@@ -79,7 +79,7 @@ export const ProfileScreen: React.FC<Props> = ({ store }) => {
       onClick={onClick}
       className={cn(
         'w-full flex items-center gap-3 p-4 rounded-2xl border transition active:scale-[0.99]',
-        isDark ? 'bg-stone-800/60 border-stone-700/50' : 'bg-white border-stone-200 shadow-sm',
+        isDark ? 'ui-card border-stone-700/50' : 'bg-white border-stone-200 shadow-sm',
       )}
     >
       <span className={cn(
@@ -104,11 +104,10 @@ export const ProfileScreen: React.FC<Props> = ({ store }) => {
       {/* Hero-шапка */}
       <header className={cn(
         'relative overflow-hidden p-4 pb-5',
-        isDark ? '' : 'rounded-b-3xl shadow-lg',
+        'border-b',
         theme.header.bg,
         theme.header.text,
       )}>
-        <div className="absolute -top-12 -right-8 w-40 h-40 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
         <div className="relative z-10">
           <div className="flex items-center gap-2">
             <button onClick={() => goBack()} aria-label="Назад" className="p-2 -ml-2 rounded-xl active:bg-white/10">
@@ -118,7 +117,7 @@ export const ProfileScreen: React.FC<Props> = ({ store }) => {
               аккаунт · {providerLabel}
             </span>
           </div>
-          <h1 className="text-2xl font-extrabold leading-tight mt-1 px-1">Мой профиль</h1>
+          <h1 className="text-2xl font-semibold leading-tight mt-1 px-1">Мой профиль</h1>
         </div>
       </header>
 
@@ -132,7 +131,7 @@ export const ProfileScreen: React.FC<Props> = ({ store }) => {
         {!loading && !myId && (
           <div className={cn(
             'rounded-2xl p-6 border text-center text-sm',
-            isDark ? 'bg-stone-800/60 border-stone-700/50' : 'bg-white border-stone-200 shadow-sm',
+            isDark ? 'ui-card border-stone-700/50' : 'bg-white border-stone-200 shadow-sm',
             theme.text.muted,
           )}>
             Войдите в аккаунт, чтобы видеть профиль и синхронизировать прогресс
@@ -142,13 +141,13 @@ export const ProfileScreen: React.FC<Props> = ({ store }) => {
         {!loading && error && (
           <div className={cn(
             'rounded-2xl p-6 border text-center',
-            isDark ? 'bg-stone-800/60 border-stone-700/50' : 'bg-white border-stone-200 shadow-sm',
+            isDark ? 'ui-card border-stone-700/50' : 'bg-white border-stone-200 shadow-sm',
           )}>
             <p className={cn('text-sm mb-3', theme.text.muted)}>{error}</p>
             <button
               type="button"
               onClick={load}
-              className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold inline-flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl ui-primary text-sm font-semibold inline-flex items-center gap-1.5"
             >
               <RefreshCw size={14} /> Повторить
             </button>

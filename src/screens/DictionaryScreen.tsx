@@ -1,3 +1,4 @@
+import { supportsWordCommunity } from '../courses/access';
 // src/screens/DictionaryScreen.tsx
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -343,13 +344,13 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
 
       {/* Декоративный фон */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-terra-500/10 via-steppe-500/5 to-transparent rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 -left-32 w-64 h-64 bg-terra-500/10 rounded-full blur-3xl" />
+
+
       </div>
 
       {/* Header */}
-      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-4 rounded-b-3xl shadow-lg overflow-visible")}>
-        <div className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
+      <header className={cn(theme.header.bg, theme.header.text, "relative z-10 p-4 pb-4 border-b overflow-visible")}>
+
         <div className="flex items-center gap-3 mb-1">
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -363,7 +364,7 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
         </div>
         <div className="flex items-end justify-between gap-3 mb-3 px-1">
           <div className="flex-1 min-w-0">
-            <h1 className="text-[22px] font-extrabold leading-tight">Словарь</h1>
+            <h1 className="text-[24px] font-semibold leading-tight">Словарь</h1>
             <p className="text-xs opacity-70 mt-0.5">
               Выучено {stats.learnedWords.length} из {totalWords} слов
             </p>
@@ -596,7 +597,7 @@ export const DictionaryScreen: React.FC<DictionaryScreenProps> = ({ store }) => 
                             {word.audioUrl && (
                               <WaveAudioButton src={word.audioUrl} size="sm" className="flex-shrink-0" />
                             )}
-                            {canRecordAudio && (
+                            {canRecordAudio && supportsWordCommunity(word._id) && (
                               <QuickRecord
                                 wordId={word._id}
                                 hasAudio={!!word.audioUrl}

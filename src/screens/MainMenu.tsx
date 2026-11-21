@@ -4,12 +4,13 @@ import { additionalCourse, courseTitle, isAdditionalCourse } from '../courses/ac
 import { completedLessons, syncCourseProgress } from '../courses/progress';
 import ReviewPractice from '../courses/ReviewPractice';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BarChart3, BookOpen, CheckCircle2, ChevronDown, Flame, GraduationCap, Heart, HelpCircle, Home, MessageCircle, Play, RotateCcw, Settings, Shield, Star, Trophy, UserRound } from 'lucide-react';
+import { ArrowRight, BarChart3, BookOpen, CheckCircle2, Flame, GraduationCap, Heart, HelpCircle, Home, MessageCircle, Play, RotateCcw, Settings, Shield, Star, Trophy, UserRound } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { GameStore } from '../store/gameStore';
 import { useTheme } from '../theme/ThemeContext';
 import { getMenuStyles } from '../theme/menuStyles';
 import { cn } from '../utils/cn';
+import { ThemePicker } from '../components/ThemePicker';
 import { useTelegram } from '../hooks/useTelegram';
 import { useAuth } from '../store/authStore';
 import { IS_VK_MINIAPP } from '../services/vkMiniApp';
@@ -109,7 +110,7 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
     }
     if (first) { navigate('howto'); return; }
     if (nextUnit) store.navigateToTextbookUnit(nextUnit.unit.slug);
-    else navigate('gameMode');
+    else navigate('gameCatalog');
   };
   const secondary = (label: string, icon: LucideIcon, onClick: () => void, hint?: string) => {
     const Icon = icon;
@@ -121,25 +122,30 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
   };
   if (spacedReview && course) return <ReviewPractice course={course} onBack={() => setSpacedReview(false)} />;
   return (
-    <div className={cn('learning-home min-h-[100dvh] flex flex-col', styles.pageGradient)} style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <div data-appearance={themeId} className={cn('learning-home min-h-[100dvh] flex flex-col', styles.pageGradient)} style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}>
       <div className="w-full max-w-2xl mx-auto px-4 sm:px-6" style={{ paddingTop: '1.75rem' }}>
         <header className="flex items-center justify-between gap-3 mb-6">
-          <div>
-            <p className={cn('text-xs tracking-widest uppercase', styles.title.secondary)}>{courseTitle()} · Филлворд</p>
-            <h1 className={cn('text-3xl sm:text-4xl font-bold tracking-tight mt-1', styles.title.primary)}>Сегодня</h1>
+          <div className="min-w-0">
+            <p className={cn('text-xs font-medium tracking-wide', styles.title.secondary)}>{courseTitle()} · Филлворд</p>
+            <h1 className={cn('text-[28px] sm:text-[32px] font-semibold tracking-tight mt-1', styles.title.primary)}>Сегодня</h1>
           </div>
-          <button type="button" onClick={() => navigate('profile')} aria-label="Открыть профиль" className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0', card, focus)}>
+          <div className="flex gap-2 shrink-0">
+          <button type="button" onClick={() => navigate('settings')} aria-label="Открыть настройки" className={cn('w-11 h-11 rounded-xl flex items-center justify-center shrink-0', card, focus)}><Settings size={22} className={styles.title.secondary} /></button>
+          <ThemePicker value={themeId} onChange={theme => store.updateSettings({ theme })} />
+          <button type="button" onClick={() => navigate('profile')} aria-label="Открыть профиль" className={cn('w-11 h-11 rounded-xl flex items-center justify-center shrink-0', card, focus)}>
             <UserRound size={22} className={styles.title.secondary} />
           </button>
+          </div>
         </header>
-        <main className="space-y-5">
+        <main className="space-y-6">
           <section aria-label="Следующее занятие">
             <p className={cn('text-sm mb-3', styles.buttons.text.secondary)}>Несколько минут — ещё один шаг в изучении языка.</p>
-            <button type="button" onClick={continueLearning} className={cn('lesson-hero w-full rounded-3xl p-5 sm:p-7 text-left text-white relative overflow-hidden', styles.buttons.play.gradient, focus)}>
-              <svg aria-hidden="true" viewBox="0 0 200 40" className="absolute right-0 top-0 w-40 h-8 text-white/10"><path d="M0 20h20l10-10 10 10h20l10 10 10-10h20l10-10 10 10h20l10 10 10-10h40" stroke="currentColor" fill="none" strokeWidth="3" /></svg>
-              <span className="text-xs uppercase tracking-widest text-white/80">{hasResume ? 'Игра ждёт тебя' : first ? 'Первый шаг' : 'Твой следующий шаг'}</span>
-              <span className="flex items-center gap-3 mt-3"><span className="flex-1 min-w-0"><span className="block text-xl sm:text-2xl font-bold leading-tight">{primaryTitle}</span><span className="block text-sm mt-2 text-white/90 leading-relaxed">{primaryHint}</span></span><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 ring-1 ring-white/25"><Play size={23} aria-hidden /></span></span>
+            <button type="button" onClick={continueLearning} className={cn('lesson-hero w-full rounded-[24px] p-6 sm:p-7 text-left text-white relative overflow-hidden', styles.buttons.play.gradient, focus)}>
+              <svg aria-hidden="true" viewBox="0 0 120 120" className="hero-pattern absolute -right-4 -top-4 w-32 h-32 text-white/[0.07] pointer-events-none"><path d="M10 10h100v100H10zM43 10v100M77 10v100M10 43h100M10 77h100" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M27 27h66M27 60h33M60 60v33" fill="none" stroke="currentColor" strokeWidth="14" strokeLinecap="round" /></svg>
+              <span className="text-xs font-medium tracking-wide text-white/75">{hasResume ? 'Игра ждёт тебя' : first ? 'Первый шаг' : 'Твой следующий шаг'}</span>
+              <span className="flex items-center gap-3 mt-3"><span className="flex-1 min-w-0"><span className="block text-[22px] sm:text-2xl font-semibold leading-tight">{primaryTitle}</span><span className="block text-sm mt-2 text-white/90 leading-relaxed">{primaryHint}</span></span><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 ring-1 ring-white/25"><Play size={23} aria-hidden /></span></span>
             </button>
+            <button type="button" onClick={() => navigate('gameCatalog')} className={cn(card, focus, 'mt-3 w-full min-h-12 px-4 py-3 flex items-center justify-between gap-3 text-sm font-semibold', styles.buttons.text.primary)}><span className="flex items-center gap-2"><Play size={18} aria-hidden />Выбрать игру</span><ArrowRight size={18} aria-hidden /></button>
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-2">
               <p className={cn('text-xs', styles.buttons.text.muted)}>{OFFLINE ? 'Можно играть без интернета' : 'Занимайся в своём темпе'}</p>
 
@@ -159,19 +165,19 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
 
           <section aria-label="Занятия и игры" className="space-y-3">
             <h2 className={cn('font-semibold', styles.buttons.text.primary)}>Выбери занятие</h2>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <button type="button" onClick={() => navigate('textbook')} className={cn(card, focus, 'learning-action p-5 text-left')}>
-                <GraduationCap size={22} className={styles.title.secondary} aria-hidden />
-                <span className={cn('block font-semibold mt-3', styles.buttons.text.primary)}>Учебник</span>
-                <span className={cn('block text-sm mt-1', styles.buttons.text.secondary)}>Материал, карточки и проверка знаний</span>
-                <span className={cn('block text-xs mt-2', styles.buttons.text.muted)}>Пройдено {progress.done} из {progress.total} уроков</span>
-                <div role="progressbar" aria-label="Прогресс учебника" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done} className={cn('mt-3 h-1.5 rounded-full overflow-hidden', styles.statsCard.progressTrack)}><div className={cn('h-full rounded-full', styles.statsCard.progressFill)} style={{ width: `${progress.total ? progress.done / progress.total * 100 : 0}%` }} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => navigate('textbook')} className={cn(card, focus, 'learning-action p-4 sm:p-5 text-left')}>
+                <span className="learning-icon"><GraduationCap size={22} className={styles.title.secondary} aria-hidden /></span>
+                <span className={cn('block font-semibold mt-3', styles.buttons.text.primary)}>{course?.id === 'en-ru' ? 'Самоучитель' : 'Учебник'}</span>
+                <span className={cn('block text-sm mt-1', styles.buttons.text.secondary)}>{course?.id === 'en-ru' ? 'Правила, таблицы и практика' : 'Карточки и практика'}</span>
+                <span className={cn('block text-xs mt-2', styles.buttons.text.muted)}>{course?.id === 'en-ru' ? 'Книга + восемь уроков слов' : `Пройдено ${progress.done} из ${progress.total} уроков`}</span>
+                {course?.id !== 'en-ru' && <div role="progressbar" aria-label="Прогресс учебника" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done} className={cn('mt-3 h-1.5 rounded-full overflow-hidden', styles.statsCard.progressTrack)}><div className={cn('h-full rounded-full', styles.statsCard.progressFill)} style={{ width: `${progress.total ? progress.done / progress.total * 100 : 0}%` }} /></div>}
               </button>
-              <button type="button" aria-label="Все игровые режимы" onClick={() => navigate('gameMode')} className={cn(card, focus, 'learning-action p-5 text-left')}>
-                <Play size={22} className={styles.title.secondary} aria-hidden />
+              <button type="button" aria-label="Выбрать тип игры" onClick={() => navigate('gameCatalog')} className={cn(card, focus, 'learning-action p-4 sm:p-5 text-left')}>
+                <span className="learning-icon"><Play size={22} className={styles.title.secondary} aria-hidden /></span>
                 <span className={cn('block font-semibold mt-3', styles.buttons.text.primary)}>Играть</span>
-                <span className={cn('block text-sm mt-1', styles.buttons.text.secondary)}>Главы, звёзды и все игровые режимы</span>
-                <span className={cn('block text-xs mt-2', styles.buttons.text.muted)}>Можно выбрать игру без прохождения учебника</span>
+                <span className={cn('block text-sm mt-1', styles.buttons.text.secondary)}>Филлворд и викторина</span>
+                <span className={cn('block text-xs mt-2', styles.buttons.text.muted)}>Без обязательных уроков</span>
               </button>
             </div>
             <div className={cn(card, 'p-2')}>
@@ -191,8 +197,8 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
             <summary className={cn('min-h-11 flex items-center cursor-pointer text-sm font-semibold', focus)}>Сохранение прогресса</summary>
             <p>{syncStatus} Звёзды, XP и результаты проверок пока хранятся на этом устройстве отдельно для каждого языка.</p>
           </details>}
-          <details className={cn(card, 'p-2 group')}>
-            <summary className={cn('min-h-12 px-2 flex items-center justify-between cursor-pointer list-none rounded-xl font-semibold text-sm', focus, styles.buttons.text.primary)}>Ещё в приложении<ChevronDown size={18} className="group-open:rotate-180" /></summary>
+          <section aria-labelledby="more-app-heading" className={cn(card, 'p-2')}>
+            <h2 id="more-app-heading" className={cn('min-h-12 px-2 flex items-center font-semibold text-sm', styles.buttons.text.primary)}>Ещё в приложении</h2>
             <div className="pt-2">
               {secondary('Словарь', BookOpen, () => navigate('dictionary'), 'Переводы и произношение')}
               {secondary('Статистика', BarChart3, () => navigate('stats'), `До следующего уровня: ${(isAdditionalCourse() ? undefined : auth.user)?.xp?.xpRemainingToNextLevel ?? store.xpToNextLevel} XP`)}
@@ -207,7 +213,7 @@ export const MainMenu = ({ store }: { store: GameStore }) => {
               {secondary('Задать вопрос', HelpCircle, () => openLink('https://t.me/frntdev'))}
               {!course && auth.user?.role === 'admin' && secondary('Админ-панель', Shield, () => navigate('admin'))}
             </div>
-          </details>
+          </section>
           <p className={cn('text-xs text-center pt-1 pb-6', styles.footer.text)}>Учись понемногу. Возвращайся, когда удобно.</p>
         </main>
       </div>

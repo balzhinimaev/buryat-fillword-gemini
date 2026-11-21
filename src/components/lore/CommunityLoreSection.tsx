@@ -137,7 +137,7 @@ export const CommunityLoreSection: React.FC<Props> = ({ lessonSlug, lessonTitle,
                     {meta.label}
                   </span>
                   {item.featured && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-[3px] rounded-md bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm">
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-[3px] rounded-md ui-accent-fill text-white shadow-sm">
                       <Pin size={9} /> выбор редакции
                     </span>
                   )}
@@ -224,7 +224,7 @@ export const CommunityLoreSection: React.FC<Props> = ({ lessonSlug, lessonTitle,
           isDark ? 'bg-gradient-to-r from-amber-500/10 to-transparent border-amber-500/25' : 'bg-gradient-to-r from-amber-50 to-white border-amber-200',
         )}
       >
-        <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-md">
+        <span className="w-9 h-9 rounded-xl ui-accent-fill text-white flex items-center justify-center flex-shrink-0 shadow-md">
           <PenLine size={16} />
         </span>
         <span className="flex-1 min-w-0">

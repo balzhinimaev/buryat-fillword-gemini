@@ -254,7 +254,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({ profile, theme, 
       </div>
 
       {/* ─── XP Progress Bar ─── */}
-      <div className={cn('rounded-2xl p-4', isDark ? 'bg-slate-800/80' : 'bg-white border border-stone-200/80 shadow-sm')}>
+      <div className={cn('rounded-2xl p-4', isDark ? 'ui-card' : 'bg-white border border-stone-200/80 shadow-sm')}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
             <Zap size={16} className="text-amber-500" />
@@ -316,7 +316,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({ profile, theme, 
 
       {/* ─── Dictionary contribution ─── */}
       {(dictionary.wordsAdded > 0 || dictionary.wordsVerified > 0 || dictionary.wordsApproved > 0) && (
-        <div className={cn('rounded-2xl p-4', isDark ? 'bg-slate-800/80' : 'bg-white border border-stone-200/80 shadow-sm')}>
+        <div className={cn('rounded-2xl p-4', isDark ? 'ui-card' : 'bg-white border border-stone-200/80 shadow-sm')}>
           <div className="flex items-center gap-2 mb-3">
             <BookOpen size={16} className={isDark ? 'text-blue-400' : 'text-blue-500'} />
             <span className={cn('text-sm font-semibold', theme.text.primary)}>Вклад в словарь</span>
@@ -340,7 +340,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({ profile, theme, 
 
       {/* ─── XP Breakdown ─── */}
       {xpByType.length > 0 && (
-        <div className={cn('rounded-2xl p-4', isDark ? 'bg-slate-800/80' : 'bg-white border border-stone-200/80 shadow-sm')}>
+        <div className={cn('rounded-2xl p-4', isDark ? 'ui-card' : 'bg-white border border-stone-200/80 shadow-sm')}>
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp size={16} className={isDark ? 'text-purple-400' : 'text-purple-500'} />
             <span className={cn('text-sm font-semibold', theme.text.primary)}>Откуда XP</span>
@@ -367,7 +367,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({ profile, theme, 
                       initial={{ width: 0 }}
                       animate={{ width: `${widthPercent}%` }}
                       transition={{ duration: 0.6, delay: 0.1 }}
-                      className="h-full rounded-full bg-gradient-to-r from-purple-400 to-indigo-500"
+                      className="h-full rounded-full ui-accent-fill"
                     />
                   </div>
                 </div>
@@ -379,7 +379,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({ profile, theme, 
 
       {/* ─── Recent XP History ─── */}
       {recentXpHistory.length > 0 && (
-        <div className={cn('rounded-2xl p-4', isDark ? 'bg-slate-800/80' : 'bg-white border border-stone-200/80 shadow-sm')}>
+        <div className={cn('rounded-2xl p-4', isDark ? 'ui-card' : 'bg-white border border-stone-200/80 shadow-sm')}>
           <div className="flex items-center gap-2 mb-3">
             <Clock size={16} className={isDark ? 'text-cyan-400' : 'text-cyan-500'} />
             <span className={cn('text-sm font-semibold', theme.text.primary)}>Последняя активность</span>
@@ -518,7 +518,7 @@ interface StatBoxProps {
 const StatBox: React.FC<StatBoxProps> = ({ icon, value, label, sublabel, isDark, theme }) => (
   <div className={cn(
     'rounded-xl p-3 text-center',
-    isDark ? 'bg-slate-800/80' : 'bg-white border border-stone-200/80 shadow-sm',
+    isDark ? 'ui-card' : 'bg-white border border-stone-200/80 shadow-sm',
   )}>
     <div className="flex justify-center mb-1">{icon}</div>
     <div className={cn('text-xl font-bold', theme.text.accent)}>{value}</div>

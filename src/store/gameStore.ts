@@ -125,11 +125,13 @@ const defaultGameState: GameState = {
   selectedEndlessLevel: null,
   selectedWordId: null,
   selectedTextbookUnit: null,
+  selectedBookChapter: null,
   selectedLoreId: null,
   gameMode: 'campaign',
   campaignResumeSlug: null,
   campaignLandingView: null,
   campaignPreferredModuleId: null,
+  campaignModuleEntry: null,
   adminEditLevelNumber: null,
   adminEditDailyDate: null,
   adminCampaignMapLessonSlug: null,
@@ -241,7 +243,8 @@ export const useGameStore = () => {
   const navigate = useCallback((screen: Screen) => {
     setState(prev => ({
       ...prev,
-      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      screenHistory: screen === 'menu' ? [] : screen === prev.currentScreen ? prev.screenHistory : [...prev.screenHistory, prev.currentScreen],
+      ...(screen === 'menu' ? { campaignPreferredModuleId: null, campaignModuleEntry: null } : {}),
       currentScreen: screen,
     }));
   }, []);
@@ -296,6 +299,17 @@ export const useGameStore = () => {
     }));
   }, []);
 
+  const navigateToBookChapter = useCallback((id: string) => {
+    setState(prev => ({
+      ...prev,
+      screenHistory: prev.currentScreen === 'bookChapter'
+        ? prev.screenHistory
+        : [...prev.screenHistory, prev.currentScreen],
+      selectedBookChapter: id,
+      currentScreen: 'bookChapter' as Screen,
+    }));
+  }, []);
+
   const navigateToTextbookUnit = useCallback((slug: string) => {
     setState(prev => ({
       ...prev,
@@ -311,7 +325,8 @@ export const useGameStore = () => {
   const selectCategory = useCallback((categoryId: string) => {
     setState(prev => ({ 
       ...prev, 
-      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      screenHistory: prev.currentScreen === 'game' ? prev.screenHistory : [...prev.screenHistory, prev.currentScreen],
+      ...(prev.currentScreen !== 'game' && prev.currentScreen !== 'levels' ? { campaignPreferredModuleId: null, campaignModuleEntry: null } : {}),
       selectedCategory: categoryId,
       gameMode: 'campaign',
       currentScreen: 'game' 
@@ -332,8 +347,8 @@ export const useGameStore = () => {
     setState(prev => ({ ...prev, campaignLandingView: view }));
   }, []);
 
-  const setCampaignPreferredModuleId = useCallback((moduleId: string | null) => {
-    setState(prev => ({ ...prev, campaignPreferredModuleId: moduleId }));
+  const setCampaignPreferredModuleId = useCallback((moduleId: string | null, entry: 'direct' | 'shelf' = 'direct') => {
+    setState(prev => ({ ...prev, campaignPreferredModuleId: moduleId, campaignModuleEntry: moduleId ? entry : null }));
   }, []);
 
   // Выбор пакета уровней
@@ -350,7 +365,7 @@ export const useGameStore = () => {
   const selectEndlessLevel = useCallback((level: number) => {
     setState(prev => ({ 
       ...prev, 
-      screenHistory: [...prev.screenHistory, prev.currentScreen],
+      screenHistory: prev.currentScreen === 'game' ? prev.screenHistory : [...prev.screenHistory, prev.currentScreen],
       selectedEndlessLevel: level,
       gameMode: 'endless',
       currentScreen: 'game' 
@@ -756,6 +771,7 @@ export const useGameStore = () => {
     navigateToWord,
     navigateToLoreArticle,
     navigateToTextbookUnit,
+    navigateToBookChapter,
     selectCategory,
     setGameMode,
     setCampaignResumeSlug,

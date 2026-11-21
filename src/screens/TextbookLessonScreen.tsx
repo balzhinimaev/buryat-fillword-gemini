@@ -214,8 +214,8 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
   return (
     <div className={cn('min-h-screen flex flex-col', theme.backgrounds.primaryGradient)}>
       {/* Шапка урока */}
-      <header className={cn('relative overflow-hidden p-4 pb-5', isDark ? '' : 'rounded-b-3xl shadow-lg', theme.header.bg, theme.header.text)}>
-        <div className="absolute -top-12 -right-8 w-40 h-40 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
+      <header className={cn('relative overflow-hidden p-4 pb-5', isDark ? '' : 'border-b', theme.header.bg, theme.header.text)}>
+
         <div className="flex items-center gap-2">
           <button onClick={store.goBack} aria-label="Назад" className="p-2 -ml-2 rounded-xl active:bg-white/10">
             <ArrowLeft size={22} />
@@ -424,7 +424,7 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
               'rounded-2xl py-3.5 px-3 font-bold text-[13px] flex flex-col items-center gap-1.5 text-white active:scale-[0.97] transition-transform shadow-md',
               quizPassed
                 ? 'bg-gradient-to-br from-emerald-400 to-emerald-600'
-                : 'bg-gradient-to-br from-amber-400 to-orange-500',
+                : 'ui-accent-fill',
             )}
           >
             <Target size={18} />
@@ -468,7 +468,7 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
                       className={cn(
                         'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
                         stars > 0
-                          ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white'
+                          ? 'ui-accent-fill text-white'
                           : isDark ? 'bg-white/10 text-amber-400' : 'bg-amber-100 text-amber-600',
                       )}
                     >
@@ -522,7 +522,7 @@ export const TextbookLessonScreen: React.FC<Props> = ({ store }) => {
                 {nextUnit.title.replace(/^Урок \d+\. /, '')}
               </div>
             </div>
-            <span className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center flex-shrink-0">
+            <span className="w-8 h-8 rounded-full ui-accent-fill text-white flex items-center justify-center flex-shrink-0">
               <ArrowRight size={15} />
             </span>
           </motion.button>

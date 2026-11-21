@@ -706,7 +706,7 @@ export const WordVerificationPanel: React.FC<WordVerificationPanelProps> = ({ ca
         isDark ? "bg-stone-700" : "bg-stone-200"
       )}>
         <motion.div
-          className="h-full bg-gradient-to-r from-amber-500 to-orange-500"
+          className="h-full ui-accent-fill"
           initial={{ width: 0 }}
           animate={{ width: `${((currentIndex + 1) / words.length) * 100}%` }}
           transition={{ duration: 0.3 }}

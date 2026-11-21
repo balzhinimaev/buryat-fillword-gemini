@@ -15,6 +15,7 @@ import {
 import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../store/authStore';
+import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { getLoreItem, voteLoreItem, type LoreItem } from '../services/api';
 import { LORE_TYPE_META } from '../components/lore/loreMeta';
@@ -59,6 +60,8 @@ export const LoreArticleScreen: React.FC<Props> = ({ store }) => {
   const { state: authState } = useAuth();
   const myId = authState.user?._id;
   const id = store.state.selectedLoreId;
+
+  useBackButton(store.goBack);
 
   const [article, setArticle] = useState<LoreItem | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -120,8 +123,8 @@ export const LoreArticleScreen: React.FC<Props> = ({ store }) => {
   return (
     <div className={cn('min-h-screen flex flex-col', theme.backgrounds.primaryGradient)}>
       {/* Шапка-обложка */}
-      <header className={cn('relative overflow-hidden p-4 pb-6', isDark ? '' : 'rounded-b-3xl shadow-lg', theme.header.bg, theme.header.text)}>
-        <div className="absolute -top-16 -right-10 w-52 h-52 rounded-full bg-amber-500/15 blur-3xl pointer-events-none" />
+      <header className={cn('relative overflow-hidden p-4 pb-6', isDark ? '' : 'border-b', theme.header.bg, theme.header.text)}>
+
         <div className="flex items-center justify-between">
           <button onClick={store.goBack} aria-label="Назад" className="p-2 -ml-2 rounded-xl active:bg-white/10"><ArrowLeft size={22} /></button>
           <button onClick={() => void share()} aria-label="Поделиться" className="p-2 -mr-2 rounded-xl active:bg-white/10"><Share2 size={19} /></button>
@@ -132,7 +135,7 @@ export const LoreArticleScreen: React.FC<Props> = ({ store }) => {
             <TypeIcon size={10} /> {meta.label}
           </span>
           {article.featured && (
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-[3px] rounded-md bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm">
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-[3px] rounded-md ui-accent-fill text-white shadow-sm">
               <Pin size={9} /> выбор редакции
             </span>
           )}
@@ -143,7 +146,7 @@ export const LoreArticleScreen: React.FC<Props> = ({ store }) => {
           )}
         </div>
 
-        <h1 className="text-[22px] font-extrabold leading-tight mt-2 px-1">{article.title}</h1>
+        <h1 className="text-[24px] font-semibold leading-tight mt-2 px-1">{article.title}</h1>
 
         <div className="flex items-center gap-3 mt-3 px-1 text-xs opacity-75">
           <span className="flex items-center gap-1"><User size={12} /> {article.contributorName ?? 'участник'}</span>

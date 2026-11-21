@@ -29,7 +29,7 @@ export const BuryatKeyboard: React.FC<BuryatKeyboardProps> = ({ onChar, visible 
           whileTap={{ scale: 0.95 }}
           onClick={() => onChar(char)}
           className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 
-                     text-white font-bold text-lg shadow-lg shadow-amber-500/30
+                     text-white font-bold text-lg shadow-lg shadow-black/5
                      hover:from-amber-400 hover:to-orange-500 transition-all
                      flex items-center justify-center"
         >

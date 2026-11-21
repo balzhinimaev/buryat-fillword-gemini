@@ -1182,7 +1182,7 @@ export const AdminDailyWordScreen: React.FC<AdminDailyWordScreenProps> = ({ stor
             saving || !date || selectedWords.length === 0 || !allWordsPlaced || !gridIsFull
               ? isDark ? 'bg-white/10 text-white/30' : 'bg-stone-200 text-stone-400'
               : isDark
-                ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-orange-500/25 hover:shadow-orange-500/40'
+                ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-black/5 hover:shadow-black/5'
                 : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-400/25 hover:shadow-orange-400/40'
           )}
         >

@@ -45,12 +45,12 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
   const { navigate, goBack, selectLevelPack, isPackUnlocked, getPackProgress, selectCategory, setCampaignResumeSlug, setCampaignLandingView, setCampaignPreferredModuleId, state } = store;
   const { themeId, isDark } = useTheme();
   const styles = getMenuStyles(themeId);
-  
+
   useBackButton(() => goBack());
 
   // Серверный прогресс уровневого режима
   const [levelModeProgress, setLevelModeProgress] = useState<LevelModeProgressResponse | null>(null);
-  
+
   const totalCompletedLevels = levelModeProgress?.levelsCompleted
     ?? state.endlessProgress.completedLevels.length;
 
@@ -284,18 +284,19 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
   }, [store, trackModeSelectedFromMenu]);
 
   return (
-    <div className={cn("min-h-[100dvh] flex flex-col relative overflow-hidden", styles.pageGradient)}>
+    <div className={cn("mode-screen min-h-[100dvh] flex flex-col relative overflow-hidden w-full max-w-2xl mx-auto", styles.pageGradient)}>
       {/* Sticky Header */}
       <StickyHeader 
-        title="Выбор режима" 
+        title="Филлворд"
         onBack={() => goBack()}
         rightElement={
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => navigate('settings')}
+            aria-label="Открыть настройки"
             className={cn(
-              "p-1.5 rounded-lg transition-colors",
+              "min-h-11 min-w-11 flex items-center justify-center rounded-xl transition-colors",
               isDark ? "hover:bg-white/10" : "hover:bg-black/5"
             )}
           >
@@ -304,32 +305,15 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
         }
       />
 
-      {/* Декоративный фон */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className={cn("absolute top-1/4 -left-32 w-64 h-64 rounded-full blur-3xl", styles.decorativeOrbs.primary)} />
-        <div className={cn("absolute bottom-1/3 -right-32 w-80 h-80 rounded-full blur-3xl", styles.decorativeOrbs.secondary)} />
-        
-        {/* Сетка */}
-        <div 
-          className="absolute inset-0 opacity-[0.03]" 
-          style={{
-            backgroundImage: `
-              linear-gradient(to right, ${styles.gridPattern} 1px, transparent 1px),
-              linear-gradient(to bottom, ${styles.gridPattern} 1px, transparent 1px)
-            `,
-            backgroundSize: '28px 28px'
-          }} 
-        />
-      </div>
-
       {/* Header */}
-      <header className="relative z-10 px-5 pt-16 pb-6">
+      <header className="relative z-10 px-5 pt-16 pb-6" style={{ paddingTop: 'calc(4rem + env(safe-area-inset-top, 0px))' }}>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => goBack()}
+          aria-label="Назад"
           className={cn(
-            "absolute top-4 left-4 p-2 rounded-xl transition-colors",
+            "absolute top-4 left-4 min-h-11 min-w-11 flex items-center justify-center rounded-xl transition-colors",
             isDark ? "bg-white/10 hover:bg-white/20" : "bg-black/5 hover:bg-black/10"
           )}
         >
@@ -340,21 +324,22 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => navigate('settings')}
+            aria-label="Открыть настройки"
           className={cn(
-            "absolute top-4 right-4 p-2 rounded-xl transition-colors",
+            "absolute top-4 right-4 min-h-11 min-w-11 flex items-center justify-center rounded-xl transition-colors",
             isDark ? "bg-white/10 hover:bg-white/20" : "bg-black/5 hover:bg-black/10"
           )}
         >
           <Settings size={22} className={isDark ? "text-stone-400" : "text-stone-500"} />
         </motion.button>
-        
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center pt-8"
+          className="text-left pt-3"
         >
-          <h1 className={cn("text-2xl font-bold mb-2", styles.buttons.text.primary)}>
-            Выбери режим игры
+          <h1 className={cn("text-[28px] font-semibold tracking-tight mb-2", styles.buttons.text.primary)}>
+            Филлворд: выбери режим
           </h1>
           <p className={cn("text-sm", styles.buttons.text.muted)}>
             {courseTitle()} — изучай в своём темпе
@@ -378,10 +363,9 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
             <div className={cn(
               'absolute inset-0 transition-all duration-300',
               isDark
-                ? 'bg-gradient-to-r from-amber-500/35 via-orange-500/35 to-rose-500/35'
-                : 'bg-gradient-to-r from-amber-400/70 via-orange-400/70 to-rose-400/70'
+                ? 'bg-[#285747]'
+                : 'bg-[#285747]'
             )} />
-            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" />
             <Zap className="absolute top-3 right-3 text-white/30" size={20} />
 
             <div className="relative z-10 flex items-center gap-3">
@@ -389,151 +373,23 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 <Play size={20} className="text-white ml-0.5" fill="white" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                   <h2 className="font-bold text-base text-white">Продолжить уровень</h2>
-                  <span className="px-1.5 py-px bg-white/20 rounded-full text-[10px] font-semibold text-white/90">
-                    Resume
+                  <span className="px-1.5 py-px bg-white/20 rounded-full text-[11px] font-semibold text-white/90">
+                    Начато
                   </span>
                 </div>
                 <p className="text-xs text-white/75 truncate">
                   {resumeLevel?.name ?? 'Незавершённый стартовый уровень'}
                 </p>
                 <p className="text-[11px] text-white/60 mt-1">
-                  Ты уже начинал этот уровень — дожмём до первой победы 💪
+                  Вернись к начатой игре в удобном темпе
                 </p>
               </div>
               <ChevronRight size={20} className="text-white/55 shrink-0" />
             </div>
           </motion.button>
         )}
-
-        {/* ═══════════════ Вторая глава — Countdown ═══════════════ */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <div className="relative w-full rounded-2xl overflow-hidden">
-            {/* Фон */}
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700" />
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-            {/* Шиммер */}
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent"
-              animate={{ x: ['-100%', '200%'] }}
-              transition={{ duration: 4, repeat: Infinity, repeatDelay: 3, ease: 'easeInOut' }}
-            />
-            {/* Декоративные круги */}
-            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/[0.05] blur-2xl" />
-            <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-purple-400/10 blur-2xl" />
-            {/* Декоративные звёзды */}
-            <Sparkles className="absolute top-3 right-3 text-white/15" size={28} />
-            <Flame className="absolute bottom-3 right-10 text-orange-300/10" size={22} />
-
-            <div className="relative z-10 p-5">
-              {/* Заголовок */}
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="font-bold text-xl text-white">Вторая глава</h2>
-                <motion.span
-                  animate={{ opacity: [1, 0.6, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className={cn(
-                    'px-2 py-0.5 rounded-full text-[11px] font-semibold border',
-                    isChapter2Live
-                      ? 'bg-emerald-400/20 border-emerald-400/30 text-emerald-200'
-                      : 'bg-orange-400/20 border-orange-400/30 text-orange-200'
-                  )}
-                >
-                  {isChapter2Live ? 'LIVE' : 'СКОРО'}
-                </motion.span>
-              </div>
-              <p className="text-sm text-white/70 mb-4">
-                Новые слова, сложные уровни и настоящий вызов для носителей языка
-              </p>
-
-              {/* Countdown */}
-              {!isChapter2Live ? (
-                <div className="flex items-center gap-2">
-                  {([
-                    { value: timeLeft.days, label: 'дн' },
-                    { value: timeLeft.hours, label: 'ч' },
-                    { value: timeLeft.minutes, label: 'мин' },
-                    { value: timeLeft.seconds, label: 'сек' },
-                  ] as const).map((unit, i) => (
-                    <React.Fragment key={unit.label}>
-                      {i > 0 && (
-                        <motion.span
-                          animate={{ opacity: [1, 0.3, 1] }}
-                          transition={{ duration: 1, repeat: Infinity }}
-                          className="text-white/40 font-bold text-lg -mx-0.5 select-none"
-                        >
-                          :
-                        </motion.span>
-                      )}
-                      <div className="flex-1 flex flex-col items-center">
-                        <div className={cn(
-                          "w-full py-2 rounded-xl text-center font-mono font-bold text-2xl text-white",
-                          "bg-white/10 backdrop-blur-sm border border-white/10",
-                          "shadow-lg shadow-black/10"
-                        )}>
-                          <AnimatePresence mode="popLayout">
-                            <motion.span
-                              key={unit.value}
-                              initial={{ y: -16, opacity: 0 }}
-                              animate={{ y: 0, opacity: 1 }}
-                              exit={{ y: 16, opacity: 0 }}
-                              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
-                              className="inline-block"
-                            >
-                              {pad(unit.value)}
-                            </motion.span>
-                          </AnimatePresence>
-                        </div>
-                        <span className="text-[10px] text-white/50 mt-1 uppercase tracking-wider">
-                          {unit.label}
-                        </span>
-                      </div>
-                    </React.Fragment>
-                  ))}
-                </div>
-              ) : (
-                <motion.button
-                  whileHover={isChapter2Unlocked ? { scale: 1.02 } : undefined}
-                  whileTap={isChapter2Unlocked ? { scale: 0.98 } : undefined}
-                  onClick={() => {
-                    if (!isChapter2Unlocked) return;
-
-                    trackModeSelectedFromMenu('campaign_chapter2', {
-                      moduleId: chapter2Module?.id,
-                    });
-                    setCampaignPreferredModuleId(
-                      chapter2Module?.id ?? CHAPTER2_PREFERRED_SENTINEL,
-                    );
-                    setCampaignLandingView('modules');
-                    navigate('levels');
-                  }}
-                  disabled={!isChapter2Unlocked}
-                  className={cn(
-                    'w-full py-3 rounded-xl backdrop-blur text-white font-bold text-center transition-all',
-                    isChapter2Unlocked
-                      ? 'bg-white/20 hover:bg-white/25'
-                      : 'bg-white/10 text-white/55 cursor-not-allowed'
-                  )}
-                >
-                  {isChapter2Unlocked ? 'Начать Вторую главу' : `Нужно ${chapter2Module?.requiredStars ?? 0} ⭐`}
-                </motion.button>
-              )}
-
-              {/* Дата запуска — улан-удэнское время (UTC+8) */}
-              <div className="flex items-center justify-center gap-1.5 mt-3">
-                <Clock size={12} className="text-white/40" />
-                <span className="text-[11px] text-white/40">
-                  Запуск: 11 февраля 2026 в 20:00 по Улан-Удэ
-                </span>
-              </div>
-            </div>
-          </div>
-        </motion.div>
 
         {/* ═══════════════ Филлворд дня ═══════════════ */}
         <motion.div
@@ -555,17 +411,11 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
             <div className={cn(
               "absolute inset-0",
               isDark
-                ? "bg-gradient-to-r from-amber-700/80 via-orange-600/80 to-rose-600/70"
-                : "bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500"
+                ? "bg-[#285747]"
+                : "bg-[#285747]"
             )} />
-            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent" />
 
             {/* Шиммер */}
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
-              animate={{ x: ['-100%', '200%'] }}
-              transition={{ duration: 3, repeat: Infinity, repeatDelay: 5, ease: 'easeInOut' }}
-            />
 
             {/* Декор */}
             <CalendarDays className="absolute top-3 right-3 text-white/10" size={48} />
@@ -573,35 +423,33 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
             <div className="relative z-10 p-4 flex items-center gap-3.5">
               {/* Дата-блок */}
               <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex flex-col items-center justify-center shadow-inner shrink-0">
-                <span className="text-[10px] font-semibold text-white/70 uppercase leading-none">
+                <span className="text-[11px] font-semibold text-white/70 uppercase leading-none">
                   {dailyPuzzle.weekDay.slice(0, 2)}
                 </span>
-                <span className="text-xl font-black text-white leading-tight">
+                <span className="text-xl font-semibold text-white leading-tight">
                   {dailyPuzzle.dateLabel.split(' ')[0]}
                 </span>
-                <span className="text-[9px] font-medium text-white/60 uppercase leading-none">
+                <span className="text-[11px] font-medium text-white/60 uppercase leading-none">
                   {dailyPuzzle.dateLabel.split(' ')[1]}
                 </span>
               </div>
 
               {/* Инфо */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                   <h2 className="font-bold text-base text-white">Филлворд дня</h2>
                   {dailyNotFound ? (
-                    <span className="px-1.5 py-px bg-white/15 rounded-full text-[10px] text-white/60">
+                    <span className="px-1.5 py-px bg-white/15 rounded-full text-[11px] text-white/60">
                       Скоро
                     </span>
                   ) : dailyCompleted ? (
-                    <span className="px-1.5 py-px bg-white/20 rounded-full text-[10px] text-white/90 flex items-center gap-0.5">
+                    <span className="px-1.5 py-px bg-white/20 rounded-full text-[11px] text-white/90 flex items-center gap-0.5">
                       <CheckCircle2 size={10} />
                       {dailyStars !== null ? `${dailyStars}★` : 'Пройден'}
                     </span>
                   ) : dailyData ? (
                     <motion.span
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                      className="px-1.5 py-px bg-white/20 rounded-full text-[10px] font-semibold text-yellow-100 flex items-center gap-0.5"
+                      className="px-1.5 py-px bg-white/20 rounded-full text-[11px] font-semibold text-yellow-100 flex items-center gap-0.5"
                     >
                       <Zap size={10} />
                       Новый!
@@ -612,8 +460,8 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                   {dailyNotFound
                     ? 'Филлворд дня ещё не готов, загляните позже'
                     : dailyCompleted
-                      ? 'Улучши результат — переиграй!'
-                      : 'Один паззл для всех — разгадай и сравни результат'}
+                      ? 'Задание пройдено. Можно сыграть ещё раз и улучшить результат.'
+                      : 'Общее задание на сегодня. Найди слова и сравни результат в рейтинге'}
                 </p>
               </div>
 
@@ -643,6 +491,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 return;
               }
               trackModeSelectedFromMenu('campaign_chapters');
+              setCampaignPreferredModuleId(null);
               setCampaignLandingView('modules');
               navigate('levels');
             }}
@@ -652,25 +501,24 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
             <div className={cn(
               "absolute inset-0 transition-all duration-300",
               isDark
-                ? "bg-gradient-to-r from-emerald-800/60 via-teal-800/60 to-cyan-800/60"
-                : "bg-gradient-to-r from-emerald-500/80 via-teal-500/80 to-cyan-500/80"
+                ? "bg-[#354540]"
+                : "bg-[#354540]"
             )} />
-            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent" />
-            
+
             {/* Декоративный элемент */}
             <GraduationCap className="absolute top-2.5 right-2.5 text-white/15" size={28} />
             {firstChapterProgressPercent >= 100 && (
               <CheckCircle2 className="absolute bottom-2.5 right-2.5 text-white/15" size={22} />
             )}
-            
+
             <div className="relative z-10 flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center shadow-inner shrink-0">
                 <BookOpen size={24} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                   <h2 className="font-bold text-base text-white">Первая глава</h2>
-                  <span className="px-1.5 py-px bg-white/15 rounded-full text-[10px] text-white/80">
+                  <span className="px-1.5 py-px bg-white/15 rounded-full text-[11px] text-white/80">
                     Базовый курс
                   </span>
                 </div>
@@ -711,6 +559,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
               whileTap={{ scale: 0.98 }}
               onClick={() => {
                 trackModeSelectedFromMenu('campaign_modules');
+                setCampaignPreferredModuleId(null);
                 setCampaignLandingView('modules');
                 navigate('levels');
               }}
@@ -719,8 +568,8 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
               <div className={cn(
                 "absolute inset-0 transition-all duration-300",
                 isDark
-                  ? "bg-gradient-to-r from-fuchsia-800/65 via-violet-800/65 to-indigo-800/65"
-                  : "bg-gradient-to-r from-fuchsia-500/85 via-violet-500/85 to-indigo-500/85"
+                  ? "bg-[#344553]"
+                  : "bg-[#344553]"
               )} />
               <Sparkles className="absolute top-2.5 right-2.5 text-white/20" size={26} />
 
@@ -729,9 +578,9 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                   <Sparkles size={22} className="text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                     <h2 className="font-bold text-base text-white">Спецмодули</h2>
-                    <span className="px-1.5 py-px bg-white/15 rounded-full text-[10px] text-white/85 whitespace-nowrap">
+                    <span className="px-1.5 py-px bg-white/15 rounded-full text-[11px] text-white/85 whitespace-nowrap">
                       Глава
                     </span>
                   </div>
@@ -764,6 +613,125 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
           </motion.div>
         )}
 
+        {/* ═══════════════ Вторая глава — Countdown ═══════════════ */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <div className="relative w-full rounded-2xl overflow-hidden">
+            {/* Фон */}
+            <div className="absolute inset-0 bg-[#30483f]" />
+            <div className="absolute inset-0 bg-[#355045] opacity-0 group-hover:opacity-100 transition-opacity" />
+            {/* Шиммер */}
+            {/* Декоративные круги */}
+
+
+            {/* Декоративные звёзды */}
+            <Sparkles className="absolute top-3 right-3 text-white/15" size={28} />
+            <Flame className="absolute bottom-3 right-10 text-orange-300/10" size={22} />
+
+            <div className="relative z-10 p-5">
+              {/* Заголовок */}
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h2 className="font-bold text-xl text-white">Вторая глава</h2>
+                <motion.span
+                  className={cn(
+                    'px-2 py-0.5 rounded-full text-[11px] font-semibold border',
+                    isChapter2Live
+                      ? 'bg-emerald-400/20 border-emerald-400/30 text-emerald-200'
+                      : 'bg-orange-400/20 border-orange-400/30 text-orange-200'
+                  )}
+                >
+                  {isChapter2Live ? 'Открыта' : 'Скоро'}
+                </motion.span>
+              </div>
+              <p className="text-sm text-white/70 mb-4">
+                Продолжение курса: больше слов и сложнее задания
+              </p>
+
+              {/* Countdown */}
+              {!isChapter2Live ? (
+                <div className="flex items-center gap-2">
+                  {([
+                    { value: timeLeft.days, label: 'дн' },
+                    { value: timeLeft.hours, label: 'ч' },
+                    { value: timeLeft.minutes, label: 'мин' },
+                    { value: timeLeft.seconds, label: 'сек' },
+                  ] as const).map((unit, i) => (
+                    <React.Fragment key={unit.label}>
+                      {i > 0 && (
+                        <motion.span
+                          className="text-white/40 font-bold text-lg -mx-0.5 select-none"
+                        >
+                          :
+                        </motion.span>
+                      )}
+                      <div className="flex-1 flex flex-col items-center">
+                        <div className={cn(
+                          "w-full py-2 rounded-xl text-center font-mono font-bold text-2xl text-white",
+                          "bg-white/10 backdrop-blur-sm border border-white/10",
+                          "shadow-lg shadow-black/10"
+                        )}>
+                          <AnimatePresence mode="popLayout">
+                            <motion.span
+                              key={unit.value}
+                              initial={{ y: -16, opacity: 0 }}
+                              animate={{ y: 0, opacity: 1 }}
+                              exit={{ y: 16, opacity: 0 }}
+                              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+                              className="inline-block"
+                            >
+                              {pad(unit.value)}
+                            </motion.span>
+                          </AnimatePresence>
+                        </div>
+                        <span className="text-[11px] text-white/50 mt-1 uppercase tracking-wider">
+                          {unit.label}
+                        </span>
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </div>
+              ) : (
+                <motion.button
+                  whileHover={isChapter2Unlocked ? { scale: 1.02 } : undefined}
+                  whileTap={isChapter2Unlocked ? { scale: 0.98 } : undefined}
+                  onClick={() => {
+                    if (!isChapter2Unlocked) return;
+
+                    trackModeSelectedFromMenu('campaign_chapter2', {
+                      moduleId: chapter2Module?.id,
+                    });
+                    setCampaignPreferredModuleId(
+                      chapter2Module?.id ?? CHAPTER2_PREFERRED_SENTINEL,
+                    );
+                    setCampaignLandingView('modules');
+                    navigate('levels');
+                  }}
+                  disabled={!isChapter2Unlocked}
+                  className={cn(
+                    'w-full py-3 rounded-xl backdrop-blur text-white font-bold text-center transition-all',
+                    isChapter2Unlocked
+                      ? 'bg-white/20 hover:bg-white/25'
+                      : 'bg-white/10 text-white/55 cursor-not-allowed'
+                  )}
+                >
+                  {isChapter2Unlocked ? 'Начать Вторую главу' : `Нужно ${chapter2Module?.requiredStars ?? 0} ⭐`}
+                </motion.button>
+              )}
+
+              {/* Дата запуска — улан-удэнское время (UTC+8) */}
+              {!isChapter2Live && <div className="flex items-center justify-center gap-1.5 mt-3">
+                <Clock size={12} className="text-white/40" />
+                <span className="text-[11px] text-white/40">
+                  Запуск: 11 февраля 2026 в 20:00 по Улан-Удэ
+                </span>
+              </div>}
+            </div>
+          </div>
+        </motion.div>
+
         {/* Разделитель */}
         <div className="flex items-center gap-4 px-2">
           <div className={cn("flex-1 h-px", isDark ? "bg-white/10" : "bg-black/10")} />
@@ -780,7 +748,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center",
+                "w-10 h-10 shrink-0 rounded-xl flex items-center justify-center",
                 isDark ? "bg-violet-500/20" : "bg-violet-100"
               )}>
                 <InfinityIcon size={20} className={isDark ? "text-violet-400" : "text-violet-600"} />
@@ -790,11 +758,11 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                   Уровневый режим
                 </h2>
                 <p className={cn("text-xs", styles.buttons.text.muted)}>
-                  Пройди все уровни и стань легендой
+                  Проходи уровни по порядку и открывай следующие
                 </p>
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <div className={cn("text-xs", styles.buttons.text.muted)}>Пройдено</div>
               <div className={cn("font-bold", styles.statsCard.text.accent)}>
                 {totalCompletedLevels}
@@ -810,7 +778,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
               const unlocked = levelModeProgress
                 ? pack.levelStart <= (levelModeProgress.maxUnlockedLevel ?? 1)
                 : isPackUnlocked(pack);
-              
+
               // Прогресс: серверные данные или fallback
               const progress = (() => {
                 if (levelModeProgress?.levels) {
@@ -827,7 +795,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                 return getPackProgress(pack);
               })();
               const progressPercent = (progress.completed / progress.total) * 100;
-              
+
               return (
                 <motion.button
                   key={pack.id}
@@ -860,30 +828,30 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                     <div 
                       className={cn(
                         "absolute left-0 top-0 bottom-0 opacity-10",
-                        `bg-gradient-to-r ${pack.gradient}`
+                        styles.statsCard.progressFill
                       )}
                       style={{ width: `${progressPercent}%` }}
                     />
                   )}
-                  
+
                   <div className="relative z-10 flex items-center gap-4">
                     {/* Иконка */}
                     <div className={cn(
-                      "w-14 h-14 rounded-xl flex items-center justify-center text-2xl",
+                      "w-12 h-12 shrink-0 rounded-xl flex items-center justify-center text-2xl",
                       unlocked 
-                        ? `bg-gradient-to-br ${pack.gradient} shadow-lg`
+                        ? isDark ? 'bg-emerald-400/10' : 'bg-emerald-50'
                         : isDark ? "bg-stone-700/50" : "bg-stone-200"
                     )}>
                       {unlocked ? (
-                        <span>{pack.emoji}</span>
+                        <BookOpen size={22} className={isDark ? 'text-emerald-300' : 'text-emerald-800'} aria-hidden />
                       ) : (
                         <Lock size={24} className={isDark ? "text-stone-500" : "text-stone-400"} />
                       )}
                     </div>
-                    
+
                     {/* Инфо */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
                         <h3 className={cn(
                           "font-bold",
                           unlocked ? styles.buttons.text.primary : styles.buttons.text.muted
@@ -909,7 +877,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                             ? `Пройди уровень ${pack.levelStart - 1}` 
                             : `Нужно пройти ${pack.unlockRequirement} уровней`}
                       </p>
-                      
+
                       {/* Прогресс */}
                       {unlocked && (
                         <div className="flex items-center gap-2 mt-2">
@@ -918,7 +886,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                             isDark ? "bg-white/10" : "bg-black/5"
                           )}>
                             <div 
-                              className={cn("h-full rounded-full", `bg-gradient-to-r ${pack.gradient}`)}
+                              className={cn("h-full rounded-full", styles.statsCard.progressFill)}
                               style={{ width: `${progressPercent}%` }}
                             />
                           </div>
@@ -928,7 +896,7 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Звёзды или стрелка */}
                     <div className="flex flex-col items-end gap-1">
                       {unlocked ? (
@@ -969,11 +937,6 @@ export const GameModeSelectScreen: React.FC<GameModeSelectScreenProps> = ({ stor
             )}
           >
             {/* Shimmer */}
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
-              animate={{ x: ['-100%', '200%'] }}
-              transition={{ duration: 3, repeat: Infinity, repeatDelay: 4 }}
-            />
 
             <div className="relative z-10 flex items-center gap-3.5">
               {/* Trophy icon */}

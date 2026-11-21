@@ -101,7 +101,7 @@ export const SubmitButton: React.FC<SubmitButtonProps> = ({
     disabled={disabled || loading}
     className={cn(
       'w-full rounded-xl py-3 text-sm font-semibold text-white transition',
-      'bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg shadow-amber-500/20',
+      'ui-accent-fill shadow-lg shadow-black/5',
       (disabled || loading) && 'opacity-60 cursor-not-allowed',
     )}
   >

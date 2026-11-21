@@ -1,4 +1,4 @@
-import { activeCourseId } from '../courses/activeCourse';
+import { activeCourseId, courseTitle } from '../courses/activeCourse';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, RotateCcw } from 'lucide-react';
 import { useTheme } from '../theme/ThemeContext';
@@ -58,7 +58,7 @@ export default function TrialLesson({ onExit, onContinue, continueLabel = 'Вы�
           <span className={cn('text-sm', theme.text.muted)}>Пробное занятие · без таймера</span>
         </header>
         <div>
-          <p className={cn('text-xs uppercase tracking-widest mb-2', theme.text.muted)}>Бурятский в трёх словах</p>
+          <p className={cn('text-xs uppercase tracking-widest mb-2', theme.text.muted)}>{courseTitle()} в трёх словах</p>
           <h1 className={cn('text-3xl font-bold tracking-tight', theme.text.primary)}>{foundAll ? 'А теперь вспомним' : 'Найди своё первое слово'}</h1>
           <p className={cn('mt-3 text-sm leading-relaxed', theme.text.muted)}>{foundAll ? 'Найти буквы — первый шаг. Попробуй вспомнить значение.' : 'Веди по соседним буквам вверх, вниз, влево или вправо. Можно и нажимать на них по очереди.'}</p>
         </div>
@@ -114,12 +114,12 @@ export default function TrialLesson({ onExit, onContinue, continueLabel = 'Вы�
             <div className="space-y-2">{TRIAL_WORDS.map((word, index) => <button key={word.bur} type="button" disabled={answer !== null} onClick={() => setAnswer(index)} className={cn(button, 'w-full text-left border', theme.borders.subtle, answer !== null && index === 1 ? (isDark ? 'bg-emerald-900 text-emerald-100' : 'bg-emerald-100 text-emerald-900') : theme.text.primary)}>{word.ru}</button>)}</div>
             {answer !== null && <div className="mt-5">
               <p role="status" className={cn('font-semibold', theme.text.primary)}>{activeCourseId() === 'bua-ru' ? (answer === 1 ? 'Верно! Уһан — вода.' : 'Уһан — вода. Теперь будет легче вспомнить.') : `${answer === 1 ? 'Верно! ' : ''}${TRIAL_WORDS[1].bur} — вода.${answer !== 1 ? ' Теперь будет легче вспомнить.' : ''}`}</p>
-              <p className={cn('text-sm mt-2 leading-relaxed', theme.text.muted)}>{guest ? 'Пробное занятие завершено. Войди, чтобы продолжить курс и сохранять свой прогресс.' : 'Отличное начало. Дальше — новые слова и небольшие занятия в своём темпе.'}</p>
+              <p className={cn('text-sm mt-2 leading-relaxed', theme.text.muted)}>{guest ? 'Пробное занятие завершено. Войди, чтобы продолжить курс и сохранять свой прогресс.' : 'Ты нашёл три слова и проверил значение одного из них. Дальше можно выбрать филлворд или перейти к урокам.'}</p>
               <button type="button" onClick={onContinue} className={cn(button, 'w-full mt-5 bg-amber-500 text-stone-950 inline-flex items-center justify-center gap-2')}>{continueLabel}<ArrowRight size={18} /></button>
             </div>}
           </>}
         </section>
-        <p className={cn('text-xs text-center', theme.text.muted)}>Это тренировка: без звёзд, рейтинга и регистрации.</p>
+        <p className={cn('text-xs text-center', theme.text.muted)}>Это тренировка: ошибки не штрафуются, звёзды и рейтинг не начисляются.</p>
       </div>
     </div>
   );

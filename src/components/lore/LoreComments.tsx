@@ -120,7 +120,7 @@ export const LoreComments: React.FC<Props> = ({ article, onChanged }) => {
               type="button"
               disabled={busy || !text.trim()}
               onClick={() => void submit()}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold flex items-center gap-1.5 disabled:opacity-50 active:scale-[0.98] transition"
+              className="px-4 py-2 rounded-xl ui-accent-fill text-white text-sm font-bold flex items-center gap-1.5 disabled:opacity-50 active:scale-[0.98] transition"
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={13} />}
               Отправить

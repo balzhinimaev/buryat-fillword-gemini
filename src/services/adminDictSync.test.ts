@@ -1,249 +1,82 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ApiWord } from './api';
-import type { LocalWordRecord, AdminDictMeta } from './adminDictStore';
-
-// In-memory замена IDB-хранилища: в jsdom нет IndexedDB, а стейт-машина
-// синка от способа хранения не зависит. Чистые функции берём настоящие.
-const memWords = new Map<string, LocalWordRecord>();
-let memMeta: AdminDictMeta = {};
-
-vi.mock('./adminDictStore', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./adminDictStore')>();
-  return {
-    ...actual,
-    getAllWords: async () => [...memWords.values()],
-    getWordRecord: async (key: string) => memWords.get(key),
-    putWordRecord: async (r: LocalWordRecord) => {
-      memWords.set(r.key, r);
-    },
-    bulkPutWordRecords: async (rs: LocalWordRecord[]) => {
-      rs.forEach((r) => memWords.set(r.key, r));
-    },
-    removeWordRecord: async (key: string) => {
-      memWords.delete(key);
-    },
-    removeWordRecords: async (keys: string[]) => {
-      keys.forEach((k) => memWords.delete(k));
-    },
-    getDirtyWords: async () => [...memWords.values()].filter((r) => r.dirty !== 'none'),
-    countDirtyWords: async () => {
-      const dirty = [...memWords.values()].filter((r) => r.dirty !== 'none');
-      return { pending: dirty.length, errors: dirty.filter((r) => !!r.syncError).length };
-    },
-    getMeta: async () => memMeta,
-    setMeta: async (patch: Partial<AdminDictMeta>) => {
-      memMeta = { ...memMeta, ...patch };
-    },
-  };
+import 'fake-indexeddb/auto';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { waitFor } from '@testing-library/react';
+import * as api from './api';
+import { chooseCourse } from '../courses/progress';
+import { progressOwner } from './progressStorage';
+import * as db from './adminDictStore';
+import { saveWordLocal, deleteWordLocal, pushAdminQueue, pullFullDictionary, retryWordSync } from './adminDictSync';
+vi.mock('../config/offline', () => ({ OFFLINE: true, isNetOnline: () => navigator.onLine }));
+const sid = '1234567890abcdef12345678';
+const word = (ru='перевод'): db.EditableWord => ({bur:'ТЕСТ',ru,synonyms:[],antonyms:[],sources:[],tags:[],status:'verified',isActiveInGame:true,difficulty:2});
+const serverWord = (id=sid) => ({_id:id,...word(),dialectId:null,partOfSpeechId:null,createdAt:'2026-11-20',updatedAt:'2026-11-20',contributor:{id:'fixture',name:'Fixture'}});
+const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status});
+const login=(owner:string)=>api.setStoredTokens({access_token:`test.${btoa(JSON.stringify({sub:owner}))}.fixture`,refresh_token:'fixture'});
+const deferred=()=>{let resolve!:(r:Response)=>void;const promise=new Promise<Response>(r=>{resolve=r;});return {promise,resolve};};
+let request: ReturnType<typeof vi.fn<(url:string,options?:RequestInit)=>Promise<Response>>>;
+let owner:string;
+beforeEach(()=>{
+ localStorage.clear(); owner=`test-${crypto.randomUUID()}`;login(owner);chooseCourse('bua-ru');vi.spyOn(navigator,'onLine','get').mockReturnValue(true);
+ request=vi.fn(async()=>{throw new Error('Unexpected test request');});
+ vi.stubGlobal('fetch',vi.fn(async(url:string,options?:RequestInit)=>{
+  if(url.endsWith('/auth/me'))return json({id:owner,role:'admin',name:'Fixture'});
+  return request(url,options);
+ }));
 });
-
-const apiMocks = vi.hoisted(() => ({
-  createWord: vi.fn(),
-  updateWord: vi.fn(),
-  deleteWord: vi.fn(),
-  adminGetWords: vi.fn(),
-  adminGetDialects: vi.fn(),
-  adminGetCategories: vi.fn(),
-  getStoredTokens: vi.fn(),
-}));
-
-vi.mock('./api', () => apiMocks);
-
-import { apiWordToRecord, recordToUpdateRequest } from './adminDictStore';
-import {
-  saveWordLocal,
-  deleteWordLocal,
-  pushAdminQueue,
-  pullFullDictionary,
-  adminSyncStats,
-} from './adminDictSync';
-
-function makeApiWord(overrides: Partial<ApiWord> = {}): ApiWord {
-  return {
-    _id: 'srv1',
-    bur: 'НОХОЙ',
-    ru: 'собака',
-    synonyms: [],
-    antonyms: [],
-    relatedWords: [],
-    dialectId: { _id: 'd1', code: 'khori', name: 'Хоринский' },
-    partOfSpeechId: null,
-    tags: ['животные'],
-    sources: [],
-    comments: [],
-    viewCount: 0,
-    lookupCount: 0,
-    contributor: { id: 'u1', name: 'Алекс' },
-    status: 'verified',
-    verificationScore: 5,
-    upvotes: [],
-    downvotes: [],
-    isActiveInGame: true,
-    difficulty: 3,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-02T00:00:00.000Z',
-    ...overrides,
-  } as ApiWord;
-}
-
-beforeEach(() => {
-  memWords.clear();
-  memMeta = {};
-  vi.clearAllMocks();
-  apiMocks.getStoredTokens.mockReturnValue({ access_token: 'a', refresh_token: 'r' });
+afterEach(()=>{api.clearStoredTokens();chooseCourse('bua-ru');vi.restoreAllMocks();vi.unstubAllGlobals();});
+async function edited(){await db.putWordRecord({key:sid,serverId:sid,word:word(),dirty:'none'});await saveWordLocal(sid,word('правка'));}
+it('normalizes populated category/dialect and preserves PATCH fields',()=>{
+ const record=db.apiWordToRecord({...serverWord(),categoryId:{_id:'category',name:'Test',slug:'test'},dialectId:{_id:'dialect',name:'test',code:'test'}} as api.ApiWordDetail);
+ expect(record.word.categoryId).toBe('category');expect(db.recordToUpdateRequest(record)).toMatchObject({dialectId:'dialect',categoryId:'category',status:'verified'});
 });
-
-describe('apiWordToRecord (нормализация)', () => {
-  it('сплющивает populated dialectId/partOfSpeechId в строки-id и сохраняет мету', () => {
-    const rec = apiWordToRecord(makeApiWord());
-    expect(rec.key).toBe('srv1');
-    expect(rec.serverId).toBe('srv1');
-    expect(rec.word.dialectId).toBe('d1');
-    expect(rec.dialectMeta).toEqual({ code: 'khori', name: 'Хоринский' });
-    expect(rec.word.partOfSpeechId).toBeUndefined();
-    expect(rec.dirty).toBe('none');
-    expect(rec.word.status).toBe('verified');
-  });
-
-  it('recordToUpdateRequest шлёт плоский dialectId и status, без пустых полей', () => {
-    const rec = apiWordToRecord(makeApiWord({ pronunciation: '' }));
-    const req = recordToUpdateRequest(rec);
-    expect(req.dialectId).toBe('d1');
-    expect(req.status).toBe('verified');
-    expect('pronunciation' in req).toBe(false);
-    expect(req.isActiveInGame).toBe(true);
-  });
+it('edits/deletes a local draft atomically, while server deletion is a tombstone',async()=>{
+ const key=await saveWordLocal(null,word());await saveWordLocal(key,word('новое'));expect((await db.getWordRecord(key))?.dirty).toBe('created');await deleteWordLocal(key);expect(await db.getWordRecord(key)).toBeUndefined();
+ await edited();await deleteWordLocal(sid);expect((await db.getWordRecord(sid))?.dirty).toBe('deleted');
 });
-
-describe('saveWordLocal / deleteWordLocal (локальные мутации)', () => {
-  it('новое слово получает local-ключ и dirty=created', async () => {
-    const key = await saveWordLocal(null, apiWordToRecord(makeApiWord()).word);
-    expect(key.startsWith('local-')).toBe(true);
-    expect(memWords.get(key)?.dirty).toBe('created');
-  });
-
-  it('правка синхронизированного слова даёт dirty=updated, созданного — оставляет created', async () => {
-    memWords.set('srv1', apiWordToRecord(makeApiWord()));
-    await saveWordLocal('srv1', { ...memWords.get('srv1')!.word, ru: 'пёс' });
-    expect(memWords.get('srv1')?.dirty).toBe('updated');
-    expect(memWords.get('srv1')?.word.ru).toBe('пёс');
-
-    const localKey = await saveWordLocal(null, memWords.get('srv1')!.word);
-    await saveWordLocal(localKey, { ...memWords.get(localKey)!.word, ru: 'пёсик' });
-    expect(memWords.get(localKey)?.dirty).toBe('created');
-  });
-
-  it('удаление: created — сразу из базы, серверное — tombstone', async () => {
-    const localKey = await saveWordLocal(null, apiWordToRecord(makeApiWord()).word);
-    await deleteWordLocal(localKey);
-    expect(memWords.has(localKey)).toBe(false);
-
-    memWords.set('srv1', apiWordToRecord(makeApiWord()));
-    await deleteWordLocal('srv1');
-    expect(memWords.get('srv1')?.dirty).toBe('deleted');
-  });
+it('owner namespaces prevent another account sending/seeing a draft',async()=>{
+ await saveWordLocal(null,word());login('other-fixture');chooseCourse('bua-ru');expect(await db.getAllWords()).toEqual([]);await pushAdminQueue();expect(request).not.toHaveBeenCalled();expect(await db.getDirtyWords(owner)).toHaveLength(1);
 });
-
-describe('pushAdminQueue', () => {
-  it('created → POST и перепривязка на серверный id', async () => {
-    const localKey = await saveWordLocal(null, {
-      ...apiWordToRecord(makeApiWord()).word,
-      bur: 'МОРИН',
-      ru: 'лошадь',
-    });
-    apiMocks.createWord.mockResolvedValue({ _id: 'srv-new', status: 'verified' });
-
-    const res = await pushAdminQueue();
-
-    expect(res).toMatchObject({ ok: true, pushed: 1, failed: 0, remaining: 0 });
-    expect(apiMocks.createWord).toHaveBeenCalledOnce();
-    expect(memWords.has(localKey)).toBe(false);
-    expect(memWords.get('srv-new')).toMatchObject({ serverId: 'srv-new', dirty: 'none' });
-    // статус локально 'verified' — лишний PATCH не нужен
-    expect(apiMocks.updateWord).not.toHaveBeenCalled();
-  });
-
-  it('updated → PATCH полным набором полей (LWW)', async () => {
-    memWords.set('srv1', apiWordToRecord(makeApiWord()));
-    await saveWordLocal('srv1', { ...memWords.get('srv1')!.word, ru: 'пёс', dialectId: 'd2' });
-    apiMocks.updateWord.mockResolvedValue({});
-
-    const res = await pushAdminQueue();
-
-    expect(res.pushed).toBe(1);
-    expect(apiMocks.updateWord).toHaveBeenCalledWith(
-      'srv1',
-      expect.objectContaining({ ru: 'пёс', dialectId: 'd2', status: 'verified' }),
-    );
-    expect(memWords.get('srv1')?.dirty).toBe('none');
-  });
-
-  it('deleted → DELETE, 404 считается успехом', async () => {
-    memWords.set('srv1', apiWordToRecord(makeApiWord()));
-    await deleteWordLocal('srv1');
-    apiMocks.deleteWord.mockRejectedValue({ statusCode: 404, message: 'not found' });
-
-    const res = await pushAdminQueue();
-
-    expect(res.pushed).toBe(1);
-    expect(memWords.has('srv1')).toBe(false);
-  });
-
-  it('ошибка пуша копит attempts и syncError, после 3 попыток авторетрай выключается', async () => {
-    memWords.set('srv1', apiWordToRecord(makeApiWord()));
-    await saveWordLocal('srv1', { ...memWords.get('srv1')!.word, ru: 'пёс' });
-    apiMocks.updateWord.mockRejectedValue({ statusCode: 409, message: 'duplicate' });
-
-    for (let i = 1; i <= 3; i++) {
-      const res = await pushAdminQueue();
-      expect(res.failed).toBe(1);
-      expect(memWords.get('srv1')?.attempts).toBe(i);
-    }
-    expect(memWords.get('srv1')?.syncError).toContain('409');
-
-    const res4 = await pushAdminQueue();
-    expect(apiMocks.updateWord).toHaveBeenCalledTimes(3); // 4-й раз не дёргаем
-    expect(res4.failed).toBe(0);
-    expect(res4.remaining).toBe(1); // правка не потеряна — ждёт ручного ретрая
-  });
-
-  it('без сети/токена — не пушит', async () => {
-    apiMocks.getStoredTokens.mockReturnValue(null);
-    const res = await pushAdminQueue();
-    expect(res.ok).toBe(false);
-    expect(res.reason).toBe('auth');
-  });
+it.each(['en-ru','cs-ru'] as const)('%s never changes retry counters or calls server',async course=>{
+ await edited();chooseCourse(course);for(let i=0;i<4;i++)expect(await pushAdminQueue()).toMatchObject({reason:'course'});expect(request).not.toHaveBeenCalled();expect((await db.getWordRecord(sid))?.attempts).toBe(0);
 });
-
-describe('pullFullDictionary', () => {
-  it('постранично тянет всё, не затирает dirty, чистит удалённые на сервере', async () => {
-    // Локально: dirty-правка srv1 и чистая запись srv-stale, которой на сервере уже нет
-    memWords.set('srv1', {
-      ...apiWordToRecord(makeApiWord()),
-      dirty: 'updated',
-      word: { ...apiWordToRecord(makeApiWord()).word, ru: 'моя правка' },
-    });
-    memWords.set('srv-stale', apiWordToRecord(makeApiWord({ _id: 'srv-stale', bur: 'ХУУШАН' })));
-
-    apiMocks.adminGetDialects.mockResolvedValue([{ _id: 'd1', code: 'khori', name: 'Хоринский' }]);
-    apiMocks.adminGetCategories.mockResolvedValue([{ _id: 'c1', name: 'Животные' }]);
-    apiMocks.adminGetWords
-      .mockResolvedValueOnce({
-        total: 2,
-        words: [makeApiWord(), makeApiWord({ _id: 'srv2', bur: 'МОРИН', ru: 'лошадь' })],
-      })
-      .mockResolvedValue({ total: 2, words: [] });
-
-    const res = await pullFullDictionary();
-
-    expect(res).toMatchObject({ ok: true, total: 2, pulled: 1, skippedDirty: 1, removedStale: 1 });
-    expect(memWords.get('srv1')?.word.ru).toBe('моя правка'); // локальная правка жива
-    expect(memWords.get('srv2')?.dirty).toBe('none');
-    expect(memWords.has('srv-stale')).toBe(false);
-    expect(memMeta.dialects?.length).toBe(1);
-    expect(memMeta.lastPullAt).toBeTruthy();
-
-    const stats = await adminSyncStats();
-    expect(stats).toMatchObject({ pending: 1, total: 2 });
-  });
+it('creates once, binds server id and marks clean',async()=>{
+ const key=await saveWordLocal(null,word());request.mockResolvedValue(json({_id:sid,status:'verified'}));expect(await pushAdminQueue()).toMatchObject({pushed:1,remaining:0});expect(await db.getWordRecord(key)).toBeUndefined();expect(await db.getWordRecord(sid)).toMatchObject({serverId:sid,dirty:'none'});expect(request).toHaveBeenCalledTimes(1);
+});
+it('coalesces two simultaneous pushes',async()=>{
+ await edited();const pending=deferred();request.mockImplementation(()=>pending.promise);const a=pushAdminQueue(),b=pushAdminQueue();await waitFor(()=>expect(request).toHaveBeenCalledTimes(1));pending.resolve(json({}));await Promise.all([a,b]);expect(request).toHaveBeenCalledTimes(1);
+});
+it.each([200,500])('response %i cannot overwrite a newer local edit',async status=>{
+ await edited();const pending=deferred();request.mockImplementation(()=>pending.promise);const work=pushAdminQueue();await waitFor(()=>expect(request).toHaveBeenCalledTimes(1));await saveWordLocal(sid,word('самая новая'));pending.resolve(json({message:'failure'},status));await work;
+ expect(await db.getWordRecord(sid)).toMatchObject({dirty:'updated',word:{ru:'самая новая'},attempts:0});
+});
+it('POST followed by failed status PATCH keeps server id and retries PATCH, not POST',async()=>{
+ const key=await saveWordLocal(null,{...word(),status:'pending'});
+ request.mockResolvedValueOnce(json({_id:sid,status:'verified'})).mockResolvedValueOnce(json({message:'try later'},500));expect(await pushAdminQueue()).toMatchObject({failed:1,remaining:1});expect(await db.getWordRecord(key)).toBeUndefined();expect(await db.getWordRecord(sid)).toMatchObject({dirty:'updated',serverId:sid});
+ request.mockResolvedValue(json({}));await pushAdminQueue();expect(request.mock.calls.filter(([,o])=>o?.method==='POST')).toHaveLength(1);expect((await db.getWordRecord(sid))?.dirty).toBe('none');
+});
+it('new edit during POST survives server rekeying',async()=>{
+ const key=await saveWordLocal(null,word());const pending=deferred();request.mockImplementation(()=>pending.promise);const work=pushAdminQueue();await waitFor(()=>expect(request).toHaveBeenCalledTimes(1));await saveWordLocal(key,word('новая во время создания'));pending.resolve(json({_id:sid,status:'verified'}));await work;expect(await db.getWordRecord(sid)).toMatchObject({dirty:'updated',word:{ru:'новая во время создания'}});
+});
+it('deletion during POST becomes a server tombstone',async()=>{
+ const key=await saveWordLocal(null,word());const pending=deferred();request.mockImplementation(()=>pending.promise);const work=pushAdminQueue();await waitFor(()=>expect(request).toHaveBeenCalledTimes(1));await deleteWordLocal(key);pending.resolve(json({_id:sid,status:'verified'}));await work;expect((await db.getWordRecord(sid))?.dirty).toBe('deleted');
+});
+it('owner change stops remaining mutations and requires review of uncertain response',async()=>{
+ await edited();await saveWordLocal(null,word());const pending=deferred();request.mockImplementation(()=>pending.promise);const work=pushAdminQueue();await waitFor(()=>expect(request).toHaveBeenCalledTimes(1));login('other-fixture');chooseCourse('bua-ru');pending.resolve(json({_id:sid}));expect(await work).toMatchObject({reason:'account-change'});expect(request).toHaveBeenCalledTimes(1);expect((await db.getDirtyWords(owner)).some(r=>r.needsReview)).toBe(true);expect(await db.getAllWords()).toEqual([]);
+});
+it('pull honors edits made while a page was loading and removes only clean stale entries',async()=>{
+ await db.putWordRecord({key:sid,serverId:sid,word:word(),dirty:'none'});await db.putWordRecord({key:'stale',serverId:'stale',word:word(),dirty:'none'});
+ const pending=deferred();request.mockImplementation((url)=>url.includes('/words')?pending.promise:Promise.resolve(json([])));const work=pullFullDictionary();await waitFor(()=>expect(request.mock.calls.some(([u])=>u.includes('/words'))).toBe(true));await saveWordLocal(sid,word('правка во время скачивания'));pending.resolve(json({words:[serverWord()],total:1}));
+ expect(await work).toMatchObject({skippedDirty:1,removedStale:1});expect((await db.getWordRecord(sid))?.word.ru).toBe('правка во время скачивания');expect(await db.getWordRecord('stale')).toBeUndefined();
+});
+it('four transient failures preserve the dirty record and manual retry clears stale error',async()=>{
+ await edited();request.mockImplementation(async()=>json({message:'temporary'},500));for(let i=0;i<4;i++)await pushAdminQueue();expect(await db.getWordRecord(sid)).toMatchObject({dirty:'updated',attempts:4,syncError:'temporary'});await retryWordSync(sid);expect((await db.getWordRecord(sid))?.syncError).toBeUndefined();
+});
+it('DELETE 404 is successful, missing auth never sends',async()=>{
+ await edited();await deleteWordLocal(sid);request.mockResolvedValue(json({message:'missing'},404));await pushAdminQueue();expect(await db.getWordRecord(sid)).toBeUndefined();api.clearStoredTokens();expect(await pushAdminQueue()).toMatchObject({reason:'auth'});
+});
+it('unowned legacy edits are not auto-sent; selected recovery leaves original backup',async()=>{
+ const key=`old-${crypto.randomUUID()}`;const record:db.LocalWordRecord={key,word:word(),dirty:'created',attempts:3,syncError:'old course error'};await db.putWordRecord(record,'__legacy__');await pushAdminQueue();expect(request).not.toHaveBeenCalled();expect(await db.getWordRecord(key)).toBeUndefined();await db.claimLegacyAdminDrafts([key]);expect(await db.getWordRecord(key)).toMatchObject({dirty:'created',attempts:0});expect(await db.getWordRecord(key,'__legacy__')).toEqual(record);expect((await db.unclaimedAdminDrafts()).some(r=>r.key===key)).toBe(false);expect(progressOwner()).toBe(owner);
+});
+it('legacy recovery does not hide or overwrite a conflicting newer edit',async()=>{
+ const key=`old-${crypto.randomUUID()}`;await db.putWordRecord({key,word:word('старая'),dirty:'created'},'__legacy__');await db.putWordRecord({key,word:word('новая'),dirty:'created'});await expect(db.claimLegacyAdminDrafts([key])).rejects.toThrow('уже есть новая правка');expect((await db.getWordRecord(key))?.word.ru).toBe('новая');expect((await db.unclaimedAdminDrafts()).some(r=>r.key===key)).toBe(true);
 });

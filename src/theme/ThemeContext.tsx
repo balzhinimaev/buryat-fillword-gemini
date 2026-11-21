@@ -1,5 +1,5 @@
 // src/theme/ThemeContext.tsx
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useMemo, useEffect } from 'react';
 import { themes, type ThemeConfig } from './index';
 import type { ThemeId } from '../types';
 
@@ -17,6 +17,11 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ themeId, children }) => {
+  useEffect(() => {
+    document.documentElement.dataset.fillwordTheme = themeId;
+    return () => { delete document.documentElement.dataset.fillwordTheme; };
+  }, [themeId]);
+
   const value = useMemo(() => ({
     theme: themes[themeId] || themes.steppe,
     themeId,
@@ -33,6 +38,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ themeId, children 
 /**
  * Хук для получения текущей темы
  */
+// Keep the established provider/hook entry point; this module may fully reload in dev.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTheme = (): ThemeContextValue => {
   const context = useContext(ThemeContext);
   if (!context) {
@@ -49,7 +56,7 @@ export const useTheme = (): ThemeContextValue => {
 /**
  * Хук для получения только конфига темы
  */
+// eslint-disable-next-line react-refresh/only-export-components -- Same public theme entry point.
 export const useThemeConfig = (): ThemeConfig => {
   return useTheme().theme;
 };
-

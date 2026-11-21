@@ -184,7 +184,7 @@ export const EditWordModal: React.FC<Props> = ({ word, willResetToPending, onSav
               type="button"
               disabled={busy}
               onClick={() => void save()}
-              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99] transition"
+              className="flex-1 py-3 rounded-xl ui-accent-fill text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99] transition"
             >
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Сохранить

@@ -156,7 +156,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ store }) => 
               className={cn(
                 "h-1.5 flex-1 rounded-full transition-all duration-300",
                 index <= currentStepIndex
-                  ? "bg-gradient-to-r from-amber-500 to-orange-500"
+                  ? "ui-accent-fill"
                   : isDark ? "bg-stone-700" : "bg-stone-200"
               )}
             />
@@ -236,7 +236,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ store }) => 
               className={cn(
                 "w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all",
                 isDark
-                  ? "bg-stone-800/60 border-stone-700 text-stone-300"
+                  ? "ui-card border-stone-700 text-stone-300"
                   : "bg-white border-stone-200 text-stone-600"
               )}
             >
@@ -252,7 +252,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ store }) => 
             className={cn(
               "flex-1 h-14 rounded-2xl font-semibold text-lg transition-all flex items-center justify-center gap-2",
               canContinue && !isSubmitting
-                ? "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-500/25"
+                ? "bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg shadow-black/5"
                 : isDark
                   ? "bg-stone-800 text-stone-500 cursor-not-allowed"
                   : "bg-stone-200 text-stone-400 cursor-not-allowed"

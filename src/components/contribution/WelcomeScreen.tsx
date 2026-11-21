@@ -73,7 +73,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           className="w-28 h-28 mx-auto mb-6 rounded-full relative"
         >
           {/* Градиентная рамка */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 p-1 shadow-2xl shadow-orange-500/40">
+          <div className="absolute inset-0 rounded-full ui-accent-fill p-1 shadow-2xl shadow-black/5">
             {telegramUser?.photo_url ? (
               <img 
                 src={telegramUser.photo_url} 
@@ -93,7 +93,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <motion.div
             animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.5, 0.3] }}
             transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
-            className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 blur-xl -z-10"
+            className="absolute inset-0 rounded-full ui-accent-fill blur-xl -z-10"
           />
         </motion.div>
 
@@ -259,9 +259,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           onClick={handleJoin}
           disabled={isJoining}
           className={cn(
-            "w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-red-500",
-            "text-white font-bold text-lg shadow-xl shadow-orange-500/30",
-            "hover:shadow-orange-500/50 transition-all relative overflow-hidden group",
+            "w-full py-4 rounded-2xl ui-accent-fill",
+            "text-white font-bold text-lg shadow-xl shadow-black/5",
+            "hover:shadow-black/5 transition-all relative overflow-hidden group",
             isJoining && "opacity-80 cursor-not-allowed"
           )}
         >

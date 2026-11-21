@@ -28,6 +28,7 @@ function Harness() {
   }
 }
 beforeEach(() => {
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   localStorage.clear(); chooseCourse('bua-ru');
   vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Offline')));
   vi.stubGlobal('PointerEvent', MouseEvent);
@@ -39,7 +40,7 @@ const prepare = (id: 'bua-ru' | 'en-ru' | 'cs-ru') => {
 it('keeps the original Buryat Today, modes, textbook and dictionary as the primary application', async () => {
   prepare('bua-ru'); render(<Harness />);
   expect(await screen.findByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Все игровые режимы' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Выбрать тип игры' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Учиться' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Профиль' })).toBeInTheDocument();
   expect(screen.queryByText('Классический бурятский режим')).not.toBeInTheDocument();
@@ -47,6 +48,7 @@ it('keeps the original Buryat Today, modes, textbook and dictionary as the prima
   fireEvent.click(await screen.findByRole('button', { name: 'Каталог курсов' }));
   const english = screen.getByRole('heading', { name: 'Английский' }).closest('article')!;
   fireEvent.click(within(english).getByRole('button', { name: 'Посмотреть курс' }));
+  expect(window.scrollTo).toHaveBeenLastCalledWith({top: 0, behavior: 'instant'});
   expect(activeCourseId()).toBe('bua-ru');
   expect(restartCourseApp).not.toHaveBeenCalled();
   fireEvent.change(screen.getByLabelText('Зачем изучаю язык'), { target: { value: 'travel' } });

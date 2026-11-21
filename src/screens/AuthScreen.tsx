@@ -252,7 +252,7 @@ export default function AuthScreen({ onTrialComplete, onSuccess }: { onTrialComp
                   className={cn(
                     'flex-1 py-2 rounded-lg text-sm font-semibold transition',
                     mode === m
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow'
+                      ? 'ui-accent-fill text-white shadow'
                       : theme.text.muted,
                   )}
                 >

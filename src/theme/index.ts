@@ -153,25 +153,25 @@ export interface ThemeConfig {
 const steppeTheme: ThemeConfig = {
   id: 'steppe',
   name: 'Степь',
-  preview: 'from-stone-800 via-stone-900 to-amber-900/30',
+  preview: 'from-[#191c1a] to-[#285747]',
   
   backgrounds: {
-    primary: 'bg-stone-900',
-    secondary: 'bg-stone-950',
-    primaryGradient: 'bg-gradient-to-b from-stone-900 via-stone-900 to-stone-950',
-    card: 'bg-stone-800/60 backdrop-blur-sm',
-    cardSolid: 'bg-stone-800',
-    cardHover: 'hover:bg-stone-700/60',
-    elevated: 'bg-stone-700/50',
-    muted: 'bg-stone-800/30',
+    primary: 'ui-page',
+    secondary: 'ui-page',
+    primaryGradient: 'ui-page',
+    card: 'ui-card',
+    cardSolid: 'ui-card',
+    cardHover: 'ui-card-hover',
+    elevated: 'ui-soft',
+    muted: 'ui-muted',
   },
   
   text: {
     primary: 'text-white',
     secondary: 'text-stone-300',
     muted: 'text-stone-400',
-    dimmed: 'text-stone-500',
-    accent: 'text-amber-400',
+    dimmed: 'ui-dimmed',
+    accent: 'ui-accent-text',
     inverse: 'text-stone-900',
   },
   
@@ -185,7 +185,7 @@ const steppeTheme: ThemeConfig = {
   progress: {
     track: 'bg-stone-700/50',
     fill: {
-      primary: 'bg-gradient-to-r from-steppe-500 via-amber-500 to-steppe-400',
+      primary: 'ui-progress',
       success: 'bg-gradient-to-r from-meadow-500 to-meadow-400',
       warning: 'bg-gradient-to-r from-terra-500 to-terra-400',
       amber: 'bg-gradient-to-r from-amber-500 to-amber-400',
@@ -193,15 +193,15 @@ const steppeTheme: ThemeConfig = {
   },
   
   buttons: {
-    primary: 'bg-gradient-to-r from-amber-500 via-orange-500 to-terra-500 text-white shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30',
-    secondary: 'bg-stone-800/80 border border-stone-700/50 text-white hover:bg-stone-700/80',
-    outline: 'border-2 border-stone-700/50 text-stone-300 hover:border-stone-600 hover:text-white',
-    ghost: 'text-stone-400 hover:text-white hover:bg-stone-800/50',
+    primary: 'ui-primary',
+    secondary: 'ui-secondary border',
+    outline: 'ui-outline border',
+    ghost: 'ui-ghost',
   },
   
   header: {
-    bg: 'bg-gradient-to-r from-stone-800 via-stone-900 to-stone-800',
-    text: 'text-white',
+    bg: 'ui-header',
+    text: 'ui-text',
   },
   
   states: {
@@ -240,25 +240,25 @@ const steppeTheme: ThemeConfig = {
 const lightTheme: ThemeConfig = {
   id: 'light',
   name: 'Светлая',
-  preview: 'from-stone-100 via-white to-amber-50',
+  preview: 'from-[#f6f7f4] to-[#cbded0]',
   
   backgrounds: {
-    primary: 'bg-stone-50',
-    secondary: 'bg-white',
-    primaryGradient: 'bg-gradient-to-b from-stone-50 via-white to-stone-100',
-    card: 'bg-white shadow-sm',
-    cardSolid: 'bg-white',
-    cardHover: 'hover:bg-stone-50',
-    elevated: 'bg-stone-100',
-    muted: 'bg-stone-50',
+    primary: 'ui-page',
+    secondary: 'ui-page',
+    primaryGradient: 'ui-page',
+    card: 'ui-card',
+    cardSolid: 'ui-card',
+    cardHover: 'ui-card-hover',
+    elevated: 'ui-soft',
+    muted: 'ui-muted',
   },
   
   text: {
     primary: 'text-stone-800',
     secondary: 'text-stone-600',
     muted: 'text-stone-500',
-    dimmed: 'text-stone-400',
-    accent: 'text-amber-600',
+    dimmed: 'ui-dimmed',
+    accent: 'ui-accent-text',
     inverse: 'text-white',
   },
   
@@ -272,7 +272,7 @@ const lightTheme: ThemeConfig = {
   progress: {
     track: 'bg-stone-200',
     fill: {
-      primary: 'bg-gradient-to-r from-amber-500 to-orange-500',
+      primary: 'ui-progress',
       success: 'bg-gradient-to-r from-meadow-500 to-meadow-400',
       warning: 'bg-gradient-to-r from-terra-500 to-terra-400',
       amber: 'bg-gradient-to-r from-amber-500 to-amber-400',
@@ -280,15 +280,15 @@ const lightTheme: ThemeConfig = {
   },
   
   buttons: {
-    primary: 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25 hover:shadow-xl',
-    secondary: 'bg-stone-100 border border-stone-200 text-stone-700 hover:bg-stone-200',
-    outline: 'border-2 border-stone-300 text-stone-600 hover:border-stone-400 hover:text-stone-800',
-    ghost: 'text-stone-500 hover:text-stone-800 hover:bg-stone-100',
+    primary: 'ui-primary',
+    secondary: 'ui-secondary border',
+    outline: 'ui-outline border',
+    ghost: 'ui-ghost',
   },
   
   header: {
-    bg: 'bg-gradient-to-r from-amber-500 via-orange-500 to-terra-500',
-    text: 'text-white',
+    bg: 'ui-header',
+    text: 'ui-text',
   },
   
   states: {
@@ -327,25 +327,25 @@ const lightTheme: ThemeConfig = {
 const darkTheme: ThemeConfig = {
   id: 'dark',
   name: 'Тёмная',
-  preview: 'from-slate-800 via-slate-900 to-slate-950',
+  preview: 'from-[#141b26] to-[#285371]',
   
   backgrounds: {
-    primary: 'bg-slate-900',
-    secondary: 'bg-slate-950',
-    primaryGradient: 'bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950',
-    card: 'bg-slate-800/60 backdrop-blur-sm',
-    cardSolid: 'bg-slate-800',
-    cardHover: 'hover:bg-slate-700/60',
-    elevated: 'bg-slate-700/50',
-    muted: 'bg-slate-800/30',
+    primary: 'ui-page',
+    secondary: 'ui-page',
+    primaryGradient: 'ui-page',
+    card: 'ui-card',
+    cardSolid: 'ui-card',
+    cardHover: 'ui-card-hover',
+    elevated: 'ui-soft',
+    muted: 'ui-muted',
   },
   
   text: {
     primary: 'text-white',
     secondary: 'text-slate-300',
     muted: 'text-slate-400',
-    dimmed: 'text-slate-500',
-    accent: 'text-cyan-400',
+    dimmed: 'ui-dimmed',
+    accent: 'ui-accent-text',
     inverse: 'text-slate-900',
   },
   
@@ -359,7 +359,7 @@ const darkTheme: ThemeConfig = {
   progress: {
     track: 'bg-slate-700/50',
     fill: {
-      primary: 'bg-gradient-to-r from-cyan-500 to-blue-500',
+      primary: 'ui-progress',
       success: 'bg-gradient-to-r from-emerald-500 to-emerald-400',
       warning: 'bg-gradient-to-r from-amber-500 to-amber-400',
       amber: 'bg-gradient-to-r from-amber-500 to-amber-400',
@@ -367,15 +367,15 @@ const darkTheme: ThemeConfig = {
   },
   
   buttons: {
-    primary: 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:shadow-cyan-500/30',
-    secondary: 'bg-slate-800/80 border border-slate-700/50 text-white hover:bg-slate-700/80',
-    outline: 'border-2 border-slate-700/50 text-slate-300 hover:border-slate-600 hover:text-white',
-    ghost: 'text-slate-400 hover:text-white hover:bg-slate-800/50',
+    primary: 'ui-primary',
+    secondary: 'ui-secondary border',
+    outline: 'ui-outline border',
+    ghost: 'ui-ghost',
   },
   
   header: {
-    bg: 'bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800',
-    text: 'text-white',
+    bg: 'ui-header',
+    text: 'ui-text',
   },
   
   states: {

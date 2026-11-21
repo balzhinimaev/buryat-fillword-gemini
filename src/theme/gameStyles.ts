@@ -178,12 +178,12 @@ export interface GameThemeStyles {
  */
 const steppeGameStyles: GameThemeStyles = {
   page: {
-    background: 'bg-stone-900',
-    gradient: 'bg-gradient-to-b from-stone-900 via-stone-900 to-stone-950',
+    background: 'ui-page',
+    gradient: 'ui-page',
   },
   
   header: {
-    background: 'bg-stone-800/95 backdrop-blur-sm',
+    background: 'ui-header',
     border: 'border-b border-stone-700/50',
   },
   
@@ -205,7 +205,7 @@ const steppeGameStyles: GameThemeStyles = {
   },
   
   comboBadge: {
-    background: 'bg-gradient-to-r from-amber-500 to-orange-500',
+    background: 'ui-accent-fill',
     text: 'text-white',
     icon: 'text-white',
   },
@@ -218,7 +218,7 @@ const steppeGameStyles: GameThemeStyles = {
   
   progress: {
     track: 'bg-stone-700/50',
-    fill: 'bg-gradient-to-r from-amber-500 via-orange-500 to-terra-500',
+    fill: 'ui-progress',
     text: 'text-amber-400',
   },
   
@@ -245,7 +245,7 @@ const steppeGameStyles: GameThemeStyles = {
       shadow: 'shadow-lg shadow-stone-900/50',
     },
     selected: {
-      background: 'bg-gradient-to-br from-amber-400 via-orange-500 to-red-500',
+      background: 'ui-accent-fill',
       text: 'text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]',
       ring: 'ring-2 ring-amber-300/80 ring-offset-2 ring-offset-stone-900',
       shadow: 'shadow-[0_0_20px_rgba(251,191,36,0.5),0_0_40px_rgba(249,115,22,0.3)]',
@@ -262,7 +262,7 @@ const steppeGameStyles: GameThemeStyles = {
   },
   
   footer: {
-    background: 'bg-stone-800/95 backdrop-blur-sm',
+    background: 'ui-header',
     border: 'border-t border-stone-700/50',
     title: 'text-stone-500',
   },
@@ -275,7 +275,7 @@ const steppeGameStyles: GameThemeStyles = {
   },
   
   toast: {
-    background: 'bg-stone-800/95 backdrop-blur-sm',
+    background: 'ui-header',
     border: 'border border-amber-500/50',
     text: 'text-amber-200',
     icon: 'text-amber-400',
@@ -283,14 +283,14 @@ const steppeGameStyles: GameThemeStyles = {
   
   winModal: {
     overlay: 'bg-black/80 backdrop-blur-sm',
-    cardGradient: 'bg-gradient-to-b from-stone-800 to-stone-900',
+    cardGradient: 'ui-card',
     cardBorder: 'border border-stone-700/50',
     decorOrb1: 'bg-amber-400/20',
     decorOrb2: 'bg-orange-400/20',
     trophyGradient: 'bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500',
-    trophyShadow: 'shadow-amber-500/30',
+    trophyShadow: 'shadow-black/5',
     trophyIcon: 'text-white',
-    titleGradient: 'bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 bg-clip-text text-transparent',
+    titleGradient: 'ui-accent-text',
     titleIcon: 'text-amber-400',
     subtitle: 'text-stone-300',
     statCard: {
@@ -303,8 +303,8 @@ const steppeGameStyles: GameThemeStyles = {
       valueCombo: 'text-terra-400',
     },
     nextLevelButton: {
-      enabled: 'bg-gradient-to-r from-amber-500 via-orange-500 to-terra-500 text-white',
-      enabledShadow: 'shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30',
+      enabled: 'ui-accent-fill text-white',
+      enabledShadow: 'shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-black/5',
       disabled: 'bg-stone-700/50 text-stone-400 cursor-not-allowed',
     },
     secondaryButton: {
@@ -325,7 +325,7 @@ const steppeGameStyles: GameThemeStyles = {
 const lightGameStyles: GameThemeStyles = {
   page: {
     background: 'bg-stone-50',
-    gradient: 'bg-gradient-to-b from-amber-50/50 via-white to-orange-50/30',
+    gradient: 'ui-page',
   },
   
   header: {
@@ -351,7 +351,7 @@ const lightGameStyles: GameThemeStyles = {
   },
   
   comboBadge: {
-    background: 'bg-gradient-to-r from-amber-500 to-orange-500',
+    background: 'ui-accent-fill',
     text: 'text-white',
     icon: 'text-white',
   },
@@ -364,7 +364,7 @@ const lightGameStyles: GameThemeStyles = {
   
   progress: {
     track: 'bg-stone-200',
-    fill: 'bg-gradient-to-r from-amber-500 via-orange-500 to-red-500',
+    fill: 'ui-progress',
     text: 'text-amber-600',
   },
   
@@ -391,7 +391,7 @@ const lightGameStyles: GameThemeStyles = {
       shadow: 'shadow-md shadow-stone-300/50',
     },
     selected: {
-      background: 'bg-gradient-to-br from-rose-400 via-pink-500 to-purple-500',
+      background: 'ui-accent-fill',
       text: 'text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]',
       ring: 'ring-2 ring-pink-300 ring-offset-2 ring-offset-white',
       shadow: 'shadow-[0_0_25px_rgba(236,72,153,0.5),0_0_50px_rgba(168,85,247,0.25)]',
@@ -429,14 +429,14 @@ const lightGameStyles: GameThemeStyles = {
   
   winModal: {
     overlay: 'bg-white/80 backdrop-blur-sm',
-    cardGradient: 'bg-gradient-to-b from-white to-stone-50',
+    cardGradient: 'ui-card',
     cardBorder: 'border border-stone-200 shadow-2xl shadow-stone-300/50',
     decorOrb1: 'bg-amber-200/40',
     decorOrb2: 'bg-orange-200/40',
     trophyGradient: 'bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500',
     trophyShadow: 'shadow-amber-400/40',
     trophyIcon: 'text-white',
-    titleGradient: 'bg-gradient-to-r from-amber-600 via-orange-500 to-amber-600 bg-clip-text text-transparent',
+    titleGradient: 'ui-accent-text',
     titleIcon: 'text-amber-500',
     subtitle: 'text-stone-600',
     statCard: {
@@ -449,7 +449,7 @@ const lightGameStyles: GameThemeStyles = {
       valueCombo: 'text-red-500',
     },
     nextLevelButton: {
-      enabled: 'bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white',
+      enabled: 'ui-accent-fill text-white',
       enabledShadow: 'shadow-lg shadow-amber-400/30 hover:shadow-xl hover:shadow-orange-400/40',
       disabled: 'bg-stone-200 text-stone-400 cursor-not-allowed',
     },
@@ -470,12 +470,12 @@ const lightGameStyles: GameThemeStyles = {
  */
 const darkGameStyles: GameThemeStyles = {
   page: {
-    background: 'bg-slate-900',
-    gradient: 'bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950',
+    background: 'ui-page',
+    gradient: 'ui-page',
   },
   
   header: {
-    background: 'bg-slate-800/95 backdrop-blur-sm',
+    background: 'ui-header',
     border: 'border-b border-slate-700/50',
   },
   
@@ -497,7 +497,7 @@ const darkGameStyles: GameThemeStyles = {
   },
   
   comboBadge: {
-    background: 'bg-gradient-to-r from-cyan-500 to-blue-500',
+    background: 'ui-accent-fill',
     text: 'text-white',
     icon: 'text-white',
   },
@@ -510,7 +510,7 @@ const darkGameStyles: GameThemeStyles = {
   
   progress: {
     track: 'bg-slate-700/50',
-    fill: 'bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500',
+    fill: 'ui-progress',
     text: 'text-cyan-400',
   },
 
@@ -537,7 +537,7 @@ const darkGameStyles: GameThemeStyles = {
       shadow: 'shadow-lg shadow-slate-900/50',
     },
     selected: {
-      background: 'bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600',
+      background: 'ui-accent-fill',
       text: 'text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]',
       ring: 'ring-2 ring-cyan-300/80 ring-offset-2 ring-offset-slate-900',
       shadow: 'shadow-[0_0_25px_rgba(34,211,238,0.6),0_0_50px_rgba(59,130,246,0.35)]',
@@ -554,7 +554,7 @@ const darkGameStyles: GameThemeStyles = {
   },
   
   footer: {
-    background: 'bg-slate-800/95 backdrop-blur-sm',
+    background: 'ui-header',
     border: 'border-t border-slate-700/50',
     title: 'text-slate-500',
   },
@@ -567,7 +567,7 @@ const darkGameStyles: GameThemeStyles = {
   },
   
   toast: {
-    background: 'bg-slate-800/95 backdrop-blur-sm',
+    background: 'ui-header',
     border: 'border border-cyan-500/50',
     text: 'text-cyan-200',
     icon: 'text-cyan-400',
@@ -575,14 +575,14 @@ const darkGameStyles: GameThemeStyles = {
   
   winModal: {
     overlay: 'bg-black/80 backdrop-blur-sm',
-    cardGradient: 'bg-gradient-to-b from-slate-800 to-slate-900',
+    cardGradient: 'ui-card',
     cardBorder: 'border border-slate-700/50',
     decorOrb1: 'bg-cyan-400/20',
     decorOrb2: 'bg-blue-400/20',
     trophyGradient: 'bg-gradient-to-br from-cyan-400 via-cyan-500 to-blue-500',
-    trophyShadow: 'shadow-cyan-500/30',
+    trophyShadow: 'shadow-black/5',
     trophyIcon: 'text-white',
-    titleGradient: 'bg-gradient-to-r from-cyan-200 via-cyan-400 to-cyan-200 bg-clip-text text-transparent',
+    titleGradient: 'ui-accent-text',
     titleIcon: 'text-cyan-400',
     subtitle: 'text-slate-300',
     statCard: {
@@ -595,8 +595,8 @@ const darkGameStyles: GameThemeStyles = {
       valueCombo: 'text-indigo-400',
     },
     nextLevelButton: {
-      enabled: 'bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 text-white',
-      enabledShadow: 'shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:shadow-cyan-500/30',
+      enabled: 'ui-accent-fill text-white',
+      enabledShadow: 'shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-black/5',
       disabled: 'bg-slate-700/50 text-slate-400 cursor-not-allowed',
     },
     secondaryButton: {

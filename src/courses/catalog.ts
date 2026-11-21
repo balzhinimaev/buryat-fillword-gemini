@@ -33,7 +33,7 @@ export const COURSE_CATALOG: Record<CourseId, CourseDefinition> = {
   },
   'en-ru': {
     id: 'en-ru', targetLanguage: 'en', instructionLanguage: 'ru', title: 'Английский', nativeTitle: 'English',
-    description: 'Базовые слова о семье, доме и окружающем мире.', scope: 'Стартовая лексическая программа, не полный языковой уровень.',
+    description: 'Самоучитель с русскими объяснениями, грамматикой, таблицами и практикой.', scope: '24 главы по основным конструкциям, 15 справочных таблиц и 8 словарных уроков. Не сертификация уровня языка.',
     letterNote: 'Латинские буквы занимают отдельные клетки, включая C и H.', textbookTitle: 'Учебник английского',
     content: { kind: 'starter', course: englishCourse }, tokenize: letters,
   },

@@ -39,7 +39,7 @@ export const OptionCard: React.FC<OptionCardProps> = ({
             ? 'bg-amber-500/20 border-amber-500'
             : 'bg-amber-50 border-amber-500'
           : isDark
-            ? 'bg-stone-800/60 border-stone-700 hover:border-stone-600'
+            ? 'ui-card border-stone-700 hover:border-stone-600'
             : 'bg-white border-stone-200 hover:border-stone-300',
         className,
       )}

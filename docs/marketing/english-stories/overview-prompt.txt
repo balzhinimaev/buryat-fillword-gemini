@@ -1,0 +1,14 @@
+Use case: ads-marketing
+Asset type: one finished vertical Telegram Story poster, exact 9:16 portrait composition, preferably 1080x1920 or an equivalent high-resolution 9:16 canvas.
+Primary request: Announce the newly updated English self-study book inside the Burlive Telegram Mini App. Premium editorial design matching the real app's forest-green, warm ivory and pale lime palette. Beautiful confident typography, restrained high-end educational product art, not a busy generic advertisement.
+Composition: Full-bleed dark forest green (#203f34) background with subtle paper grain and gentle light. Keep all important text within a central safe area: at least 8% side margins, 10% top and 13% bottom clear. Top small BURLIVE wordmark with tiny simple book symbol. Large bold elegant Cyrillic headline at upper third, highly readable on a phone. Central focal artwork: a sculptural open ivory book with softly curved paper pages, refined 3D editorial style, a single floating pale-lime speech bubble displaying “Let's talk.” and a small typographic “Aa” tile. The visual should feel tangible and contemporary, not childish. Lower third has a clean single-line process and a beautifully aligned three-column statistics strip. At the bottom above the safe margin, one understated rounded pale-lime CTA bar. Spacious, balanced, professionally typeset. No phone device mockup and no fake app screenshot.
+Exact visible text, preserve Russian spelling and numbers:
+Top: “BURLIVE”
+Small line: “Самоучитель в Telegram”
+Main headline in two large lines: “АНГЛИЙСКИЙ” / “ПО ШАГАМ”
+Speech bubble: “Let's talk.”
+Small decorative tile: “Aa”
+Process line: “Правила → Диалоги → Практика”
+Three stats with large number and smaller label: “24” / “главы”; “420” / “заданий”; “24” / “диалога”
+CTA: “Открой английский в Burlive”
+Constraints: This is a polished ready-to-share poster, not a design presentation. Render ONLY the listed text, crisp and correct. Strong accessible contrast, no very tiny type. Respect story safe areas. No QR code, URL, invented username, price, fluency/level guarantees, fake award, watermarks, extraneous badges or unrelated objects. No screenshots or browser chrome.

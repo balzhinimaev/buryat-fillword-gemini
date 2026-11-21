@@ -1,3 +1,5 @@
+import { isAdditionalCourse } from '../courses/activeCourse';
+import { supportsWordCommunity } from '../courses/access';
 // Жалоба на контент: уровень целиком или конкретное слово.
 // Причина + необязательный комментарий → POST /reports (модерация в мастерской).
 import React, { useState } from 'react';
@@ -57,6 +59,7 @@ export const ReportIssueModal: React.FC<Props> = ({ wordId, levelSlug, targetLab
     }
   };
 
+  if (isAdditionalCourse() || (wordId && !supportsWordCommunity(wordId))) return <div role="dialog" className="p-6 space-y-4"><p>Жалобы доступны для материалов онлайн-словаря бурятского курса.</p><button type="button" onClick={onClose}>Закрыть</button></div>;
   return (
     <AnimatePresence>
       <motion.div
@@ -132,7 +135,7 @@ export const ReportIssueModal: React.FC<Props> = ({ wordId, levelSlug, targetLab
                 type="button"
                 disabled={busy}
                 onClick={() => void send()}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99] transition"
+                className="w-full py-3 rounded-xl ui-accent-fill text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99] transition"
               >
                 {busy ? <Loader2 size={16} className="animate-spin" /> : <Flag size={15} />}
                 Отправить жалобу

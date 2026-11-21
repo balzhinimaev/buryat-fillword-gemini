@@ -1,10 +1,13 @@
+import { progressOwner } from './progressStorage';
+import { syncExclusive } from './syncContext';
 // Локальное хранилище админ-редактора словаря (IndexedDB).
 // Полная копия словаря с сервера + локальные правки с dirty-флагами:
 // 'created' / 'updated' / 'deleted' (tombstone) ждут выгрузки, 'none' — синхронизировано.
 // localStorage не подходит: полный словарь на тысячи слов — несколько мегабайт.
-import type { ApiWord, ApiDialect, ApiCategory, CreateWordRequest, UpdateWordRequest, WordStatus } from './api';
+import type { ApiWord, ApiWordDetail, ApiDialect, ApiCategory, CreateWordRequest, UpdateWordRequest, WordStatus } from './api';
 
-const DB_NAME = 'burlive_admin_dict';
+const LEGACY_DB_NAME = 'burlive_admin_dict';
+const DB_NAME = 'burlive_admin_dict_v2';
 const DB_VERSION = 1;
 const WORDS_STORE = 'words';
 const META_STORE = 'meta';
@@ -32,6 +35,7 @@ export interface EditableWord {
 }
 
 export interface LocalWordRecord {
+  revision?: string;
   key: string; // serverId или `local-<id>` для созданных офлайн
   serverId?: string;
   word: EditableWord;
@@ -42,11 +46,13 @@ export interface LocalWordRecord {
   dirty: DirtyState;
   updatedLocallyAt?: string;
   serverUpdatedAt?: string;
-  attempts?: number; // неудачные попытки push (после MAX_PUSH_ATTEMPTS — только ручной ретрай)
+  attempts?: number; // число неудачных попыток, без автоматического отклонения
+  needsReview?: boolean;
   syncError?: string; // текст последней ошибки push для UI
 }
 
 export interface AdminDictMeta {
+  legacyImported?: boolean;
   lastPullAt?: string;
   total?: number;
   dialects?: ApiDialect[];
@@ -57,16 +63,18 @@ export interface AdminDictMeta {
 // IDB-обёртка
 // ---------------------------------------------------------------------------
 
-let dbPromise: Promise<IDBDatabase> | null = null;
+const databases = new Map<string, Promise<IDBDatabase>>();
 
-function openDb(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
+function openDb(owner = progressOwner()): Promise<IDBDatabase> {
+  const name = owner === '__legacy__' ? LEGACY_DB_NAME : `${DB_NAME}:${owner}`;
+  const existing = databases.get(name);
+  if (existing) return existing;
+  const promise = new Promise<IDBDatabase>((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       reject(new Error('IndexedDB недоступен'));
       return;
     }
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const req = indexedDB.open(name, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(WORDS_STORE)) {
@@ -79,11 +87,12 @@ function openDb(): Promise<IDBDatabase> {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => {
-      dbPromise = null;
+      databases.delete(name);
       reject(req.error ?? new Error('Не удалось открыть IndexedDB'));
     };
   });
-  return dbPromise;
+  databases.set(name, promise);
+  return promise;
 }
 
 function txDone(tx: IDBTransaction): Promise<void> {
@@ -105,44 +114,44 @@ function reqResult<T>(req: IDBRequest<T>): Promise<T> {
 // Слова
 // ---------------------------------------------------------------------------
 
-export async function getAllWords(): Promise<LocalWordRecord[]> {
-  const db = await openDb();
+export async function getAllWords(owner = progressOwner()): Promise<LocalWordRecord[]> {
+  const db = await openDb(owner);
   const tx = db.transaction(WORDS_STORE, 'readonly');
   return reqResult(tx.objectStore(WORDS_STORE).getAll() as IDBRequest<LocalWordRecord[]>);
 }
 
-export async function getWordRecord(key: string): Promise<LocalWordRecord | undefined> {
-  const db = await openDb();
+export async function getWordRecord(key: string, owner = progressOwner()): Promise<LocalWordRecord | undefined> {
+  const db = await openDb(owner);
   const tx = db.transaction(WORDS_STORE, 'readonly');
   return reqResult(tx.objectStore(WORDS_STORE).get(key) as IDBRequest<LocalWordRecord | undefined>);
 }
 
-export async function putWordRecord(record: LocalWordRecord): Promise<void> {
-  const db = await openDb();
+export async function putWordRecord(record: LocalWordRecord, owner = progressOwner()): Promise<void> {
+  const db = await openDb(owner);
   const tx = db.transaction(WORDS_STORE, 'readwrite');
   tx.objectStore(WORDS_STORE).put(record);
   return txDone(tx);
 }
 
-export async function bulkPutWordRecords(records: LocalWordRecord[]): Promise<void> {
+export async function bulkPutWordRecords(records: LocalWordRecord[], owner = progressOwner()): Promise<void> {
   if (!records.length) return;
-  const db = await openDb();
+  const db = await openDb(owner);
   const tx = db.transaction(WORDS_STORE, 'readwrite');
   const store = tx.objectStore(WORDS_STORE);
   for (const r of records) store.put(r);
   return txDone(tx);
 }
 
-export async function removeWordRecord(key: string): Promise<void> {
-  const db = await openDb();
+export async function removeWordRecord(key: string, owner = progressOwner()): Promise<void> {
+  const db = await openDb(owner);
   const tx = db.transaction(WORDS_STORE, 'readwrite');
   tx.objectStore(WORDS_STORE).delete(key);
   return txDone(tx);
 }
 
-export async function removeWordRecords(keys: string[]): Promise<void> {
+export async function removeWordRecords(keys: string[], owner = progressOwner()): Promise<void> {
   if (!keys.length) return;
-  const db = await openDb();
+  const db = await openDb(owner);
   const tx = db.transaction(WORDS_STORE, 'readwrite');
   const store = tx.objectStore(WORDS_STORE);
   for (const k of keys) store.delete(k);
@@ -150,13 +159,13 @@ export async function removeWordRecords(keys: string[]): Promise<void> {
 }
 
 /** Все записи с локальными изменениями, ждущими выгрузки */
-export async function getDirtyWords(): Promise<LocalWordRecord[]> {
-  const all = await getAllWords();
+export async function getDirtyWords(owner = progressOwner()): Promise<LocalWordRecord[]> {
+  const all = await getAllWords(owner);
   return all.filter((r) => r.dirty !== 'none');
 }
 
-export async function countDirtyWords(): Promise<{ pending: number; errors: number }> {
-  const dirty = await getDirtyWords();
+export async function countDirtyWords(owner = progressOwner()): Promise<{ pending: number; errors: number }> {
+  const dirty = await getDirtyWords(owner);
   return {
     pending: dirty.length,
     errors: dirty.filter((r) => !!r.syncError).length,
@@ -167,19 +176,20 @@ export async function countDirtyWords(): Promise<{ pending: number; errors: numb
 // Мета
 // ---------------------------------------------------------------------------
 
-export async function getMeta(): Promise<AdminDictMeta> {
-  const db = await openDb();
+export async function getMeta(owner = progressOwner()): Promise<AdminDictMeta> {
+  const db = await openDb(owner);
   const tx = db.transaction(META_STORE, 'readonly');
   const value = await reqResult(tx.objectStore(META_STORE).get('meta') as IDBRequest<AdminDictMeta | undefined>);
   return value ?? {};
 }
 
-export async function setMeta(patch: Partial<AdminDictMeta>): Promise<void> {
-  const current = await getMeta();
-  const db = await openDb();
+export async function setMeta(patch: Partial<AdminDictMeta>, owner = progressOwner()): Promise<void> {
+  const db = await openDb(owner);
   const tx = db.transaction(META_STORE, 'readwrite');
-  tx.objectStore(META_STORE).put({ ...current, ...patch }, 'meta');
-  return txDone(tx);
+  const store = tx.objectStore(META_STORE);
+  const read = store.get('meta');
+  read.onsuccess = () => store.put({ ...(read.result ?? {}), ...patch }, 'meta');
+  await txDone(tx);
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +197,7 @@ export async function setMeta(patch: Partial<AdminDictMeta>): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /** Серверное слово -> локальная запись (populated dialectId/partOfSpeechId сплющиваются в id) */
-export function apiWordToRecord(w: ApiWord): LocalWordRecord {
+export function apiWordToRecord(w: ApiWord | ApiWordDetail): LocalWordRecord {
   return {
     key: w._id,
     serverId: w._id,
@@ -195,7 +205,7 @@ export function apiWordToRecord(w: ApiWord): LocalWordRecord {
       bur: w.bur,
       ru: w.ru,
       translations: w.translations,
-      categoryId: typeof w.categoryId === 'string' ? w.categoryId : undefined,
+      categoryId: typeof w.categoryId === 'string' ? w.categoryId : w.categoryId?._id,
       dialectId: w.dialectId?._id,
       partOfSpeechId: w.partOfSpeechId?._id,
       exampleBur: w.exampleBur,
@@ -272,4 +282,87 @@ export function recordToCreateRequest(record: LocalWordRecord): CreateWordReques
     difficulty: w.difficulty,
     isActiveInGame: w.isActiveInGame,
   }) as unknown as CreateWordRequest;
+}
+
+// All conflict decisions happen inside one IDB readwrite transaction.
+export async function mutateWordRecord(key: string, change: (current: LocalWordRecord | undefined) => LocalWordRecord | undefined, owner = progressOwner()): Promise<void> {
+  const db = await openDb(owner), tx = db.transaction(WORDS_STORE, 'readwrite'), store = tx.objectStore(WORDS_STORE);
+  const request = store.get(key);
+  request.onsuccess = () => {
+    try { const next = change(request.result);
+      if (next) store.put(next); else store.delete(key);
+    } catch { tx.abort(); }
+  };
+  await txDone(tx);
+}
+export async function mergeServerWords(records: LocalWordRecord[], owner: string): Promise<{ written: number; skipped: number }> {
+  const db = await openDb(owner), tx = db.transaction(WORDS_STORE, 'readwrite'), store = tx.objectStore(WORDS_STORE);
+  let written = 0, skipped = 0;
+  for (const record of records) {
+    const read = store.get(record.key);
+    read.onsuccess = () => {
+      if (read.result && read.result.dirty !== 'none') { skipped++; return; }
+      store.put(record); written++;
+    };
+  }
+  await txDone(tx); return { written, skipped };
+}
+export async function removeStaleCleanWords(seen: Set<string>, owner: string): Promise<number> {
+  const db = await openDb(owner), tx = db.transaction(WORDS_STORE, 'readwrite'), store = tx.objectStore(WORDS_STORE);
+  let removed = 0; const read = store.getAll();
+  read.onsuccess = () => {
+    for (const record of read.result as LocalWordRecord[]) if (record.dirty === 'none' && record.serverId && !seen.has(record.serverId)) { store.delete(record.key); removed++; }
+  };
+  await txDone(tx); return removed;
+}
+export async function bindCreatedWord(sent: LocalWordRecord, serverId: string, owner: string): Promise<void> {
+  const db = await openDb(owner), tx = db.transaction(WORDS_STORE, 'readwrite'), store = tx.objectStore(WORDS_STORE);
+  const read = store.get(sent.key);
+  read.onsuccess = () => {
+    const current = read.result as LocalWordRecord | undefined;
+    // A local deletion while POST was pending must become a server tombstone.
+    store.put({ ...(current ?? sent), key: serverId, serverId, dirty: current ? 'updated' : 'deleted',
+      revision: current?.revision ?? crypto.randomUUID(), attempts: 0, syncError: undefined });
+    store.delete(sent.key);
+  };
+  await txDone(tx);
+}
+const LEGACY_CLAIM = 'burlive_admin_dict_legacy_owner_v2';
+export async function legacyAdminDrafts(): Promise<LocalWordRecord[]> {
+  if (localStorage.getItem(LEGACY_CLAIM)) return [];
+  return (await getAllWords('__legacy__')).filter(r => r.dirty !== 'none');
+}
+// The original DB remains intact as a rollback backup. Only an explicit user action
+// can associate its formerly unowned edits with a server account.
+export async function claimLegacyAdminDrafts(keys: string[]): Promise<void> {
+  const owner = progressOwner();
+  if (owner === 'guest') throw new Error('Сначала войдите в свой аккаунт.');
+  await syncExclusive('admin-legacy-claim', async () => {
+    const claimed = JSON.parse(localStorage.getItem(`${LEGACY_CLAIM}:records`) || '{}') as Record<string, string>;
+    const records = await getAllWords('__legacy__');
+    if (owner !== progressOwner()) throw new Error('Аккаунт изменился');
+    for (const record of records) if (keys.includes(record.key) && !claimed[record.key] && record.dirty !== 'none') {
+      if (owner !== progressOwner()) throw new Error('Аккаунт изменился');
+      let conflict = false;
+      await mutateWordRecord(record.key, current => {
+        if (current && current.dirty !== 'none') { conflict = true; return current; }
+        return { ...record, revision: crypto.randomUUID(), attempts: 0, syncError: undefined, needsReview: false };
+      }, owner);
+      if (conflict) throw new Error('Для этого слова уже есть новая правка. Сначала завершите её синхронизацию; старая запись сохранена.');
+      claimed[record.key] = owner;
+      localStorage.setItem(`${LEGACY_CLAIM}:records`, JSON.stringify(claimed));
+    }
+  });
+}
+export async function unclaimedAdminDrafts(): Promise<LocalWordRecord[]> {
+  const claimed = JSON.parse(localStorage.getItem(`${LEGACY_CLAIM}:records`) || '{}') as Record<string, string>;
+  return (await legacyAdminDrafts()).filter(r => !claimed[r.key]);
+}
+export async function importLegacyCleanWords(owner = progressOwner()): Promise<void> {
+  const meta = await getMeta(owner);
+  if (meta.legacyImported) return;
+  const [words, legacyMeta] = await Promise.all([getAllWords('__legacy__'), getMeta('__legacy__')]);
+  if (owner !== progressOwner()) return;
+  for (const record of words) if (record.dirty === 'none') await mutateWordRecord(record.key, current => current ?? record, owner);
+  await setMeta({ ...legacyMeta, ...meta, legacyImported: true }, owner);
 }

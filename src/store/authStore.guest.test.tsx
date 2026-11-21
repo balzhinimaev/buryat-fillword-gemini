@@ -1,0 +1,21 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { cleanup, renderHook, waitFor } from '@testing-library/react';
+vi.mock('../config/offline', () => ({ OFFLINE: true, isNetOnline: () => true }));
+vi.mock('../hooks/useTelegram', () => ({ useTelegram: () => ({ initData: 'telegram-data', isReady: true, isTelegram: true }) }));
+import { useAuthStore } from './authStore';
+afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
+it('opens a local player in Telegram without a login request or server tokens', async () => {
+  localStorage.clear();
+  const fetchMock = vi.fn();
+  vi.stubGlobal('fetch', fetchMock);
+  const { result } = renderHook(() => useAuthStore());
+  expect(result.current.state.isCheckingSession).toBe(true);
+  await waitFor(() => expect(result.current.state.user?._id).toBe('offline_user'));
+  expect(result.current.state.isAuthenticated).toBe(true);
+  expect(result.current.state.onboardingCompleted).toBe(true);
+  expect(result.current.state.isCheckingSession).toBe(false);
+  expect(localStorage.getItem('auth_tokens')).toBeNull();
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(typeof result.current.passwordLogin).toBe('function');
+  expect(typeof result.current.login).toBe('function');
+});

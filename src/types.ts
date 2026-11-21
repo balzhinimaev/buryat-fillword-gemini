@@ -76,11 +76,13 @@ export interface GameState {
   selectedLevelPack: string | null; // выбранный пакет уровней
   selectedEndlessLevel: number | null; // выбранный уровень в бесконечном режиме
   selectedWordId: string | null; // выбранное слово для детальной страницы
+  selectedBookChapter?: string | null; // выбранная глава самоучителя английского
   selectedTextbookUnit: string | null; // выбранный урок учебника
   selectedLoreId: string | null; // выбранная статья народного учебника
   gameMode: GameMode; // текущий режим игры
   campaignResumeSlug: string | null; // slug уровня для сценария resume-first-flow
   campaignLandingView: 'chapters' | 'modules' | null; // какой раздел открыть в экране первой главы
+  campaignModuleEntry?: 'direct' | 'shelf' | null; // откуда открыт модуль; сохраняется при возврате из игры
   campaignPreferredModuleId: string | null; // id модуля, который нужно открыть сразу при входе в «Спецмодули»
   adminEditLevelNumber: number | null; // номер уровня для редактора (null = создание нового)
   adminEditDailyDate: string | null; // дата для редактора филлворда дня (null = создание нового, 'YYYY-MM-DD' = редактирование)
@@ -94,6 +96,7 @@ export interface GameState {
 
 export type Screen = 
   | 'menu' 
+  | 'gameCatalog' // Типы игр
   | 'gameMode' // Выбор режима игры
   | 'levels' // Категории (кампания)
   | 'levelPack' // Выбор уровня в пакете
@@ -118,6 +121,7 @@ export type Screen =
   | 'adminWordReview' // Панель проверки слов носителем (админ/модератор)
   | 'textbook' // Учебник бурятского (учебный план)
   | 'textbookLesson' // Урок учебника
+  | 'bookChapter' // Глава самоучителя английского
   | 'community' // Народный учебник: лента историй/фактов от сообщества
   | 'loreArticle' // Отдельная страница-статья народного учебника
   | 'support' // Поддержать проект

@@ -3,8 +3,8 @@
 // пользователей — кнопкой-ссылкой на игру. Ссылка несёт реф-код автора истории.
 import { buildReferralLinks } from './referral';
 
-const STORY_INVITE_URL = 'https://buryat-game.ru/app/story/story-invite-v2.png';
-const STORY_WIN_URL = 'https://buryat-game.ru/app/story/story-win-v2.png';
+const STORY_INVITE_URL = 'https://buryat-game.ru/webapp/story/story-invite-v3.png';
+const STORY_WIN_URL = 'https://buryat-game.ru/api/share/story.png';
 
 interface StoryWidgetLink {
   url: string;
@@ -53,7 +53,7 @@ export function shareInviteStory(refCode?: string | null): void {
 
 /** История с результатом уровня (из win-модалки) */
 export function shareWinStory(
-  opts: { stars?: number; wordsFound?: number; levelName?: string },
+  opts: { stars?: number; wordsFound?: number; levelName?: string; seconds?: number },
   refCode?: string | null,
 ): void {
   const wa = webApp();
@@ -62,8 +62,16 @@ export function shareWinStory(
   const star = opts.stars ? '⭐'.repeat(Math.max(1, Math.min(3, opts.stars))) : '';
   const what = opts.levelName ? `«${opts.levelName}»` : 'уровень';
   const words = opts.wordsFound ? `, ${opts.wordsFound} слов найдено` : '';
-  wa.shareToStory(STORY_WIN_URL, {
-    text: `Прошёл ${what} ${star}${words} — филлворд на бурятском!\nСможешь лучше? ${link}`,
+  const media = new URL(STORY_WIN_URL);
+  const bounded = (value: number | undefined, max: number) => String(Math.max(0, Math.min(max, Math.round(Number.isFinite(value) ? value! : 0))));
+  media.search = new URLSearchParams({
+    title: (opts.levelName || 'Филлворд').slice(0, 60),
+    words: bounded(opts.wordsFound, 999),
+    stars: bounded(opts.stars, 3),
+    seconds: bounded(opts.seconds, 86400),
+  }).toString();
+  wa.shareToStory(media.toString(), {
+    text: `Прошёл ${what} ${star}${words} — филлворд на бурятском!\nА сколько слов найдёшь ты? Прими вызов: ${link}`,
     widget_link: { url: link, name: 'Сыграть' },
   });
 }

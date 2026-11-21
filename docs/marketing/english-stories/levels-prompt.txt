@@ -1,0 +1,53 @@
+Edit the provided Burlive English Telegram Story poster into a more informative, beautifully typeset learning roadmap. Use the input as the visual style reference. Deliver ONE finished vertical 9:16 poster, preferably 1080x1920, ready to post as a Telegram Story.
+
+Preserve the premium editorial identity: deep forest-green lightly textured background, warm ivory typography, pale-lime accents, restrained book emblem, elegant high-contrast serif headline paired with perfectly legible sans-serif body text. Keep the BURLIVE wordmark and the same refined, educational mood. This is a finished flat poster, not a photographed mockup.
+
+IMPORTANT CHANGE: Replace the huge central decorative open book with four beautifully designed compact, vertically stacked roadmap cards for A1, A2, B1, B2. The level badges should be large and immediately scannable. Each card has a concise Russian heading plus one or two lines of topics. Subtle numbered/connected progression and a small book motif are welcome. INFORMATION HIERARCHY and mobile readability are paramount. No clutter, tiny text, giant decorative illustration, flags or fake app screenshots.
+
+Safe area: all important content must be inside x=85..995, y=160..1660 on a 1080x1920 canvas. Leave the top 160 pixels and bottom 260 pixels as quiet textured background for Telegram story overlays/link sticker. All content, including CTA, must fit within that safe area. Do not fill these margins with text.
+
+Exact text to typeset, no extra claims:
+Small brand:
+"BURLIVE"
+"Самоучитель в Telegram"
+
+Main two-line editorial headline:
+"АНГЛИЙСКИЙ"
+"ПО ШАГАМ"
+
+A slim lime accent label:
+"Темы от A1 до B2"
+
+Four roadmap cards in this order:
+Card 1:
+"A1 · Первые фразы"
+"Be, артикли, простые времена"
+
+Card 2:
+"A2 · Общение каждый день"
+"Планы, сравнения, Present Perfect"
+
+Card 3:
+"B1 · Связная речь"
+"Условия, пассив, косвенная речь"
+
+Card 4:
+"B2 · Точность и нюансы"
+"Wish, нереальное прошлое, modal perfect"
+
+Below the cards, a clear 3-column stats strip:
+"24" with label "главы"
+"420" with label "заданий"
+"24" with label "диалога"
+
+A concise benefit line:
+"Правила по-русски · Примеры · Практика"
+
+A small but still easily readable two-line scope note:
+"A1–B2 — ориентир сложности тем,"
+"не оценка владения языком."
+
+Pale-lime CTA:
+"Открой английский в Burlive"
+
+Precise Russian spelling and punctuation. B1 and B2 are Latin B, not Cyrillic. Text must be high-contrast, generously spaced and readable on a phone. Content must accurately say the book covers topics with this difficulty range, NOT that finishing it proves B2, offers certification, guarantees fluency, or assesses speaking/listening. No URL, QR code or Telegram username in the artwork. Preserve the visual polish of the reference while making the four learning stages the main visual feature.

@@ -1,3 +1,4 @@
+import { isAdditionalCourse } from '../courses/activeCourse';
 // Рефералка: захват пригласительного кода на старте (?ref=… в вебе,
 // startapp=ref_… в Telegram Mini App, #ref_… в VK Mini App) и заявка кода
 // после авторизации. Код хранится в localStorage до первого успешного claim.
@@ -11,7 +12,6 @@ const CLAIMED_KEY = 'burlive_ref_claimed';
 /** Вызвать как можно раньше на старте — до потери query-параметров */
 export function captureReferralCode(): void {
   try {
-    if (localStorage.getItem(CLAIMED_KEY)) return;
 
     let code = '';
     const qs = new URLSearchParams(window.location.search);
@@ -46,10 +46,11 @@ export function captureReferralCode(): void {
  * Успех и «бизнес-отказы» (чужая ошибка кода, старый аккаунт) снимают код,
  * сетевые ошибки оставляют его для следующей попытки.
  */
-export async function claimPendingReferral(): Promise<number> {
+export async function claimPendingReferral(userId = 'unknown'): Promise<number> {
+  if (isAdditionalCourse()) return 0;
   let code = '';
   try {
-    if (localStorage.getItem(CLAIMED_KEY)) return 0;
+    if (localStorage.getItem(`${CLAIMED_KEY}:${userId}`)) return 0;
     code = localStorage.getItem(PENDING_KEY) || '';
   } catch {
     return 0;
@@ -59,7 +60,7 @@ export async function claimPendingReferral(): Promise<number> {
   try {
     const res = await api.claimReferral(code);
     localStorage.removeItem(PENDING_KEY);
-    localStorage.setItem(CLAIMED_KEY, '1');
+    localStorage.setItem(`${CLAIMED_KEY}:${userId}`, '1');
     return res.alreadyClaimed ? 0 : res.xpGained;
   } catch (e) {
     const status = (e as { statusCode?: number })?.statusCode ?? 0;

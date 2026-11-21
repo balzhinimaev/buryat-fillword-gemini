@@ -1,3 +1,4 @@
+import TelegramReminders from '../components/TelegramReminders';
 import { courseTitle, isAdditionalCourse } from '../courses/activeCourse';
 // src/screens/SettingsScreen.tsx
 import React, { useEffect, useMemo, useState } from 'react';
@@ -54,9 +55,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
     // В офлайн-сборке перезагружаем, чтобы восстановить гостевую сессию.
     if (OFFLINE) window.location.reload();
   };
-  
+
   useBackButton(() => goBack());
-  
+
   const [showResetModal, setShowResetModal] = useState(false);
   const gameLang = useGameLang();
 
@@ -141,18 +142,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
         title="Настройки" 
         onBack={() => goBack()} 
       />
-      
+
       {/* Декоративный фон для тёмных тем */}
       {isDark && (
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/3 -left-32 w-80 h-80 bg-terra-500/5 rounded-full blur-3xl" />
+
+
         </div>
       )}
 
       {/* Header */}
-      <header className={cn("p-4 pb-6 relative z-10", isDark ? "" : "rounded-b-3xl shadow-lg", theme.header.bg, theme.header.text)}>
-        {isDark && <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl" />}
+      <header className={cn("p-4 pb-6 relative z-10", isDark ? "" : "border-b", theme.header.bg, theme.header.text)}>
+
         <div className="relative z-10 flex items-center gap-4">
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -232,7 +233,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
             </div>
             <span className={cn("font-semibold", theme.text.primary)}>Имя игрока</span>
           </div>
-          
+
           {editingName ? (
             <div className="space-y-2">
               <div className="flex gap-2">
@@ -253,7 +254,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
                   onClick={handleNameSave}
                   disabled={isSavingName}
                   className={cn(
-                    "px-4 py-2 bg-amber-500 text-white rounded-xl font-medium transition-colors",
+                    "px-4 py-2 ui-primary rounded-xl font-medium transition-colors",
                     isSavingName ? "opacity-70 cursor-not-allowed" : "hover:bg-amber-600"
                   )}
                 >
@@ -297,7 +298,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
               Звук и вибрация
             </span>
           </div>
-          
+
           <div className={cn(
             "rounded-2xl overflow-hidden",
             isDark 
@@ -337,7 +338,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
               Игровой процесс
             </span>
           </div>
-          
+
           <div className={cn(
             "rounded-2xl overflow-hidden",
             isDark 
@@ -388,7 +389,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
               <p className={cn("text-sm", theme.text.muted)}>Влияет на размер сетки и количество слов</p>
             </div>
           </div>
-          
+
           <DifficultySelector
             value={settings.difficulty}
             onChange={(d) => updateSettings({ difficulty: d })}
@@ -410,21 +411,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
               Уведомления
             </span>
           </div>
-          
+
           <div className={cn(
             "rounded-2xl overflow-hidden",
             isDark 
               ? cn(theme.backgrounds.card, "border", theme.borders.subtle)
               : "bg-white shadow-sm border border-stone-100"
           )}>
-            <ToggleSwitchThemed
+            {window.Telegram?.WebApp?.initData ? <TelegramReminders settings /> : <ToggleSwitchThemed
               enabled={settings.notificationsEnabled}
               onChange={(enabled) => updateSettings({ notificationsEnabled: enabled })}
               label="Напоминания"
               description="Получать уведомления о занятиях"
               isDark={isDark}
               theme={theme}
-            />
+            />}
           </div>
         </motion.div>
 
@@ -441,7 +442,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
               Конфиденциальность
             </span>
           </div>
-          
+
           <div className={cn(
             "rounded-2xl overflow-hidden",
             isDark 
@@ -574,7 +575,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ store }) => {
             </div>
             <span className={cn("font-semibold", theme.text.primary)}>Тема оформления</span>
           </div>
-          
+
           <div className="grid grid-cols-3 gap-3">
             {themeList.map((t) => {
               const isSelected = settings.theme === t.id;
@@ -713,7 +714,7 @@ const ToggleSwitchThemed: React.FC<ToggleSwitchThemedProps> = ({
       className={cn(
         'w-14 h-8 rounded-full p-1 transition-colors',
         enabled 
-          ? 'bg-amber-500' 
+          ? 'ui-accent-fill'
           : isDark ? 'bg-stone-700' : 'bg-stone-200'
       )}
     >
@@ -833,7 +834,7 @@ const DifficultySelector: React.FC<DifficultySelectorProps> = ({
               layoutId="difficulty-check"
               className={cn(
                 'absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center',
-                opt.id === 'easy' ? 'bg-emerald-500' : opt.id === 'medium' ? 'bg-amber-500' : 'bg-red-500'
+                opt.id === 'easy' ? 'bg-emerald-500' : opt.id === 'medium' ? 'ui-accent-fill' : 'bg-red-500'
               )}
               transition={{ type: 'spring', stiffness: 500, damping: 30 }}
             >

@@ -1,3 +1,5 @@
+import { useBackButton } from '../hooks/useTelegram';
+import { afterCompletedRound } from '../services/postGame';
 import { readClassicDraft, saveClassicDraft } from '../courses/classicDraft';
 import { courseGridRules, isAdditionalCourse } from '../courses/activeCourse';
 // src/screens/GameScreen.tsx
@@ -109,27 +111,27 @@ const FlippableWordChip = React.memo(({
   const [isRevealed, setIsRevealed] = useState(false);
   const [hasBeenClicked, setHasBeenClicked] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+
   const handleClick = () => {
     if (isFound) return;
-    
+
     if (isRevealed) {
       // Если уже раскрыто - скрываем
       setIsRevealed(false);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       return;
     }
-    
+
     setIsRevealed(true);
     setHasBeenClicked(true);
     onHint?.();
-    
+
     // Автоматически скрываем через 2 секунды
     timeoutRef.current = setTimeout(() => {
       setIsRevealed(false);
     }, 2000);
   };
-  
+
   // Очистка таймера при размонтировании или когда слово найдено
   useEffect(() => {
     if (isFound && timeoutRef.current) {
@@ -155,7 +157,7 @@ const FlippableWordChip = React.memo(({
       </div>
     );
   }
-  
+
   return (
     <motion.button
       onClick={handleClick}
@@ -168,7 +170,7 @@ const FlippableWordChip = React.memo(({
         !isRevealed && "hover:shadow-md hover:ring-2 hover:ring-amber-400/30 hover:-translate-y-0.5",
         isRevealed && "bg-gradient-to-r shadow-lg",
         isRevealed && (isDark 
-          ? "from-amber-500 to-orange-500 text-white shadow-amber-500/30" 
+          ? "from-amber-500 to-orange-500 text-white shadow-black/5"
           : "from-amber-400 to-orange-400 text-white shadow-orange-400/30"),
         "active:scale-95",
         showHintAnimation && "animate-[gentle-bounce_2s_ease-in-out_infinite]"
@@ -222,13 +224,13 @@ const LetterCell = React.memo(({
     if (!isFound || !neighbors) return undefined;
     const radius = '12px';
     const noRadius = '2px';
-    
+
     // top-left, top-right, bottom-right, bottom-left
     const tl = (!neighbors.top && !neighbors.left) ? radius : noRadius;
     const tr = (!neighbors.top && !neighbors.right) ? radius : noRadius;
     const br = (!neighbors.bottom && !neighbors.right) ? radius : noRadius;
     const bl = (!neighbors.bottom && !neighbors.left) ? radius : noRadius;
-    
+
     return `${tl} ${tr} ${br} ${bl}`;
   };
 
@@ -237,7 +239,7 @@ const LetterCell = React.memo(({
     if (!isFound || !neighbors) return undefined;
     const borderColor = styles.cell.found.borderColor;
     const borderWidth = '2px';
-    
+
     return {
       borderTop: neighbors.top ? 'none' : `${borderWidth} solid ${borderColor}`,
       borderBottom: neighbors.bottom ? 'none' : `${borderWidth} solid ${borderColor}`,
@@ -295,8 +297,8 @@ const LetterCell = React.memo(({
 export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const { state, navigate, goBack, replaceScreen, completeEndlessLevel, recordRoundPlayed, addToLeaderboard, selectEndlessLevel, navigateToLevelEditor, updateSettings } = store;
   const { state: authState, refreshUser } = useAuth();
-  const isAdmin = authState.user?.role === 'admin';
-  
+  const isAdmin = !isAdditionalCourse() && authState.user?.role === 'admin';
+
   // Определяем режим игры
   const isEndlessMode = state.gameMode === 'endless';
   const isDailyMode = state.gameMode === 'daily';
@@ -482,17 +484,17 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
     return () => { isMounted = false; };
   }, [isCampaignMode, campaignSlug]);
-  
+
   // Получаем текущий пакет для бесконечного режима
   const currentPack = isEndlessMode 
     ? LEVEL_PACKS.find(p => endlessLevel >= p.levelStart && endlessLevel <= p.levelEnd) || LEVEL_PACKS[0]
     : null;
-  
+
   // Получаем тему
   const { themeId, isDark } = useTheme();
   const styles = useMemo(() => getGameStyles(themeId), [themeId]);
   const wordColors = useMemo(() => getWordColors(isDark), [isDark]);
-  
+
   const [gridLetters, setGridLetters] = useState<string[][]>([]);
   const [gridSize, setGridSize] = useState(5);
   const [placedWords, setPlacedWords] = useState<PlacedWord[]>([]);
@@ -509,7 +511,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const [foundCellsRegistry, setFoundCellsRegistry] = useState<Map<string, FoundCellInfo>>(new Map());
   const [manualHintCells, setManualHintCells] = useState<Set<string>>(new Set());
   const manualHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+
   const [showWinModal, setShowWinModal] = useState(false);
   const [showTimerOnboardingModal, setShowTimerOnboardingModal] = useState(false);
   const [time, setTime] = useState(0);
@@ -769,14 +771,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       setShowTimerOnboardingModal(false);
     }
   }, [shouldAskTimerOnFirstLesson]);
-  
+
   // Очистка таймера toast при размонтировании
   useEffect(() => {
     return () => {
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
   }, []);
-  
+
   // Показать toast-уведомление
   const showToast = useCallback((message: string) => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -901,6 +903,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
           mistakes: mistakes > 0 ? mistakes : undefined,
         });
         setDailyResult(result);
+        afterCompletedRound(result.earnedStars ?? 0);
         trackGameEvent('daily_completed', 'daily_completed');
 
         // Локальная статистика (слова/XP/серия дней) — работает и без сети
@@ -934,6 +937,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
           mistakes: mistakes > 0 ? mistakes : undefined,
         });
         setLevelModeResult(result);
+        afterCompletedRound(result.earnedStars ?? 0);
         trackGameEvent('level_completed', 'level_completed');
 
         // Обновляем локальный прогресс для UI-совместимости
@@ -972,6 +976,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         mistakes: mistakes > 0 ? mistakes : undefined,
       });
       setCampaignResult(result);
+        afterCompletedRound(result.earnedStars ?? 0);
       trackGameEvent('campaign_level_completed', 'campaign_level_completed');
 
       // Локальная статистика (слова/XP/серия дней) — работает и без сети
@@ -1063,13 +1068,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
     if (!matchedWord && selectedPath.length > 0) {
       // Получаем строку из выбранных букв
       const selectedLetters = selectedPath.map(p => gridLetters[p.r][p.c]).join('').toUpperCase();
-      
+
       // Ищем слово с такими же буквами среди незнайденных слов
       const matchingWordByLetters = placedWords.find(pw => 
         !foundWordIds.has(pw.word.bur) && 
         pw.word.bur.toUpperCase() === selectedLetters
       );
-      
+
       if (matchingWordByLetters) {
         // Пользователь правильно составил слово, но использовал не те клетки
         showToast(`Слово "${matchingWordByLetters.word.bur}" верное! Но найдите его в другом месте на поле 🔍`);
@@ -1095,23 +1100,23 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
       const now = Date.now();
       const timeSinceLast = now - lastFoundTimeRef.current;
       lastFoundTimeRef.current = now;
-      
+
       const newCombo = timeSinceLast < 5000 ? combo + 1 : 1;
       setCombo(newCombo);
-      
+
       const basePoints = matchedWord.word.bur.length * 10;
       const comboBonus = newCombo > 1 ? basePoints * (newCombo - 1) * 0.5 : 0;
       const wordScore = Math.round(basePoints + comboBonus);
       setScore(s => s + wordScore);
-      
+
       const newFoundWordIds = new Set(foundWordIds);
       newFoundWordIds.add(wordId);
       setFoundWordIds(newFoundWordIds);
-      
+
       // Сохраняем индекс слова и информацию о соседях для каждой клетки
       const wordIndex = placedWords.findIndex(pw => pw.word.bur === wordId);
       const pathSet = new Set(matchedWord.path.map(p => `${p.r}-${p.c}`));
-      
+
       setFoundCellsRegistry(prev => {
         const newMap = new Map(prev);
         matchedWord.path.forEach(p => {
@@ -1126,7 +1131,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
         });
         return newMap;
       });
-      
+
       if (state.settings.vibrationEnabled && navigator.vibrate) {
         navigator.vibrate(50);
       }
@@ -1191,7 +1196,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
       // Минимальное расстояние для активации (половина размера клетки)
       const threshold = lastRect.width * 0.3;
-      
+
       // Определяем преобладающее направление
       let targetR = lastCell.r;
       let targetC = lastCell.c;
@@ -1250,14 +1255,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
       setSelectedPath(prevPath => {
         if (prevPath.length === 0) return prevPath;
-        
+
         const last = prevPath[prevPath.length - 1];
         const foundCell = findCellAtPoint(clientX, clientY, last);
-        
+
         if (!foundCell) return prevPath;
-        
+
         const { r, c } = foundCell;
-        
+
         // Проверяем возврат назад
         if (prevPath.length > 1) {
           const preLast = prevPath[prevPath.length - 2];
@@ -1268,13 +1273,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
 
         // Если та же клетка - ничего не делаем
         if (last.r === r && last.c === c) return prevPath;
-        
+
         // Проверяем соседство
         const isNeighbor = Math.abs(last.r - r) + Math.abs(last.c - c) === 1;
-        
+
         const isAlreadySelected = prevPath.some(p => p.r === r && p.c === c);
         const isFound = foundCellsRegistry.has(`${r}-${c}`);
-        
+
         if (isNeighbor && !isAlreadySelected && !isFound) {
           const now = Date.now();
           if (now - lastWoodTapAtRef.current > 35) {
@@ -1328,7 +1333,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   // Вычисляем клетки-подсказки (первые буквы незнайденных слов)
   const hintCells = useMemo(() => {
     if (!state.settings.showHints) return new Set<string>();
-    
+
     const hints = new Set<string>();
     placedWords.forEach(pw => {
       if (!foundWordIds.has(pw.word.bur) && pw.path.length > 0) {
@@ -1388,13 +1393,13 @@ export const GameScreen: React.FC<GameScreenProps> = ({ store }) => {
   const shareResult = async () => {
     const stars = serverStars ?? (foundWordIds.size === placedWords.length ? 3 : 
           foundWordIds.size >= placedWords.length * 0.7 ? 2 : 1);
-    
+
     const levelInfo = isDailyMode
       ? `📅 Филлворд дня ${dailyData?.date ?? ''}`
       : isEndlessMode 
         ? `🎮 Уровень ${endlessLevel} ${currentPack?.emoji || ''}` 
         : `📚 ${campaignLevel?.name ?? campaignSlug ?? ''}`;
-    
+
     const text = `🎮 Бурятский Филлворд
 ${levelInfo}
 ⭐ ${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}
@@ -1469,6 +1474,8 @@ ${levelInfo}
 
     goBack();
   }, [goBack, isDailyMode, replaceScreen, trackDailyAbandonedIfNeeded]);
+
+  useBackButton(() => handleBack());
 
   // Проверка на валидность данных для игры
   if (isCampaignMode) {
@@ -1558,7 +1565,7 @@ ${levelInfo}
       );
     }
   }
-  
+
   // Level Mode: загрузка / ошибка
   if (isEndlessMode && levelModeLoading) {
     return (
@@ -1654,14 +1661,14 @@ ${levelInfo}
       </div>
     );
   }
-  
+
   // Заголовок для текущего уровня
   const levelTitle = isDailyMode
     ? 'Филлворд дня'
     : isEndlessMode 
       ? `Уровень ${endlessLevel}` 
       : (campaignLevel?.name ?? campaignSlug ?? '');
-  
+
   const levelEmoji = isDailyMode
     ? '📅'
     : isEndlessMode 
@@ -1673,12 +1680,13 @@ ${levelInfo}
       "min-h-[100dvh] font-sans flex flex-col max-w-md mx-auto relative overflow-hidden select-none",
       styles.page.gradient
     )}>
-      
+
       {/* Header */}
       <header className={cn("p-4 z-20", styles.header.background, styles.header.border)}>
         <div className="flex justify-between items-center mb-3">
           <button 
             onClick={() => handleBack()}
+            aria-label="Назад"
             className={cn(
               "p-2 rounded-xl transition-all duration-200",
               styles.headerButton.background,
@@ -1688,12 +1696,12 @@ ${levelInfo}
           >
             <ArrowLeft size={20} />
           </button>
-          
+
           <div className="flex items-center gap-2">
             <span className="text-2xl">{levelEmoji}</span>
             <h1 className={cn("text-lg font-bold", styles.categoryTitle.text)}>{levelTitle}</h1>
           </div>
-          
+
           <div className="flex items-center gap-1.5">
           {/* Admin: кнопка редактирования уровня */}
           {isAdmin && isEndlessMode && (
@@ -1709,7 +1717,7 @@ ${levelInfo}
             </button>
           )}
 
-          {!isDailyMode && (
+          {!isDailyMode && !isAdditionalCourse() && (
             <button
               onClick={() => setReportOpen(true)}
               className={cn(
@@ -1745,7 +1753,7 @@ ${levelInfo}
           </button>
           </div>
         </div>
-        
+
         {/* Жалоба на уровень (перевод/ошибки) */}
         {reportOpen && (
           <ReportIssueModal
@@ -1776,7 +1784,7 @@ ${levelInfo}
               </span>
             </div>
           )}
-          
+
           {combo > 1 && (
             <div className={cn(
               "flex items-center gap-1 rounded-xl px-3 py-2 animate-[pop_0.2s_ease-out]",
@@ -1787,7 +1795,7 @@ ${levelInfo}
               <span className="font-bold">x{combo}</span>
             </div>
           )}
-          
+
           <div className={cn(
             "flex items-center gap-2 rounded-xl px-3 py-2",
             styles.trophyBadge.background
@@ -1796,7 +1804,7 @@ ${levelInfo}
             <span className={cn("font-bold", styles.trophyBadge.text)}>{score}</span>
           </div>
         </div>
-        
+
         {/* Progress */}
         <div className="mt-3 flex items-center gap-3">
           <div className={cn("flex-1 h-3 rounded-full overflow-hidden", styles.progress.track)}>
@@ -1976,7 +1984,7 @@ ${levelInfo}
               .slice(0, idx)
               .filter(p => !foundWordIds.has(p.word.bur))
               .length;
-            
+
             return (
               <FlippableWordChip
                 key={pw.word.bur}
@@ -2083,7 +2091,8 @@ ${levelInfo}
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }}
-            className={cn("absolute inset-0 z-50 flex flex-col", styles.winModal.overlay)}
+            role="dialog" aria-modal="true" aria-label="Результат игры"
+            className={cn("fixed inset-0 z-50 flex flex-col", styles.winModal.overlay)}
           >
             <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y">
               <div className="min-h-full flex items-center justify-center p-4 py-6">
@@ -2092,7 +2101,7 @@ ${levelInfo}
                   animate={{ scale: 1, y: 0 }}
                   transition={{ type: "spring", duration: 0.5, bounce: 0.2 }}
                   className={cn(
-                    "rounded-2xl w-full max-w-sm shadow-2xl relative overflow-hidden",
+                    "rounded-2xl w-full max-w-sm shadow-2xl relative overflow-hidden flex flex-col max-h-[calc(100dvh-3rem-env(safe-area-inset-bottom,0px))]",
                     styles.winModal.cardGradient,
                     styles.winModal.cardBorder
                   )}
@@ -2102,7 +2111,8 @@ ${levelInfo}
                     <div className={cn("absolute -top-10 -left-10 w-40 h-40 rounded-full blur-3xl", styles.winModal.decorOrb1)} />
                     <div className={cn("absolute -bottom-10 -right-10 w-32 h-32 rounded-full blur-3xl", styles.winModal.decorOrb2)} />
                   </div>
-                  
+
+                  <div className="min-h-0 overflow-y-auto overscroll-contain touch-pan-y">
                   {/* Компактный хедер с трофеем и заголовком в одну линию */}
                   <div className="relative z-10 px-5 pt-5 pb-3">
                     <motion.div
@@ -2126,12 +2136,12 @@ ${levelInfo}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <h2 className={cn("text-2xl font-bold", styles.winModal.titleGradient)}>
-                            Бэрхэ!
+                            {calculateStars() > 0 ? 'Бэрхэ!' : 'Попробуем ещё?'}
                           </h2>
                           <Sparkles size={16} className={styles.winModal.titleIcon} />
                         </div>
                         <p className={cn("text-sm truncate", styles.winModal.subtitle)}>
-                          Отлично справились!
+                          {calculateStars() > 0 ? 'Отлично справились!' : 'Каждая попытка помогает запомнить слова.'}
                         </p>
                       </div>
                       <motion.div
@@ -2191,7 +2201,7 @@ ${levelInfo}
 
                   {/* Мини-рейтинг недели: ваша позиция после прохождения */}
                   {!OFFLINE && !isAdditionalCourse() && <PostGameRating onOpenLeaderboard={() => navigate('leaderboard')} />}
-                  
+
                   {/* Daily: итоги + рейтинг дня */}
                   {isDailyMode && dailyResult && (
                     <motion.div
@@ -2493,81 +2503,6 @@ ${levelInfo}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.45 }}
                   >
-                    {/* Кнопка следующего уровня / назад для daily */}
-                    {isDailyMode ? (
-                      <button
-                        onClick={() => handleBack('win_back')}
-                        className={cn(
-                          "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
-                          `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
-                        )}
-                      >
-                        <span>К выбору режима</span>
-                        <ChevronRight size={18} />
-                      </button>
-                    ) : isEndlessMode ? (
-                      (() => {
-                        const nextLevel = endlessLevel + 1;
-                        const canGoNext = levelModeResult?.nextLevelUnlocked === true;
-                        
-                        return (
-                          <button 
-                            onClick={() => canGoNext && selectEndlessLevel(nextLevel)}
-                            disabled={!canGoNext}
-                            className={cn(
-                              "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
-                              canGoNext 
-                                ? `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
-                                : styles.winModal.nextLevelButton.disabled
-                            )}
-                          >
-                            {canGoNext ? (
-                              <>
-                                <span>Уровень {nextLevel}</span>
-                                <ChevronRight size={18} />
-                              </>
-                            ) : (
-                              <>
-                                <Lock size={16} />
-                                <span>Нужно найти больше слов</span>
-                              </>
-                            )}
-                          </button>
-                        );
-                      })()
-                    ) : (
-                      (() => {
-                        const nextSlug = campaignResult?.unlockedLevelSlugs?.[0];
-                        if (nextSlug) {
-                          return (
-                            <button
-                              onClick={() => store.selectCategory(nextSlug)}
-                              className={cn(
-                                "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
-                                `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
-                              )}
-                            >
-                              <span>Следующий уровень</span>
-                              <ChevronRight size={18} />
-                            </button>
-                          );
-                        }
-
-                        return (
-                          <button
-                            onClick={() => navigate('levels')}
-                            className={cn(
-                              "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
-                              `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
-                            )}
-                          >
-                            <span>К списку уровней</span>
-                            <ChevronRight size={18} />
-                          </button>
-                        );
-                      })()
-                    )}
-                    
                     <div className="flex gap-2">
                       <button 
                         onClick={() => {
@@ -2609,6 +2544,7 @@ ${levelInfo}
                         onClick={() => shareWinStory({
                           stars: calculateStars(),
                           wordsFound: foundWordIds.size,
+                          seconds: time,
                           levelName: isDailyMode
                             ? 'Филлворд дня'
                             : isEndlessMode
@@ -2617,7 +2553,7 @@ ${levelInfo}
                         }, authState.user?._id)}
                         className={cn(
                           "w-full py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200 text-sm",
-                          "bg-gradient-to-r from-amber-500 to-orange-500 text-white active:opacity-90"
+                          "ui-accent-fill text-white active:opacity-90"
                         )}
                       >
                         <Camera size={15} />
@@ -2650,6 +2586,85 @@ ${levelInfo}
                       ← {isDailyMode ? 'К выбору режима' : isEndlessMode ? 'К списку уровней' : 'К категориям'}
                     </button>
                   </motion.div>
+                  </div>
+                  <div className={cn("relative z-10 shrink-0 px-5 pt-3 pb-3 border-t border-current/10", styles.winModal.cardGradient)}>
+                    {/* Кнопка следующего уровня / назад для daily */}
+                    {isDailyMode ? (
+                      <button
+                        onClick={() => handleBack('win_back')}
+                        className={cn(
+                          "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                          `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
+                        )}
+                      >
+                        <span>К выбору режима</span>
+                        <ChevronRight size={18} />
+                      </button>
+                    ) : isEndlessMode ? (
+                      (() => {
+                        const nextLevel = endlessLevel + 1;
+                        const canGoNext = levelModeResult?.nextLevelUnlocked === true;
+
+                        return (
+                          <button
+                            onClick={() => canGoNext && selectEndlessLevel(nextLevel)}
+                            disabled={!canGoNext}
+                            className={cn(
+                              "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                              canGoNext
+                                ? `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
+                                : styles.winModal.nextLevelButton.disabled
+                            )}
+                          >
+                            {canGoNext ? (
+                              <>
+                                <span>Уровень {nextLevel}</span>
+                                <ChevronRight size={18} />
+                              </>
+                            ) : (
+                              <>
+                                <Lock size={16} />
+                                <span>Нужно найти больше слов</span>
+                              </>
+                            )}
+                          </button>
+                        );
+                      })()
+                    ) : (
+                      (() => {
+                        const nextSlug = campaignResult?.unlockedLevelSlugs?.[0];
+                        if (nextSlug) {
+                          return (
+                            <button
+                              onClick={() => store.selectCategory(nextSlug)}
+                              className={cn(
+                                "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                                `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
+                              )}
+                            >
+                              <span>Следующий уровень</span>
+                              <ChevronRight size={18} />
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <button
+                            onClick={() => replaceScreen('levels')}
+                            className={cn(
+                              "w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-200",
+                              `${styles.winModal.nextLevelButton.enabled} ${styles.winModal.nextLevelButton.enabledShadow} hover:scale-[1.02] active:scale-[0.98]`
+                            )}
+                          >
+                            <span>К списку уровней</span>
+                            <ChevronRight size={18} />
+                          </button>
+                        );
+                      })()
+                    )}
+
+                    <button type="button" onClick={() => navigate('menu')} className={cn("w-full min-h-11 text-sm font-medium", styles.winModal.backLink.text)}>На главный экран</button>
+                  </div>
                 </motion.div>
               </div>
             </div>

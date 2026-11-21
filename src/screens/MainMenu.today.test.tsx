@@ -10,7 +10,7 @@ vi.mock('../hooks/useTelegram', () => ({ useTelegram: () => ({ openLink: vi.fn()
 vi.mock('../utils/analytics', () => ({ trackAnalyticsEventNonBlocking: vi.fn() }));
 const makeStore = () => ({
   state: { campaignResumeSlug: null as string | null, settings: { hasSeenHowTo: true }, stats: { totalStars: 3, currentStreak: 1, level: 1, lastPlayedDate: null as string | null } },
-  xpProgress: 0.2, xpToNextLevel: 30, navigate: vi.fn(), navigateToTextbookUnit: vi.fn(), setCampaignLandingView: vi.fn(), selectCategory: vi.fn(), setCampaignResumeSlug: vi.fn(), startDailyGame: vi.fn(),
+  updateSettings: vi.fn(), xpProgress: 0.2, xpToNextLevel: 30, navigate: vi.fn(), navigateToTextbookUnit: vi.fn(), setCampaignLandingView: vi.fn(), selectCategory: vi.fn(), setCampaignResumeSlug: vi.fn(), startDailyGame: vi.fn(),
 });
 beforeEach(() => {
   localStorage.clear();
@@ -44,8 +44,8 @@ describe('Today home', () => {
     const store = await show();
     fireEvent.click(screen.getByRole('button', { name: /Продолжить занятие/ }));
     expect(store.navigateToTextbookUnit).toHaveBeenCalledWith(textbook.getTextbook().units[0].slug);
-    fireEvent.click(screen.getByRole('button', { name: 'Все игровые режимы' }));
-    expect(store.navigate).toHaveBeenCalledWith('gameMode');
+    fireEvent.click(screen.getByRole('button', { name: 'Выбрать тип игры' }));
+    expect(store.navigate).toHaveBeenCalledWith('gameCatalog');
   });
   it('updates restored course progress without a reload', async () => {
     await show();
@@ -74,8 +74,8 @@ describe('Today home', () => {
   });
   it('offers visible play and daily actions without opening More', async () => {
     const store = await show();
-    fireEvent.click(screen.getByRole('button', { name: 'Все игровые режимы' }));
-    expect(store.navigate).toHaveBeenCalledWith('gameMode');
+    fireEvent.click(screen.getByRole('button', { name: 'Выбрать тип игры' }));
+    expect(store.navigate).toHaveBeenCalledWith('gameCatalog');
     fireEvent.click(screen.getByRole('button', { name: /Филворд дня/ }));
     expect(store.startDailyGame).toHaveBeenCalledOnce();
   });
@@ -94,4 +94,31 @@ describe('Today home', () => {
     await show(store);
     expect(screen.getByText('Цель дня выполнена')).toBeInTheDocument();
   });
+});
+
+it('offers theme selection between settings and profile using the existing settings store', async () => {
+  const store = await show();
+  const trigger = screen.getByRole('button', {name: 'Сменить тему'});
+  expect(trigger.previousElementSibling).toBeNull();
+  expect(trigger.parentElement?.previousElementSibling).toBe(screen.getByRole('button', {name: 'Открыть настройки'}));
+  expect(trigger.parentElement?.nextElementSibling).toBe(screen.getByRole('button', {name: 'Открыть профиль'}));
+  fireEvent.click(trigger);
+  expect(screen.getByRole('radio', {name: 'Степь'})).toBeChecked();
+  fireEvent.click(screen.getByRole('radio', {name: 'Светлая'}));
+  expect(store.updateSettings).toHaveBeenCalledWith({theme: 'light'});
+  expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  expect(trigger).toHaveFocus();
+  expect(store.navigate).not.toHaveBeenCalled();
+});
+it('closes theme picker with Escape or an outside click without changing settings', async () => {
+  const store = await show();
+  const trigger = screen.getByRole('button', {name: 'Сменить тему'});
+  fireEvent.click(trigger);
+  fireEvent.keyDown(document, {key:'Escape'});
+  expect(trigger).toHaveFocus();
+  expect(screen.queryByRole('group', {name:'Тема оформления'})).not.toBeInTheDocument();
+  fireEvent.click(trigger);
+  fireEvent.pointerDown(document.body);
+  expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  expect(store.updateSettings).not.toHaveBeenCalled();
 });

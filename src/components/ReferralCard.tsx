@@ -65,7 +65,7 @@ export const ReferralCard: React.FC = () => {
         <div className="flex-1 min-w-0">
           <div className={cn('text-sm font-bold', theme.text.primary)}>Пригласи друга</div>
           <div className={cn('text-[11px]', theme.text.dimmed)}>
-            +{data.inviterXp} XP тебе и +{data.inviteeXp} XP другу за вход по ссылке
+            +{data.inviterXp} XP тебе и +{data.inviteeXp} XP другу после первого пройденного уровня друга
           </div>
         </div>
         <span className={cn(
@@ -113,7 +113,7 @@ export const ReferralCard: React.FC = () => {
           <button
             type="button"
             onClick={() => void shareReferral(data.code)}
-            className="flex-1 px-3 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold flex items-center justify-center gap-1.5 active:bg-amber-600"
+            className="flex-1 px-3 py-2.5 rounded-xl ui-primary text-sm font-bold flex items-center justify-center gap-1.5 active:bg-amber-600"
           >
             <Share2 size={15} /> Поделиться в VK
           </button>
@@ -122,7 +122,7 @@ export const ReferralCard: React.FC = () => {
             href={tgShare}
             target="_blank"
             rel="noreferrer"
-            className="flex-1 px-3 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold flex items-center justify-center gap-1.5 active:bg-amber-600"
+            className="flex-1 px-3 py-2.5 rounded-xl ui-primary text-sm font-bold flex items-center justify-center gap-1.5 active:bg-amber-600"
           >
             <Send size={15} /> Позвать в Telegram
           </a>

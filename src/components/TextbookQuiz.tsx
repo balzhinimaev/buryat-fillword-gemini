@@ -115,7 +115,7 @@ export const TextbookQuiz: React.FC<Props> = ({ title, makeQuestions, saveSlug, 
             </div>
             <div className="h-1.5 rounded-full bg-stone-500/20 mb-5 overflow-hidden">
               <motion.div
-                className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full"
+                className="h-full ui-accent-fill rounded-full"
                 animate={{ width: `${(qi / quiz.length) * 100}%` }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
               />

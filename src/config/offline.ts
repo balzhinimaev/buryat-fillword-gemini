@@ -1,6 +1,8 @@
+import { GUEST_MODE } from './accessMode';
+
 // Флаг офлайн-способной сборки (нативное приложение со вшитым контентом).
 // Включается на этапе сборки через VITE_OFFLINE_MODE=true (build:android).
-export const OFFLINE: boolean = import.meta.env.VITE_OFFLINE_MODE === 'true';
+export const OFFLINE: boolean = import.meta.env.VITE_OFFLINE_MODE === 'true' || GUEST_MODE;
 
 // Runtime-проверка сети. В офлайн-сборке локальные данные — источник истины,
 // а сеть используется для фоновой синхронизации и онлайн-разделов (лидерборды и т.п.).

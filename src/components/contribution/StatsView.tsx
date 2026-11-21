@@ -270,7 +270,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
                 {/* Позиция */}
                 <div className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0",
-                  index === 0 ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30' : 
+                  index === 0 ? 'ui-accent-fill text-white shadow-lg shadow-black/5' :
                   index === 1 ? 'bg-gradient-to-br from-stone-300 to-stone-400 text-white' : 
                   index === 2 ? 'bg-gradient-to-br from-orange-600 to-orange-700 text-white' : 
                   isDark ? 'bg-stone-700 text-stone-400' : 'bg-stone-200 text-stone-600'
@@ -279,7 +279,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
                 </div>
                 
                 {/* Аватар */}
-                <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-amber-400 to-orange-500 p-0.5">
+                <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 ui-accent-fill p-0.5">
                   {keeper.photoUrl ? (
                     <img 
                       src={keeper.photoUrl} 

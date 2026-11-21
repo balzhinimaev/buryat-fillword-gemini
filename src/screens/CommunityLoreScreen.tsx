@@ -17,6 +17,7 @@ import {
 import { cn } from '../utils/cn';
 import { useTheme } from '../theme/ThemeContext';
 import { useAuth } from '../store/authStore';
+import { useBackButton } from '../hooks/useTelegram';
 import type { GameStore } from '../store/gameStore';
 import { getCommunityLore, voteLoreItem, type LoreItem, type LoreType } from '../services/api';
 import { getTextbook, globalWeeklyPrompt } from '../services/textbook';
@@ -52,6 +53,11 @@ export const CommunityLoreScreen: React.FC<Props> = ({ store }) => {
   const [filter, setFilter] = useState<'all' | LoreType>('all');
   const [votingId, setVotingId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+
+  useBackButton(() => {
+    if (formOpen) setFormOpen(false);
+    else store.goBack();
+  });
 
   // slug урока → короткое название (для тега «к уроку …» и перехода)
   const lessonTitles = useMemo(() => {
@@ -96,8 +102,8 @@ export const CommunityLoreScreen: React.FC<Props> = ({ store }) => {
   return (
     <div className={cn('min-h-screen flex flex-col', theme.backgrounds.primaryGradient)}>
       {/* Шапка */}
-      <header className={cn('relative overflow-hidden p-4 pb-5', isDark ? '' : 'rounded-b-3xl shadow-lg', theme.header.bg, theme.header.text)}>
-        <div className="absolute -top-12 -right-8 w-40 h-40 rounded-full bg-amber-500/15 blur-2xl pointer-events-none" />
+      <header className={cn('relative overflow-hidden p-4 pb-5', isDark ? '' : 'border-b', theme.header.bg, theme.header.text)}>
+
         <div className="flex items-center gap-2">
           <button onClick={store.goBack} aria-label="Назад" className="p-2 -ml-2 rounded-xl active:bg-white/10">
             <ArrowLeft size={22} />
@@ -123,7 +129,7 @@ export const CommunityLoreScreen: React.FC<Props> = ({ store }) => {
               isDark ? 'bg-gradient-to-br from-amber-500/[0.12] to-transparent border-amber-500/30' : 'bg-gradient-to-br from-amber-50 to-white border-amber-200',
             )}
           >
-            <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-amber-400/15 blur-2xl pointer-events-none" />
+
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-amber-500" />
               <span className={cn('text-[10px] font-bold uppercase tracking-wider', isDark ? 'text-amber-400' : 'text-amber-600')}>Вопрос недели</span>
@@ -146,7 +152,7 @@ export const CommunityLoreScreen: React.FC<Props> = ({ store }) => {
                 className={cn(
                   'px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition',
                   filter === f.id
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow'
+                    ? 'ui-accent-fill text-white shadow'
                     : isDark ? 'bg-white/5 text-stone-400' : 'bg-stone-100 text-stone-500',
                 )}
               >
@@ -188,17 +194,17 @@ export const CommunityLoreScreen: React.FC<Props> = ({ store }) => {
                     'relative overflow-hidden rounded-2xl px-4 py-3.5 border cursor-pointer active:scale-[0.99] transition-transform',
                     item.featured
                       ? isDark ? 'bg-gradient-to-br from-amber-500/[0.1] to-transparent border-amber-500/30' : 'bg-gradient-to-br from-amber-50 to-white border-amber-200'
-                      : isDark ? 'bg-stone-800/60 border-stone-700/50' : 'bg-white border-stone-100 shadow-sm',
+                      : isDark ? 'ui-card border-stone-700/50' : 'bg-white border-stone-100 shadow-sm',
                   )}
                 >
-                  {item.featured && <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-amber-400/15 blur-2xl pointer-events-none" />}
+
 
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className={cn('inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-[3px] rounded-md', isDark ? meta.chip : meta.chipLight)}>
                       <TypeIcon size={10} /> {meta.label}
                     </span>
                     {item.featured && (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-[3px] rounded-md bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm">
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-[3px] rounded-md ui-accent-fill text-white shadow-sm">
                         <Pin size={9} /> выбор редакции
                       </span>
                     )}
@@ -271,7 +277,7 @@ export const CommunityLoreScreen: React.FC<Props> = ({ store }) => {
         <button
           type="button"
           onClick={openContribute}
-          className="pointer-events-auto w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold flex items-center justify-center gap-2 active:scale-[0.99] transition shadow-lg shadow-amber-500/25"
+          className="pointer-events-auto w-full py-3.5 rounded-2xl ui-accent-fill text-white font-bold flex items-center justify-center gap-2 active:scale-[0.99] transition shadow-lg shadow-black/5"
         >
           <ScrollText size={16} /> Поделиться своей историей
         </button>

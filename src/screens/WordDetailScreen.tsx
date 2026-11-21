@@ -1,3 +1,5 @@
+import { supportsWordCommunity } from '../courses/access';
+import { getStoredTokens } from '../services/api';
 // src/screens/WordDetailScreen.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -186,7 +188,8 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
   const { state: authState } = useAuth();
   const wordId = state.selectedWordId;
   const currentUserId = authState.user?._id ?? null;
-  const isAuthenticated = authState.isAuthenticated;
+  const networkWord = supportsWordCommunity(wordId);
+  const isAuthenticated = authState.isAuthenticated && !!getStoredTokens()?.refresh_token;
 
   useBackButton(() => goBack());
 
@@ -289,7 +292,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
         : prev,
     );
   }, []);
-  const canModerate = userRole === 'moderator' || userRole === 'admin';
+  const canModerate = networkWord && isAuthenticated && (userRole === 'moderator' || userRole === 'admin');
   const [editingWord, setEditingWord] = useState(false);
   const [reportingWord, setReportingWord] = useState(false);
 
@@ -393,12 +396,12 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
 
       {/* Декор */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[500px] h-[400px] bg-gradient-to-b from-steppe-500/8 via-terra-500/4 to-transparent rounded-full blur-3xl" />
-        <div className="absolute bottom-1/3 -right-20 w-48 h-48 bg-terra-500/5 rounded-full blur-3xl" />
+
+
       </div>
 
       {/* Хедер */}
-      <header className={cn(theme.header.bg, theme.header.text, 'relative z-10 p-4 pb-6 rounded-b-3xl shadow-lg')}>
+      <header className={cn(theme.header.bg, theme.header.text, 'relative z-10 p-4 pb-6 border-b')}>
         <div className="flex items-center gap-3">
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -500,7 +503,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                   </div>
 
                   {/* Обычный пользователь может предложить свою озвучку (уйдёт на модерацию) */}
-                  {!canModerate && authState.isAuthenticated && (
+                  {networkWord && !canModerate && isAuthenticated && (
                     <SuggestPronunciation wordId={word._id} />
                   )}
 
@@ -530,7 +533,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                       onClose={() => setReportingWord(false)}
                     />
                   )}
-                  {isAuthenticated && word.contributor?.id !== currentUserId && (
+                  {networkWord && isAuthenticated && word.contributor?.id !== currentUserId && (
                     <button
                       type="button"
                       onClick={() => setReportingWord(true)}
@@ -542,7 +545,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                       🚩 Пожаловаться
                     </button>
                   )}
-                  {(canModerate || (currentUserId && word.contributor?.id === currentUserId)) && (
+                  {networkWord && isAuthenticated && (canModerate || (currentUserId && word.contributor?.id === currentUserId)) && (
                     <button
                       type="button"
                       onClick={() => setEditingWord(true)}
@@ -610,7 +613,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
             {/* ═══════════════════════════════
                2. ГОЛОСОВАНИЕ
                ═══════════════════════════════ */}
-            <Card isDark={isDark} delay={0.05}>
+            {networkWord && <Card isDark={isDark} delay={0.05}>
               <div className="p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <span className={cn('text-[11px] font-semibold uppercase tracking-wider', theme.text.dimmed)}>
@@ -689,7 +692,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                   </span>
                 </div>
               </div>
-            </Card>
+            </Card>}
 
             {/* ═══════════════════════════════
                3. ПРИМЕР ИСПОЛЬЗОВАНИЯ
@@ -777,7 +780,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
             {/* ═══════════════════════════════
                4.5 ИСТОРИИ С ЭТИМ СЛОВОМ (народный учебник)
                ═══════════════════════════════ */}
-            <WordLoreCard bur={word.bur} onOpen={store.navigateToLoreArticle} />
+            {networkWord && <WordLoreCard bur={word.bur} onOpen={store.navigateToLoreArticle} />}
 
             {/* ═══════════════════════════════
                5. ЛЕКСИЧЕСКИЕ СВЯЗИ (синонимы, антонимы)
@@ -894,7 +897,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
             {/* ═══════════════════════════════
                7. КОММЕНТАРИИ
                ═══════════════════════════════ */}
-            <Card isDark={isDark} delay={0.22}>
+            {networkWord && <Card isDark={isDark} delay={0.22}>
               <div className="p-4">
                 {/* Заголовок секции */}
                 <div className="flex items-center gap-2 mb-3">
@@ -1216,7 +1219,7 @@ export const WordDetailScreen: React.FC<WordDetailScreenProps> = ({ store }) => 
                   </div>
                 )}
               </div>
-            </Card>
+            </Card>}
 
             {/* ═══════════════════════════════
                8. ИСТОЧНИКИ
